@@ -1,6 +1,42 @@
-# gitignore template for LangChain products, e.g., LangGraph, LangSmith
-# website: https://www.langchain.com/
-# website: https://www.langchain.com/langgraph
+# gitignore template for Project Artemis
 
-# LangGraph
+# ─── Python ─────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# ─── Testing & Linting ─────────────────────────────────────────
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# ─── Environment & Secrets ─────────────────────────────────────
+.env
+credentials/
+*.pem
+*.key
+
+# ─── Data (local ChromaDB, exports) ────────────────────────────
+data/
+
+# ─── LangGraph ──────────────────────────────────────────────────
 .langgraph_api/
+
+# ─── Node / Frontend ───────────────────────────────────────────
+node_modules/
+frontend/.next/
+frontend/out/
+
+# ─── IDE ────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
