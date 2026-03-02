@@ -15,9 +15,13 @@ import json
 import re
 from typing import Any
 
+from pydantic import BaseModel, Field
+
 import httpx
 import structlog
-import google.generativeai as genai
+from google import genai
+from google.genai import types, errors
+from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
 
 from agents.config import settings
 from agents.llm import load_system_prompt
@@ -33,91 +37,153 @@ SCRAPE_TIMEOUT = 15.0
 # ─── Tool Definitions (Gemini function declarations) ───────────
 
 SCOUT_TOOLS = [
-    genai.protos.Tool(
+    types.Tool(
         function_declarations=[
-            genai.protos.FunctionDeclaration(
+            types.FunctionDeclaration(
                 name="web_search",
                 description="Search Google for anything — job postings, company info, forums, hiring threads, career pages. Use diverse queries.",
-                parameters=genai.protos.Schema(
-                    type=genai.protos.Type.OBJECT,
-                    properties={
-                        "query": genai.protos.Schema(
-                            type=genai.protos.Type.STRING,
-                            description="The search query. Keep it simple and natural (3-8 words).",
-                        ),
+                parameters_json_schema={
+                    "type": "OBJECT",
+                    "properties": {
+                        "query": {
+                            "type": "STRING",
+                            "description": "The search query. Keep it simple and natural (3-8 words).",
+                        },
                     },
-                    required=["query"],
-                ),
+                    "required": ["query"],
+                },
             ),
-            genai.protos.FunctionDeclaration(
+            types.FunctionDeclaration(
                 name="read_page",
                 description="Read the text content of a web page. Use to dig into search results, read career pages, explore company sites, or read forum threads.",
-                parameters=genai.protos.Schema(
-                    type=genai.protos.Type.OBJECT,
-                    properties={
-                        "url": genai.protos.Schema(
-                            type=genai.protos.Type.STRING,
-                            description="The URL to read.",
-                        ),
+                parameters_json_schema={
+                    "type": "OBJECT",
+                    "properties": {
+                        "url": {
+                            "type": "STRING",
+                            "description": "The URL to read.",
+                        },
                     },
-                    required=["url"],
-                ),
+                    "required": ["url"],
+                },
             ),
-            genai.protos.FunctionDeclaration(
+            types.FunctionDeclaration(
                 name="save_lead",
-                description="Save a specific job posting you've found and verified. Only call this for real, open job postings.",
-                parameters=genai.protos.Schema(
-                    type=genai.protos.Type.OBJECT,
-                    properties={
-                        "title": genai.protos.Schema(type=genai.protos.Type.STRING, description="Exact job title"),
-                        "company": genai.protos.Schema(type=genai.protos.Type.STRING, description="Company name"),
-                        "url": genai.protos.Schema(type=genai.protos.Type.STRING, description="URL of the job posting"),
-                        "description": genai.protos.Schema(type=genai.protos.Type.STRING, description="2-3 sentence role summary"),
-                        "why_good_fit": genai.protos.Schema(type=genai.protos.Type.STRING, description="Why this is a good fit for the candidate"),
+                description="Save any relevant job posting you find. Cast a wide net — it does not need to be a perfect fit, downstream agents will filter later. Only call this for real, open job postings.",
+                parameters_json_schema={
+                    "type": "OBJECT",
+                    "properties": {
+                        "title": {"type": "STRING", "description": "Exact job title"},
+                        "company": {"type": "STRING", "description": "Company name"},
+                        "url": {"type": "STRING", "description": "URL of the job posting"},
+                        "description": {"type": "STRING", "description": "2-3 sentence role summary"},
+                        "why_good_fit": {"type": "STRING", "description": "Why this is a good fit for the candidate"},
                     },
-                    required=["title", "company", "url", "why_good_fit"],
-                ),
+                    "required": ["title", "company", "url", "why_good_fit"],
+                },
             ),
-            genai.protos.FunctionDeclaration(
+            types.FunctionDeclaration(
                 name="save_target_company",
                 description="Add a company to the watchlist for ongoing monitoring. Use when you find a company that seems like a great cultural/skills fit even if they don't have a specific opening right now.",
-                parameters=genai.protos.Schema(
-                    type=genai.protos.Type.OBJECT,
-                    properties={
-                        "name": genai.protos.Schema(type=genai.protos.Type.STRING, description="Company name"),
-                        "domain": genai.protos.Schema(type=genai.protos.Type.STRING, description="Company website domain (e.g., 'acme.com')"),
-                        "careers_url": genai.protos.Schema(type=genai.protos.Type.STRING, description="URL of their careers/jobs page"),
-                        "why_target": genai.protos.Schema(type=genai.protos.Type.STRING, description="Why this company is a good fit"),
-                        "priority": genai.protos.Schema(type=genai.protos.Type.STRING, description="high, medium, or low"),
+                parameters_json_schema={
+                    "type": "OBJECT",
+                    "properties": {
+                        "name": {"type": "STRING", "description": "Company name"},
+                        "domain": {"type": "STRING", "description": "Company website domain (e.g., 'acme.com')"},
+                        "careers_url": {"type": "STRING", "description": "URL of their careers/jobs page"},
+                        "why_target": {"type": "STRING", "description": "Why this company is a good fit"},
+                        "priority": {"type": "STRING", "description": "high, medium, or low"},
                     },
-                    required=["name", "why_target", "priority"],
-                ),
+                    "required": ["name", "why_target", "priority"],
+                },
             ),
-            genai.protos.FunctionDeclaration(
+            types.FunctionDeclaration(
                 name="check_existing",
                 description="Check what jobs and target companies are already being tracked. Call this early to avoid saving duplicates.",
-                parameters=genai.protos.Schema(
-                    type=genai.protos.Type.OBJECT,
-                    properties={},
-                ),
+                parameters_json_schema={
+                    "type": "OBJECT",
+                    "properties": {},
+                },
             ),
-            genai.protos.FunctionDeclaration(
+            types.FunctionDeclaration(
                 name="done",
                 description="Call when you've finished researching. Provide a summary of what you found.",
-                parameters=genai.protos.Schema(
-                    type=genai.protos.Type.OBJECT,
-                    properties={
-                        "summary": genai.protos.Schema(
-                            type=genai.protos.Type.STRING,
-                            description="Brief summary of discoveries, patterns noticed, and suggestions for next run.",
-                        ),
+                parameters_json_schema={
+                    "type": "OBJECT",
+                    "properties": {
+                        "summary": {
+                            "type": "STRING",
+                            "description": "Brief summary of discoveries, patterns noticed, and suggestions for next run.",
+                        },
                     },
-                    required=["summary"],
+                    "required": ["summary"],
+                },
+            ),
+            types.FunctionDeclaration(
+                name="find_jobs_via_llm",
+                description=(
+                    "Use an LLM with Google Search to find a list of recent, relevant job "
+                    "postings based on a query. The LLM will perform exhaustive web crawling "
+                    "and extract structured job data."
                 ),
+                parameters_json_schema={
+                    "type": "OBJECT",
+                    "properties": {
+                        "query": {
+                            "type": "STRING",
+                            "description": (
+                                "The search query, e.g., 'recent AI Product Manager job openings "
+                                "at YC startups'. Be specific about roles and criteria."
+                            ),
+                        },
+                    },
+                    "required": ["query"],
+                },
+            ),
+            types.FunctionDeclaration(
+                name="find_companies_via_llm",
+                description=(
+                    "Use an LLM with Google Search to discover a list of potential target "
+                    "companies based on a query. The LLM will identify companies that match "
+                    "your criteria."
+                ),
+                parameters_json_schema={
+                    "type": "OBJECT",
+                    "properties": {
+                        "query": {
+                            "type": "STRING",
+                            "description": (
+                                "The search query, e.g., 'top climate-tech companies hiring "
+                                "product managers' or 'fast growing series A developer tools startups'."
+                            ),
+                        },
+                    },
+                    "required": ["query"],
+                },
             ),
         ]
     )
 ]
+
+# ─── Pydantic Schemas for LLM Tools ──────────────────────────
+
+class LLMJobResult(BaseModel):
+    title: str = Field(description="Exact job title")
+    company: str = Field(description="Company name")
+    location: str = Field(description="Location (e.g., 'Remote', 'San Francisco', etc.)")
+    postedDate: str = Field(description="E.g., '2 days ago'")
+    sourceUrl: str = Field(description="URL to the job posting")
+    description: str = Field(description="Short summary (2-3 sentences)")
+    relevanceScore: int = Field(description="0-100, how well it fits based on the query")
+    keyRequirements: list[str] = Field(description="List of key requirements")
+    salaryRange: str | None = Field(None, description="Salary range if available, otherwise null")
+
+class LLMCompanyResult(BaseModel):
+    name: str = Field(description="Company name")
+    domain: str | None = Field(None, description="Company website domain (e.g., 'acme.com')")
+    careersUrl: str | None = Field(None, description="URL of their careers/jobs page if found")
+    whyTarget: str = Field(description="Why this company is a good fit based on the query")
+    priority: str = Field(description="'high', 'medium', or 'low'")
 
 
 # ─── Tool Implementations ─────────────────────────────────────
@@ -319,6 +385,67 @@ async def _tool_check_existing() -> str:
         return f"Failed to check existing data: {str(e)}"
 
 
+async def _tool_find_jobs_via_llm(query: str) -> str:
+    """Use Gemini with Google Search to find jobs."""
+    logger.info("scout.tool.find_jobs_via_llm", query=query)
+    try:
+        client = genai.Client(api_key=settings.google_api_key)
+        system_instruction = (
+            "You are an expert job scout. Your task is to find the most recent "
+            "and relevant job postings based on the user's query.\n\n"
+            "1. Extract structured data for each job.\n"
+            "2. Ensure you provide real URLs to the job postings.\n"
+            "3. Focus on recent postings (last 7-14 days if possible)."
+        )
+        response = await client.aio.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=f"Find recent job openings based on this query: {query}",
+            config=types.GenerateContentConfig(
+                system_instruction=system_instruction,
+                tools=[{"google_search": {}}],  # type: ignore
+                response_mime_type="application/json",
+                response_schema=list[LLMJobResult],  # type: ignore
+            )
+        )
+        if response.text:
+            return f"Found jobs mapping to the schema:\n{response.text}"
+        return f"No structural results returned for jobs query '{query}'."
+    except Exception as e:
+        logger.error("scout.tool.find_jobs_error", error=str(e))
+        return f"Failed to run LLM job search: {str(e)}"
+
+
+async def _tool_find_companies_via_llm(query: str) -> str:
+    """Use Gemini with Google Search to discover target companies."""
+    logger.info("scout.tool.find_companies_via_llm", query=query)
+    try:
+        client = genai.Client(api_key=settings.google_api_key)
+        system_instruction = (
+            "You are an expert corporate scout. Your task is to discover interesting "
+            "companies that match the user's query parameters and might be good "
+            "long-term targets for a candidate's career.\n\n"
+            "1. Extract structured data for each company.\n"
+            "2. Try to find their domains and career page URLs if possible.\n"
+            "3. Explain why they are a good target based on the criteria."
+        )
+        response = await client.aio.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=f"Find target companies based on this query: {query}",
+            config=types.GenerateContentConfig(
+                system_instruction=system_instruction,
+                tools=[{"google_search": {}}],  # type: ignore
+                response_mime_type="application/json",
+                response_schema=list[LLMCompanyResult],  # type: ignore
+            )
+        )
+        if response.text:
+            return f"Found companies mapping to the schema:\n{response.text}"
+        return f"No structural results returned for companies query '{query}'."
+    except Exception as e:
+        logger.error("scout.tool.find_companies_error", error=str(e))
+        return f"Failed to run LLM company search: {str(e)}"
+
+
 # ─── Tool Dispatcher ──────────────────────────────────────────
 
 
@@ -340,6 +467,8 @@ TOOL_HANDLERS = {
         priority=args.get("priority", "medium"),
     ),
     "check_existing": lambda args: _tool_check_existing(),
+    "find_jobs_via_llm": lambda args: _tool_find_jobs_via_llm(args.get("query", "")),
+    "find_companies_via_llm": lambda args: _tool_find_companies_via_llm(args.get("query", "")),
 }
 
 
@@ -379,11 +508,7 @@ async def scout_jobs(state: AgentState) -> AgentState:
     system_prompt = load_system_prompt("scout")
 
     # ── Initialize Gemini with tools ───────────────────────────
-    model = genai.GenerativeModel(
-        "gemini-2.5-flash",
-        system_instruction=system_prompt,
-        tools=SCOUT_TOOLS,
-    )
+    client = genai.Client(api_key=settings.google_api_key)
 
     # Start the conversation with the candidate's profile
     initial_message = f"""Here is the candidate's professional profile from their knowledge base:
@@ -394,9 +519,19 @@ async def scout_jobs(state: AgentState) -> AgentState:
 
 Begin your research. Start by checking what's already tracked, then explore broadly.
 Think about what kinds of companies and roles would be the best fit for this candidate,
-and then go find them. Remember to follow leads and dig deeper into promising threads."""
+and then go find them. Remember to follow leads and dig deeper into promising threads.
 
-    chat = model.start_chat()
+CRUCIAL INSTRUCTION: Your goal is to cast a VERY WIDE NET and build an exhaustive list 
+of potential opportunities. If a role or company is even somewhat relevant, save it! 
+Do not filter rigidly — downstream agents will carefully review and score the leads you find."""
+
+    chat = client.aio.chats.create(
+        model="gemini-2.5-flash",
+        config=types.GenerateContentConfig(
+            system_instruction=system_prompt,
+            tools=SCOUT_TOOLS,
+        )
+    )
     tool_calls_made = 0
     leads_saved = 0
     companies_saved = 0
@@ -404,38 +539,49 @@ and then go find them. Remember to follow leads and dig deeper into promising th
 
     logger.info("scout.loop.start", max_tools=MAX_TOOL_CALLS)
 
+    @retry(
+        retry=retry_if_exception_type(errors.APIError),
+        wait=wait_exponential(multiplier=2, min=5, max=60),
+        stop=stop_after_attempt(6)
+    )
+    async def _send_message_with_retry(msg: Any) -> Any:
+        try:
+            return await chat.send_message(msg)
+        except errors.APIError as e:
+            if e.code == 429:
+                logger.warning("scout.rate_limit", error="Gemini API rate limit hit. Retrying with backoff...")
+                raise e
+            raise e
+
     # ── Agentic loop ───────────────────────────────────────────
-    response = await chat.send_message_async(initial_message)
+    response = await _send_message_with_retry(initial_message)
 
     while tool_calls_made < MAX_TOOL_CALLS and not agent_done:
         # Check if the model wants to call tools
-        if not response.candidates or not response.candidates[0].content.parts:
+        if not response.function_calls and not response.text:
             logger.info("scout.loop.no_response")
             break
 
-        # Process each part of the response
         tool_responses = []
         has_function_call = False
 
-        for part in response.candidates[0].content.parts:
-            if hasattr(part, "function_call") and part.function_call.name:
+        if response.function_calls:
+            for fc in response.function_calls:
                 has_function_call = True
-                fn_name = part.function_call.name
-                fn_args = dict(part.function_call.args) if part.function_call.args else {}
+                fn_name = fc.name
+                fn_args = fc.args
 
                 logger.info("scout.tool_call", tool=fn_name, args_keys=list(fn_args.keys()))
 
                 # Handle the "done" tool specially
                 if fn_name == "done":
-                    summary = fn_args.get("summary", "No summary provided.")
+                    summary = fn_args.get("summary", "No summary provided.") if fn_args else "No summary provided."
                     logger.info("scout.done", summary=summary)
                     agent_done = True
                     tool_responses.append(
-                        genai.protos.Part(
-                            function_response=genai.protos.FunctionResponse(
-                                name="done",
-                                response={"result": "Session complete."},
-                            )
+                        types.Part.from_function_response(
+                            name="done",
+                            response={"result": "Session complete."},
                         )
                     )
                     break
@@ -450,34 +596,30 @@ and then go find them. Remember to follow leads and dig deeper into promising th
                         logger.error("scout.tool_error", tool=fn_name, error=str(e))
 
                     # Track saves
-                    if fn_name == "save_lead" and "✅" in result:
-                        leads_saved += 1
-                    elif fn_name == "save_target_company" and "✅" in result:
-                        companies_saved += 1
+                    if fn_name == "save_lead" and "✅" in str(result):
+                        leads_saved = int(leads_saved) + 1
+                    elif fn_name == "save_target_company" and "✅" in str(result):
+                        companies_saved = int(companies_saved) + 1
 
-                    tool_calls_made += 1
+                    tool_calls_made = int(tool_calls_made) + 1
                     logger.info("scout.tool_result", tool=fn_name, result_preview=result[:100], calls=tool_calls_made)
 
                     tool_responses.append(
-                        genai.protos.Part(
-                            function_response=genai.protos.FunctionResponse(
-                                name=fn_name,
-                                response={"result": result},
-                            )
+                        types.Part.from_function_response(
+                            name=fn_name,
+                            response={"result": result},
                         )
                     )
                 else:
                     tool_responses.append(
-                        genai.protos.Part(
-                            function_response=genai.protos.FunctionResponse(
-                                name=fn_name,
-                                response={"result": f"Unknown tool: {fn_name}"},
-                            )
+                        types.Part.from_function_response(
+                            name=fn_name,
+                            response={"result": f"Unknown tool: {fn_name}"},
                         )
                     )
-            elif hasattr(part, "text") and part.text:
-                # The model is thinking out loud — log it
-                logger.info("scout.thinking", text=part.text[:200])
+        elif response.text:
+            # The model is thinking out loud — log it
+            logger.info("scout.thinking", text=response.text[:200])
 
         if agent_done:
             break
@@ -486,7 +628,7 @@ and then go find them. Remember to follow leads and dig deeper into promising th
             # Model stopped calling tools — prompt it to continue or finish
             logger.info("scout.no_tools_called", message="Model stopped calling tools")
             try:
-                response = await chat.send_message_async(
+                response = await _send_message_with_retry(
                     "Continue researching or call the `done` tool if you're finished."
                 )
             except Exception as e:
@@ -497,9 +639,7 @@ and then go find them. Remember to follow leads and dig deeper into promising th
         # Send tool results back to the model
         if tool_responses:
             try:
-                response = await chat.send_message_async(
-                    genai.protos.Content(parts=tool_responses)
-                )
+                response = await _send_message_with_retry(tool_responses)
             except Exception as e:
                 logger.error("scout.response_error", error=str(e))
                 break

@@ -9,7 +9,8 @@ all upserts and queries use the same embedding space.
 from __future__ import annotations
 
 import chromadb
-from chromadb.utils.embedding_functions import GoogleGenerativeAiEmbeddingFunction
+from chromadb.api.types import EmbeddingFunction, Documents, Embeddings
+from google import genai
 import structlog
 
 from agents.config import settings
@@ -17,18 +18,32 @@ from agents.config import settings
 logger = structlog.get_logger()
 
 _client: chromadb.HttpClient | None = None
-_embedding_fn: GoogleGenerativeAiEmbeddingFunction | None = None
+_embedding_fn: EmbeddingFunction | None = None
 COLLECTION_NAME = "artemis_knowledge_base"
 
 
-def get_embedding_function() -> GoogleGenerativeAiEmbeddingFunction:
+class GenAIEmbeddingFunction(EmbeddingFunction[Documents]):
+    """Custom ChromaDB Embedding Function using the new google-genai SDK."""
+    def __init__(self, api_key: str, model_name: str = "models/gemini-embedding-001"):
+        self.client = genai.Client(api_key=api_key)
+        self.model_name = model_name
+
+    def __call__(self, input: Documents) -> Embeddings:
+        # Generate embeddings for a list of strings
+        response = self.client.models.embed_content(
+            model=self.model_name,
+            contents=list(input)
+        )
+        return [emb.values for emb in response.embeddings]
+
+
+def get_embedding_function() -> EmbeddingFunction:
     """Get the Gemini embedding function for ChromaDB."""
     global _embedding_fn
     if _embedding_fn is None:
-        _embedding_fn = GoogleGenerativeAiEmbeddingFunction(
+        _embedding_fn = GenAIEmbeddingFunction(
             api_key=settings.google_api_key,
             model_name="models/gemini-embedding-001",
-            task_type="RETRIEVAL_DOCUMENT",
         )
     return _embedding_fn
 

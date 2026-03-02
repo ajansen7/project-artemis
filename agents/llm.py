@@ -11,29 +11,18 @@ import json
 from pathlib import Path
 from typing import Any
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 import structlog
 
 from agents.config import settings
 
 logger = structlog.get_logger()
 
-# Configure the SDK once at import time
-genai.configure(api_key=settings.google_api_key)
-
-# ─── Model instances ────────────────────────────────────────────
-
-_model: genai.GenerativeModel | None = None
+# Create the client once at import time
+client = genai.Client(api_key=settings.google_api_key)
 
 PROMPTS_DIR = Path(__file__).parent / "prompts"
-
-
-def get_model(model_name: str = "gemini-2.5-flash") -> genai.GenerativeModel:
-    """Get or create a Gemini GenerativeModel instance."""
-    global _model
-    if _model is None:
-        _model = genai.GenerativeModel(model_name)
-    return _model
 
 
 def load_system_prompt(agent_name: str) -> str:
@@ -60,12 +49,13 @@ async def generate_text(
     Returns:
         The generated text response.
     """
-    model = genai.GenerativeModel(
-        model_name,
-        system_instruction=system_prompt,
+    response = await client.aio.models.generate_content(
+        model=model_name,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            system_instruction=system_prompt,
+        )
     )
-
-    response = await model.generate_content_async(prompt)
 
     # Log token usage
     if hasattr(response, "usage_metadata") and response.usage_metadata:
@@ -104,15 +94,14 @@ async def generate_json(
         "Do not wrap in markdown code fences."
     )
 
-    model = genai.GenerativeModel(
-        model_name,
-        system_instruction=json_system,
-        generation_config=genai.GenerationConfig(
+    response = await client.aio.models.generate_content(
+        model=model_name,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            system_instruction=json_system,
             response_mime_type="application/json",
-        ),
+        )
     )
-
-    response = await model.generate_content_async(prompt)
 
     # Log token usage
     if hasattr(response, "usage_metadata") and response.usage_metadata:
