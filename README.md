@@ -46,8 +46,7 @@ cp .env.example .env
 docker compose up -d
 
 # Or run locally with uv
-uv venv
-uv pip install -e ".[dev]"
+uv sync
 
 # Run the ingestion pipeline
 uv run python scripts/run_ingest.py --all
@@ -62,8 +61,11 @@ uv run uvicorn agents.api:app --reload --port 8080
 ### Analyze a Job
 
 ```bash
-# Via CLI
+# Via CLI for Orchestrator/Analyst
 uv run python scripts/run_agents.py --job-url "https://example.com/job/123"
+
+# Via CLI to run the continuous Scout agent directly
+uv run python scripts/run_scout.py
 
 # Via API
 curl -X POST http://localhost:8080/api/analyze \
