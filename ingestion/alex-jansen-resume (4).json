@@ -1,0 +1,502 @@
+{
+  "meta": {
+    "generatedAt": "2026-03-02T06:25:24.830Z",
+    "source": "https://alexjansen.com",
+    "description": "Complete portfolio data for Alex Jansen. This file is auto-generated from the portfolio source code and is intended for use by AI agents, resume parsers, and downstream tooling."
+  },
+  "name": "Alex Jansen",
+  "title": "Technical AI Product Leader · Ex-Google PM & Engineer",
+  "tagline": "Builder, tinkerer, and chronic horizon-chaser. I care about building things that enrich people's lives — if you do that well, the value takes care of itself.",
+  "email": "alex@alexjansen.com",
+  "location": "United States",
+  "links": {
+    "linkedin": "https://www.linkedin.com/in/alex-jansen-product/",
+    "github": "https://github.com/ajansen7",
+    "substack": "https://thetechnicalpmlab.substack.com",
+    "portfolio": "https://alexjansen.com"
+  },
+  "bio": [
+    "I'm a builder and a tinkerer. I'm genuinely curious about how people use things — and endlessly interested in how to make that better.",
+    "My path here is a bit unusual: I started in HCI research, spent 7 years as an engineer at Google (Nest and Street View), and moved into product when I realized I cared more about what to build than how. Most recently I've been running the $70M ARR Brandfolder product at Smartsheet while building their AI evaluation infrastructure from scratch — two full-time jobs in parallel, because the problem needed solving and nobody else was solving it.",
+    "I'm not the PM who writes the most detailed spec. I'm the one peering beyond the horizon, catching a glimpse of where we're heading, and helping a team build toward it."
+  ],
+  "identities": [
+    "Product Leader",
+    "HCI Researcher",
+    "0-to-1 Builder",
+    "Skier",
+    "Woodworker"
+  ],
+  "skills": [
+    "Product Strategy",
+    "AI/ML Product Management",
+    "Agentic AI",
+    "LLM Evaluation",
+    "AI Evaluation Frameworks",
+    "LLM-as-a-Judge",
+    "RAG & Semantic Search",
+    "Developer Platform (SDK/API)",
+    "IoT/Hardware",
+    "Python",
+    "LangChain",
+    "TypeScript",
+    "React",
+    "Android (Java/Kotlin)",
+    "System Design",
+    "A/B Testing & Statistical Analysis",
+    "HCI Research",
+    "Accessibility",
+    "UX Engineering",
+    "Data-Driven Decision Making"
+  ],
+  "experience": [
+    {
+      "id": "brandfolder-ai",
+      "title": "Brandfolder AI Strategy & Roadmap",
+      "role": "Senior Product Manager · Smartsheet (Brandfolder)",
+      "year": "2023 — Present",
+      "manager": {
+        "challenge": "Enterprise customers faced \"blank page syndrome\" when organizing assets, and manual taxonomy creation was a massive bottleneck for user onboarding and content discoverability.",
+        "strategy": "As the owner of the $70M ARR product line, I drove the comprehensive AI roadmap. I prioritized point solutions that immediately added value—launching features like people tagging, suggested descriptions, and automated AI tagging.",
+        "impact": "Dramatically reduced the time required to manually build taxonomies. Authored business cases for AI initiatives representing $1.5M - $5M in new ARR opportunities."
+      },
+      "builder": {
+        "stack": "Python, LangChain, Anthropic Claude, Vector Embeddings",
+        "details": [
+          {
+            "label": "The Prototyping",
+            "description": "Drove the long-term vision of a new era of AI-powered DAM through hands-on functional prototyping. Built prototypes for semantic search and agentic workflows (like a \"NotebookLM\" clone for Brandfolder data using RAG) to validate concepts before scaling engineering resources."
+          }
+        ]
+      }
+    },
+    {
+      "id": "smartsheet-evals",
+      "title": "Smartsheet AI Evals & Internal Tooling",
+      "role": "Senior Product Manager · Smartsheet",
+      "year": "2023 — Present",
+      "manager": {
+        "challenge": "Evaluating non-deterministic generative AI features requires entirely new frameworks for defining \"success\" and launch readiness to ensure enterprise-grade trust.",
+        "strategy": "Partnered closely with engineering to build internal tooling for early signal detection on AI capabilities. Cemented a robust, 3-tiered evaluation approach: manual audits, LLM-as-a-judge evaluations, and human-in-the-loop reviews.",
+        "impact": "Established the evaluation framework and drove cross-team adoption across all agentic AI teams. Designed a 3-tiered approach — human SME review, LLM-as-a-judge, human-in-the-loop — covering 100+ scenarios. Shipped phase one on human expert oversight rather than waiting for a perfect system; used that signal to inform the automated eval layer over time. Key lessons: don't evaluate non-deterministic systems like deterministic ones, and start with 5–10 core metrics before expanding."
+      },
+      "builder": {
+        "stack": "Python, Synthetic Data Generation, Custom Eval Harness",
+        "details": [
+          {
+            "label": "The Architecture",
+            "description": "Devised the strategy for building out a \"golden dataset\" and bootstrapped it with synthetic test injection."
+          },
+          {
+            "label": "The Metrics",
+            "description": "Drove the organizational adoption of complex statistical metrics like pass@k and pass^k to accurately measure, track, and communicate the success/failure rates of probabilistic tools."
+          }
+        ]
+      }
+    },
+    {
+      "id": "google-workspace",
+      "title": "Google Workspace UI Transformation",
+      "role": "Product Manager · Google",
+      "year": "2022 — 2023",
+      "manager": {
+        "challenge": "Google Workspace had fragmented UI patterns. Implementing a unified design meant navigating massive organizational complexity, multi-faceted stakeholder demands, and deep-seated user resistance to change.",
+        "strategy": "Drove a strategic, decade-first UI transformation (Material Design 3 adoption) across the entire suite. Reasoned over success longitudinally, relying on CSAT measured over time to accommodate the adjustment period rather than reacting to initial launch friction.",
+        "impact": "Shipped to 1B+ users. The change was met with 80%+ positive CSAT, far exceeding baseline expectations."
+      },
+      "builder": {
+        "stack": "Internal Google Frameworks, A/B Testing Infrastructure, Statistics",
+        "details": [
+          {
+            "label": "The Data & Analysis",
+            "description": "Leveraged deeply instrumented apps to cut through ambiguity. Analyzed granular telemetry (e.g., how often users clicked 'print' from the toolbar) to guide tradeoffs."
+          },
+          {
+            "label": "The Complexity",
+            "description": "Advocated that low adoption does not equate to low utility. Utilized rigorous A/B testing and complex statistical analysis (including multivariate ANOVAs) to understand interaction effects and finalize difficult compromises."
+          }
+        ]
+      }
+    },
+    {
+      "id": "nest-yale",
+      "title": "Nest x Yale Lock",
+      "role": "Product/UX Engineer · Nest (Google)",
+      "year": "2014 — 2021",
+      "manager": {
+        "challenge": "Smart locks were seen as \"gadgets\" rather than serious security devices. Users feared being locked out due to connectivity drops.",
+        "strategy": "Focused on making the lock feel like it belonged in people's lives, not just in their homes. Spent months building interactive prototypes to refine micro-interactions — open/close animations, failure states, edge cases — before a single line of production code was written. Engineered the full mobile experience across Android and iOS.",
+        "impact": "Surpassed launch revenue goals and created a best-in-class standard for smart home access."
+      },
+      "builder": {
+        "stack": "Java (Android), Objective-C (iOS), Thread/Weave Protocols",
+        "details": [
+          {
+            "label": "The Code",
+            "description": "Engineered the mobile provisioning flow (BLE handshakes) to be failure-proof and built the \"Guest Access\" scheduling engine, handling complex timezone logic and offline synchronization states."
+          }
+        ]
+      }
+    },
+    {
+      "id": "works-with-nest",
+      "title": "Works with Nest — Developer Platform",
+      "role": "Software Engineer · Nest (Google)",
+      "year": "2014 — 2021",
+      "manager": {
+        "challenge": "Integrating new IoT devices into the Nest ecosystem required weeks of custom work per device — every new product needed its own interfaces across Android, iOS, web, backend, and firmware.",
+        "strategy": "Built a codegen platform using Jinja2 templating and protobuf-defined device capability schemas. Third parties described what their device could do; the system automatically generated fully functional cross-platform interfaces — including all networking layers — from that definition.",
+        "impact": "Reduced new device integration time from weeks to hours. Enabled the Nest ecosystem to scale third-party device support without scaling the engineering team proportionally."
+      },
+      "builder": {
+        "stack": "Python, Jinja2, Protobuf, Android (Java), iOS (Objective-C), Backend Services",
+        "details": [
+          {
+            "label": "The Code",
+            "description": "Designed the protobuf schema for device capability definitions and built the Jinja2-based code generation pipeline that produced fully functional cross-platform interfaces from those definitions."
+          }
+        ]
+      }
+    },
+    {
+      "id": "pairing-kit",
+      "title": "Pairing Kit — Internal Android SDK",
+      "role": "Software Engineer · Nest (Google)",
+      "year": "2014 — 2021",
+      "manager": {
+        "challenge": "Every Nest product had its own device pairing flow — inconsistent UX for users, redundant engineering effort for every new product team.",
+        "strategy": "Built an internal Android SDK that normalized device pairing flows across the entire Nest product suite. New product teams integrated Pairing Kit rather than building their own pairing experience from scratch.",
+        "impact": "Made device pairing seamless and consistent for users across the product line. Dramatically reduced integration effort for teams shipping new Nest products."
+      },
+      "builder": {
+        "stack": "Android (Java), Bluetooth, Thread/Weave Protocols",
+        "details": [
+          {
+            "label": "The Code",
+            "description": "Built the SDK abstracting Bluetooth and Thread/Weave pairing protocols into a unified, drop-in integration for Android product teams."
+          }
+        ]
+      }
+    },
+    {
+      "id": "street-view-app",
+      "title": "Street View App UX Overhaul",
+      "role": "Product/UX Engineer · Google (Maps/Street View)",
+      "year": "2014 — 2021",
+      "manager": {
+        "challenge": "The Street View mobile application required a modernization of its core user experience to maintain engagement for a massive global user base.",
+        "strategy": "Directed the UX and engineering efforts for a major redesign of the application, focusing on streamlining navigation, content discovery, and contribution flows.",
+        "impact": "Increased Play Store ratings by a full star for over 1M+ Daily Active Users (DAU)."
+      },
+      "builder": {
+        "stack": "Java (Android), Objective-C (iOS), Google Maps API",
+        "details": [
+          {
+            "label": "The Code",
+            "description": "Modernized the mobile tech stack and interaction patterns, ensuring fluid performance while rendering heavy 360-degree environments on constrained mobile hardware."
+          }
+        ]
+      }
+    },
+    {
+      "id": "flat-imagery",
+      "title": "Universal \"Flat\" Imagery Support",
+      "role": "Product/UX Engineer · Google (Maps/Street View)",
+      "year": "2014 — 2021",
+      "manager": {
+        "challenge": "Imagery consumption within the app was heavily biased toward 360 panoramas, neglecting high-quality traditional 2D photography.",
+        "strategy": "Led the initiative to add comprehensive support for \"flat\" imagery across the Street View ecosystem on all viewing surfaces.",
+        "impact": "Significantly increased the volume of user-generated content uploads and broadened the app's utility for local discovery and business representation."
+      },
+      "builder": {
+        "stack": "C++, Internal Google Image Processing",
+        "details": [
+          {
+            "label": "The Code",
+            "description": "Unified the image ingestion pipeline and rendering engines to seamlessly transition between flat and 360 projections without dropping frames or breaking the UX paradigm."
+          }
+        ]
+      }
+    },
+    {
+      "id": "hardware-lab",
+      "title": "Street View Hardware Lab & Dynamic Routing",
+      "role": "Product/UX Engineer · Google (Maps/Street View)",
+      "year": "2014 — 2021",
+      "manager": {
+        "challenge": "Street View drivers faced rigid routing systems that broke down when real-world conditions (traffic, construction) forced them off-route, causing massive inefficiencies.",
+        "strategy": "Built out a dedicated internal hardware lab to rapidly prototype and iterate on more modern tooling and interfaces for the Street View fleet.",
+        "impact": "Built a hardware lab in our Boulder office — including a benchtop Street View car rig and a bespoke GPS antenna installation on the building roof. Coordinated hardware procurement, building maintenance, and electrical engineering for signal amplification over long cable runs. Also built the Android routing app for Street View drivers, with automatic route correction when a driver deviated from their plan."
+      },
+      "builder": {
+        "stack": "Android Automotive, Custom Hardware Interfaces, Graph Routing Algorithms",
+        "details": [
+          {
+            "label": "The Code",
+            "description": "Engineered a dynamic routing system that automatically re-adjusted and recalculated optimal capture paths in real-time whenever a driver deviated from the planned route."
+          }
+        ]
+      }
+    }
+  ],
+  "labs": [
+    {
+      "id": "penguin-free",
+      "title": "Penguin Free (v0.1-alpha)",
+      "description": "A 2.5D endless runner built over a weekend. Features progressive difficulty scaling, a relentless Yeti antagonist, and a global Supabase leaderboard.",
+      "tech": [
+        "React",
+        "Canvas API",
+        "Supabase"
+      ],
+      "status": "live",
+      "link": "/penguin",
+      "buildersLog": "**The Weekend Sprint**\nBuilt this to test how far I could push the Canvas API for a pseudo-3D effect (2.5D). The core challenge was the \"Yeti\" logic—balancing his speed so he feels threatening but not impossible. It's a study in game feel: friction, gravity, and the 'Perfect Jump' mechanic."
+    },
+    {
+      "id": "south-beach-diet",
+      "title": "South Beach Diet Tracker",
+      "description": "A mobile nutritional tracking app for phase-based diet protocols. Uses Google Gemini to transform meal photos into structured nutritional data.",
+      "tech": [
+        "Kotlin",
+        "Jetpack Compose",
+        "Room",
+        "Gemini API"
+      ],
+      "status": "prototype",
+      "github": "https://github.com/ajansen7/SouthBeachDiet",
+      "role": "Solo Builder",
+      "timeline": "2024 — Present",
+      "aiEngine": "Gemini 1.5 Flash → 2.5",
+      "readme": "# South Beach Diet Tracker 🥗\nAn intelligent, AI-powered Android application designed to simplify the South Beach Diet. By leveraging Google's Gemini, the app transforms meal photos into structured nutritional data, providing instant feedback on diet compliance across all phases.\n\n## Technical Deep Dive\n- **Computer Vision**: Analyzes plates using Gemini's multi-modal capabilities.\n- **Dynamic Feedback**: Determines safety status (Safe, Avoid, or Caution) based on specific diet phase rules.\n- **Architecture**: Modern Android stack with MVVM and Room for offline persistence.",
+      "buildersLog": "**The Lesson: Prompt-by-Prompt vs. Upfront Architecture**\nI started by prompting the AI one thought at a time, which was inefficient. I've since learned I can avoid local maximums by coming with a clear plan and detailed requirements upfront. This is exactly where being diligent about adding to an AGENT.md file pays massive dividends."
+    },
+    {
+      "id": "pointing-magnifier",
+      "title": "Pointing Magnifier",
+      "description": "A cursor replacement that magnifies both visual and motor space. Deployed to real users to reduce the need for fine motor control.",
+      "tech": [
+        "C#",
+        "Win32 API",
+        "HCI Research"
+      ],
+      "status": "live",
+      "link": "https://depts.washington.edu/acelab/proj/ptgmag/index.html",
+      "github": "https://github.com/ajansen7/Pointing-Magnifier",
+      "research": "ACM CHI · From the Lab to the World: Lessons from Extending a Pointing Technique for Real-World Use",
+      "readme": "# Pointing Magnifier\nA cursor replacement designed to reduce the need for fine motor control. Unlike standard magnifiers, it magnifies both **visual space** and **motor space**, making targets not only look bigger but feel bigger to the hand.\n\n## Research Impact\n- Successfully deployed to users with various motor impairments.\n- Proved that area cursors combined with magnification significantly decrease error rates in fine-pointing tasks.",
+      "buildersLog": "**Visual Space vs. Motor Space**\nMost magnifiers only help you see better. The Pointing Magnifier makes the targets 'feel' bigger to the mouse. The technical hurdle was creating a transparent overlay that intercepted input without breaking the Windows OS focus model. It taught me that accessibility isn't just a layer—it's a fundamental architectural challenge."
+    },
+    {
+      "id": "context-type",
+      "title": "ContextType",
+      "description": "An intelligent keyboard that uses hand posture (accelerometer/gyro) to resize keys in real-time, solving the 'fat finger' problem.",
+      "tech": [
+        "Java",
+        "Android SDK",
+        "Bayesian Classification"
+      ],
+      "status": "archived",
+      "github": "https://github.com/ajansen7/ContextType",
+      "research": "ACM CHI · ContextType: using hand posture information to improve mobile touch screen text entry.",
+      "readme": "# ContextType\nImproving mobile typing accuracy by accounting for user posture and grip. This intelligent keyboard system detects how you are holding your device to refine touch targets in real-time.\n\n## Key Features\n- **Posture-Aware Targeting**: Adjusts hit zones based on left-hand, right-hand, or index-finger input.\n- **Dynamic Resizing**: Uses Bayesian models to predict intended key presses despite \"fat finger\" errors.\n- **Sensor Fusion**: Leverages accelerometer and gyroscope data to classify hand posture.",
+      "buildersLog": "**The Posture Problem**\nUsers type differently when using one hand vs. two, or an index finger. By using the phone's sensors to classify posture (Bayesian modeling), we could shift and resize the 'hit zones' of the keys under the hood. It was a fascinating dive into the intersection of hardware sensors and human psychology."
+    },
+    {
+      "id": "sur-touch",
+      "title": "SurTouch",
+      "description": "A research tool for modeling and personalizing user input on vision-based touch surfaces using machine learning.",
+      "tech": [
+        "C#",
+        "WEKA",
+        "Computer Vision"
+      ],
+      "status": "archived",
+      "github": "https://github.com/ajansen7/SurTouch",
+      "readme": "# SurTouch\nModeling and detecting features of touch input on large-scale surface computing systems. \n\n## Technical Methodology\n- **Feature Extraction**: Captures touch area, elliptical fits, and pressure-simulated contours.\n- **ML Integration**: Exports data to ARFF format for analysis in WEKA.\n- **Personalization**: Generates user-specific offsets to correct for systemic pointing bias.",
+      "buildersLog": "**Machine Learning on the Surface**\nWe used WEKA to analyze touch contours—area, pressure, and elliptical fits. Every person has a unique 'touch signature.' SurTouch was about capturing that signature and creating a personalized offset to correct for the offset between where a user thinks they are touching and where the sensor actually fires."
+    },
+    {
+      "id": "sloppy-touch",
+      "title": "SloppyTouch",
+      "description": "Research into user-specific models for imprecise input on surface-based computing systems.",
+      "tech": [
+        "C#",
+        "Surface SDK",
+        "Research"
+      ],
+      "status": "archived",
+      "github": "https://github.com/ajansen7/SloppyTouch",
+      "readme": "# SloppyTouch\nCompensating for \"sloppiness\" in touch interaction. This research focuses on learning individual variability in how users target on-screen elements to improve overall system accuracy.\n\n## Core Components\n- **RawImageVisualizer**: Real-time visualization of touch contact geometry.\n- **Behavioral Modeling**: Building profiles of user-specific error patterns.",
+      "buildersLog": "**Embracing Imperfection**\nInstead of forcing users to be more precise, SloppyTouch asks: 'Can the system be smarter about the user's lack of precision?' It was about moving away from 'perfect' input models toward probabilistic ones that reflect human variability."
+    },
+    {
+      "id": "lock-screen-survey",
+      "title": "Lock Screen Survey App",
+      "description": "A low-friction survey mechanism that replaces slide-to-unlock with micro-surveys to capture in-the-moment feedback.",
+      "tech": [
+        "Java",
+        "Android SDK",
+        "SQLite"
+      ],
+      "status": "archived",
+      "github": "https://github.com/ajansen7/LockScreenApp",
+      "readme": "# LockScreenApp\nA novel data collection method that embeds surveys directly into the Android lock screen. \n\n## Innovation\n- **Micro-interactions**: Answers are captured in the seconds before a user accesses their phone.\n- **High Response Rate**: Leverages the high frequency of phone unlocks for longitudinal data collection.\n- **Stats Tracking**: Local SQLite storage for answer statistics and value tracking.",
+      "buildersLog": "**The Frictionless Survey**\nThe goal was to see if we could get people to answer research questions without it feeling like work. By putting the question on the lock screen, we turned a mandatory 'unlock' gesture into a data point. It was a study in persuasive design and micro-interaction."
+    },
+    {
+      "id": "music-profiler",
+      "title": "MusicProfiler",
+      "description": "A mood-based profiling engine that analyzes Last.FM habits to build personalized emotional listening profiles.",
+      "tech": [
+        "Java",
+        "Android SDK",
+        "Last.FM API"
+      ],
+      "status": "archived",
+      "github": "https://github.com/ajansen7/MusicProfiler",
+      "research": "ACM Poster · MoodMusic: a method for cooperative, generative music playlist creation.",
+      "buildersLog": "**Beyond Genre**\nGenre is a crude way to organize music. MusicProfiler looked at the metadata of tags—'melancholy,' 'energetic,' 'late night'—to build a map of a user's emotional landscape. The challenge was normalizing the messy, user-generated tag data from Last.FM into something a machine could reason about."
+    },
+    {
+      "id": "dino-generator",
+      "title": "Toddler Dino Creator",
+      "description": "An AI-powered generator for kids. Simplifies complex prompt engineering into a playful UI for prehistoric friend creation.",
+      "tech": [
+        "Python",
+        "Streamlit",
+        "DALL-E"
+      ],
+      "status": "live",
+      "github": "https://github.com/ajansen7/random/tree/main/dino-gen",
+      "buildersLog": "**Designing for a 3-Year-Old**\nThe challenge here was UI abstraction. A toddler can't write a prompt, but they can pick a 'hat' or 'space.' I had to build a translation layer that took those simple choices and turned them into highly detailed cinematic prompts for DALL-E."
+    },
+    {
+      "id": "qr-stitcher",
+      "title": "QR Stitcher & Solver",
+      "description": "A computer vision toolkit for reconstructing QR codes from fragments using OpenCV and feature matching.",
+      "tech": [
+        "Python",
+        "OpenCV",
+        "pyzbar"
+      ],
+      "status": "prototype",
+      "github": "https://github.com/ajansen7/random/tree/main/qr-tools",
+      "buildersLog": "**Solving the Unsolvable**\nThis started with a physical puzzle that had a missing QR code piece. I used OpenCV to handle the perspective warping and manual 'stitching' to align the fragments. It's a great example of using computer vision to bridge a gap in the physical world."
+    },
+    {
+      "id": "aspens-calculator",
+      "title": "Aspen's Calculator",
+      "description": "A hex-grid digitizer and state analyzer for board games, using blob detection to classify components.",
+      "tech": [
+        "Python",
+        "OpenCV",
+        "NumPy"
+      ],
+      "status": "prototype",
+      "github": "https://github.com/ajansen7/random/tree/main/aspens-calculator",
+      "buildersLog": "**Hex-Grid Math**\nCoordinate systems for hex grids are notoriously tricky. I built this to digitize physical board game layouts via a phone photo, using blob detection to identify game pieces and map them back to a virtual hex-coordinate system."
+    },
+    {
+      "id": "new-fruit",
+      "title": "New Fruit: Meats in Disguise",
+      "description": "A parody landing page and interactive 'Fruit or Meat?' challenge exploring viral brand identity.",
+      "tech": [
+        "HTML5",
+        "Tailwind CSS",
+        "JavaScript"
+      ],
+      "status": "live",
+      "github": "https://github.com/ajansen7/random/tree/main/new-fruit",
+      "buildersLog": "**The Art of the Gag**\nThis was a study in brand identity and \"absurd realism.\" I focused on the 'Patent' section and the 'Meatosis' science to see how believable a totally ridiculous concept could look with high-fidelity design."
+    }
+  ],
+  "publications": [
+    {
+      "title": "The effects of task dimensionality, endpoint deviation, throughput calculation, and experiment design on pointing measures and models",
+      "venue": "ACM CHI",
+      "type": "Full Paper",
+      "focus": "Fundamental HCI research on Fitts' Law and how humans interact with 2D/3D interfaces.",
+      "link": "https://dl.acm.org/doi/pdf/10.1145/1978942.1979181"
+    },
+    {
+      "title": "Enhanced area cursors: reducing fine-pointing demands",
+      "venue": "ACM UIST",
+      "type": "Full Paper",
+      "focus": "Accessibility research designing new cursor interactions for people with motor impairments.",
+      "link": "https://dl.acm.org/doi/pdf/10.1145/1866029.1866055"
+    },
+    {
+      "title": "ContextType: using hand posture information to improve mobile touch screen text entry",
+      "venue": "ACM CHI",
+      "type": "Note",
+      "focus": "Machine learning applied to touch input — the research behind the ContextType GitHub repo.",
+      "link": "https://dl.acm.org/doi/pdf/10.1145/2470654.2481386"
+    },
+    {
+      "title": "From the lab to the world: lessons from extending a pointing technique for real-world use",
+      "venue": "CHI Extended Abstracts",
+      "type": "Case Study",
+      "focus": "Bridging the gap between academic research and viable product features.",
+      "link": "https://dl.acm.org/doi/pdf/10.1145/1979742.1979888"
+    },
+    {
+      "title": "Modeling and predicting pointing errors in two dimensions",
+      "venue": "ACM CHI",
+      "type": "Full Paper",
+      "focus": "Mathematical modeling of user error rates to improve input accuracy.",
+      "link": "https://dl.acm.org/doi/pdf/10.1145/1978942.1979183"
+    },
+    {
+      "title": "MoodMusic: a method for cooperative, generative music playlist creation",
+      "venue": "ACM UIST",
+      "type": "Poster",
+      "focus": "Early exploration into generative agents for social music discovery.",
+      "link": "https://dl.acm.org/doi/pdf/10.1145/2046396.2046435"
+    }
+  ],
+  "education": [
+    {
+      "degree": "Master of Science, Human-Computer Interaction",
+      "school": "University of Washington",
+      "year": 2013
+    },
+    {
+      "degree": "Bachelor of Science, Informatics",
+      "school": "University of Washington",
+      "year": 2010
+    }
+  ],
+  "awards": [
+    {
+      "title": "UW Center for Commercialization Award",
+      "detail": "\"Best Commercial Potential\" (Top 2 of 70) for \"Click-and-Cross Cursor\" research."
+    },
+    {
+      "title": "NSF Graduate Fellowship",
+      "detail": "Honorable Mention (2011)."
+    }
+  ],
+  "interests": [
+    {
+      "title": "Photography",
+      "description": "Film photos & analog vibes"
+    },
+    {
+      "title": "Skiing",
+      "description": "Skiing Hokkaido, 2025"
+    },
+    {
+      "title": "Arcade",
+      "description": "Penguin Free v0.1"
+    },
+    {
+      "title": "Woodworking",
+      "description": "Bench Build v3"
+    },
+    {
+      "title": "Code",
+      "description": "South Beach Diet Tracker"
+    }
+  ]
+}
