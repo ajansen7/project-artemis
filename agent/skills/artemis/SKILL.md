@@ -14,7 +14,7 @@ Artemis sits at the intersection of two other projects. These are the **sources 
 | Project | Path | What it owns |
 |---------|------|-------------|
 | **Portfolio** (`alex-s-lens`) | `/Users/alexjansen/Dev/alex-s-lens/` | Resume, LinkedIn content, professional narrative |
-| **Interview Coach** (`interview-coach-skill`) | `/Users/alexjansen/Dev/interview-coach-skill/` | Coaching state, storybank, interview prep, drills |
+| **Interview Coach** (`interview-coach-skill`) | `/Users/alexjansen/Dev/project-artemis/agent/skills/interview-coach-skill/` | Coaching state, storybank, interview prep, drills |
 
 ### Key files to read from these projects:
 
@@ -98,9 +98,9 @@ Search the web for job opportunities that match the candidate's profile.
      - **50-79**: Moderate match — some alignment but role may be adjacent or company less targeted
      - **20-49**: Weak match — tangentially relevant, worth tracking
      - **0-19**: Barely relevant — only save if the company itself is interesting
-   - Save to Supabase with the score: `uv run python .agent/skills/artemis/scripts/db.py add-job --title "..." --company "..." --url "..." --description "..." --source "scout" --match-score <0-100>`
+   - Save to Supabase with the score: `uv run python agent/skills/artemis/scripts/db.py add-job --title "..." --company "..." --url "..." --description "..." --source "scout" --match-score <0-100>`
 6. For interesting companies without specific openings, save as target companies:
-   - `uv run python .agent/skills/artemis/scripts/db.py add-company --name "..." --domain "..." --careers-url "..." --why "..." --priority "high|medium|low"`
+   - `uv run python agent/skills/artemis/scripts/db.py add-company --name "..." --domain "..." --careers-url "..." --why "..." --priority "high|medium|low"`
 7. Report what you found: jobs saved, companies discovered, score distribution, patterns noticed
 
 **Scoring factors** (from `candidate_context.md`, weight roughly in this order):
@@ -128,13 +128,13 @@ Search the web for job opportunities that match the candidate's profile.
 Show the current state of the job pipeline and let the user triage.
 
 **Steps:**
-1. Query pipeline: `uv run python .agent/skills/artemis/scripts/db.py list-jobs`
+1. Query pipeline: `uv run python agent/skills/artemis/scripts/db.py list-jobs`
 2. Present a clear summary table grouped by status (scouted → to_review → applied → interviewing → offer)
 3. For each job, show: title, company, URL, status, match score (if scored)
 4. Ask the user what to do with each (or batch):
-   - **Advance**: move to next status → `uv run python .agent/skills/artemis/scripts/db.py update-job --id "..." --status "to_review"`
-   - **Not interested**: `uv run python .agent/skills/artemis/scripts/db.py update-job --id "..." --status "not_interested" --reason "..."`
-   - **Delete**: `uv run python .agent/skills/artemis/scripts/db.py update-job --id "..." --status "deleted"`
+   - **Advance**: move to next status → `uv run python agent/skills/artemis/scripts/db.py update-job --id "..." --status "to_review"`
+   - **Not interested**: `uv run python agent/skills/artemis/scripts/db.py update-job --id "..." --status "not_interested" --reason "..."`
+   - **Delete**: `uv run python agent/skills/artemis/scripts/db.py update-job --id "..." --status "deleted"`
 
 ---
 
@@ -154,7 +154,7 @@ Deep analysis of a specific job posting against the candidate's profile.
    - **Red Flags**: anything concerning about the role/company
    - **Recommendation**: apply / skip / worth exploring
 5. Save the full markdown output of your analysis to a temporary file `analysis.md`.
-6. Update the job in Supabase: `uv run python .agent/skills/artemis/scripts/db.py update-job --id "<job_id>" --match-score <score> --analysis-file "analysis.md"`
+6. Update the job in Supabase: `uv run python agent/skills/artemis/scripts/db.py update-job --id "<job_id>" --match-score <score> --analysis-file "analysis.md"`
 
 ---
 
@@ -165,7 +165,7 @@ Generate tailored interview prep for a specific company or role.
 **Steps:**
 1. **Context freshness check** (see above) — refresh cache if stale
 2. Read `references/candidate_context.md` (for profile, story index, interview intelligence, known gaps)
-3. Look up the job/company in Supabase: `uv run python .agent/skills/artemis/scripts/db.py get-job --id "..."`
+3. Look up the job/company in Supabase: `uv run python agent/skills/artemis/scripts/db.py get-job --id "..."`
 4. Research the company (web search for recent news, culture, leadership, tech stack)
 5. Generate:
    - **Company Overview**: what they do, recent news, culture signals
@@ -183,7 +183,7 @@ Generate tailored interview prep for a specific company or role.
 Quick pipeline overview.
 
 **Steps:**
-1. Run: `uv run python .agent/skills/artemis/scripts/db.py status`
+1. Run: `uv run python agent/skills/artemis/scripts/db.py status`
 2. Display counts by status, recent activity, and target companies being monitored
 
 ---
@@ -194,7 +194,7 @@ Generate a tailored resume, cover letter, and primer for a specific job applicat
 
 **Steps:**
 1. **Context freshness check** (see above) — refresh cache if stale
-2. Look up the job/company in Supabase: `uv run python .agent/skills/artemis/scripts/db.py get-job --id "..."`
+2. Look up the job/company in Supabase: `uv run python agent/skills/artemis/scripts/db.py get-job --id "..."`
 3. Read context:
    - `references/candidate_context.md` (for positioning, voice, strengths, known gaps)
    - `/Users/alexjansen/Dev/alex-s-lens/public/resume.json` (full structured resume data — needed for tailored resume generation)
@@ -216,7 +216,7 @@ Generate a tailored resume, cover letter, and primer for a specific job applicat
      ```
    - **`primer.md`**: A company/role primer combining gap analysis from `/analyze` and interview strategy from `/prep`, serving as a cheat sheet for the application process.
 6. Save the generated files to Supabase by running:
- `uv run python .agent/skills/artemis/scripts/db.py save-application --id "<job_id>" --resume "applications/.../resume.md" --cover-letter "applications/.../cover_letter.md" --primer "applications/.../primer.md"`
+ `uv run python agent/skills/artemis/scripts/db.py save-application --id "<job_id>" --resume "applications/.../resume.md" --cover-letter "applications/.../cover_letter.md" --primer "applications/.../primer.md"`
 
 ---
 
@@ -227,7 +227,7 @@ Bulk maintenance: re-score, prune dead links, and update based on latest prefere
 **Steps:**
 1. **Context freshness check** (see above) — refresh cache if stale
 2. Read `references/candidate_context.md` (for scoring factors, target companies, deal breakers)
-3. Get all active jobs: `uv run python .agent/skills/artemis/scripts/db.py list-jobs`
+3. Get all active jobs: `uv run python agent/skills/artemis/scripts/db.py list-jobs`
 4. For each job (batch by status — `scouted` and `to_review` first, then `applied`/`interviewing`):
    - **Check if still live**: Try to read the job URL.
      - **If the URL works**: re-read the posting content for re-scoring (step below)
@@ -239,7 +239,7 @@ Bulk maintenance: re-score, prune dead links, and update based on latest prefere
    - **Re-score against current preferences**: Re-evaluate the match_score using the Scoring Factors from `candidate_context.md`
    - **Update description** if the posting content has changed materially
 5. Collect all changes and apply via batch:
-   - `echo '<json>' | uv run python .agent/skills/artemis/scripts/db.py batch-update`
+   - `echo '<json>' | uv run python agent/skills/artemis/scripts/db.py batch-update`
 6. Report a sync summary:
    - Jobs removed (confirmed dead)
    - Jobs with updated URLs (moved)
@@ -263,12 +263,12 @@ For adding or updating multiple jobs at once, use the batch commands with JSON v
 
 **Batch add** (for `/scout`):
 ```bash
-echo '[{"title":"Senior PM","company":"Anthropic","url":"https://...","description":"Build AI safety tools","match_score":85,"source":"scout"},{"title":"PM","company":"Cursor","match_score":72}]' | uv run python .agent/skills/artemis/scripts/db.py batch-add
+echo '[{"title":"Senior PM","company":"Anthropic","url":"https://...","description":"Build AI safety tools","match_score":85,"source":"scout"},{"title":"PM","company":"Cursor","match_score":72}]' | uv run python agent/skills/artemis/scripts/db.py batch-add
 ```
 
 **Batch update** (for `/sync`):
 ```bash
-echo '[{"id":"uuid-1","match_score":82},{"id":"uuid-2","status":"deleted","reason":"Posting removed"},{"id":"uuid-3","match_score":55,"status":"to_review"}]' | uv run python .agent/skills/artemis/scripts/db.py batch-update
+echo '[{"id":"uuid-1","match_score":82},{"id":"uuid-2","status":"deleted","reason":"Posting removed"},{"id":"uuid-3","match_score":55,"status":"to_review"}]' | uv run python agent/skills/artemis/scripts/db.py batch-update
 ```
 
 Required `.env` variables:

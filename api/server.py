@@ -46,7 +46,7 @@ async def generate_application(req: GenerateRequest):
                 "-p", 
                 prompt,
                 "--dangerously-skip-permissions",
-                "--add-dir", "/Users/alexjansen/Dev/interview-coach-skill",
+                "--add-dir", "/Users/alexjansen/Dev/project-artemis/agent/skills/interview-coach-skill",
                 "--add-dir", "/Users/alexjansen/Dev/alex-s-lens"
             ],
             cwd="/Users/alexjansen/Dev/project-artemis",
@@ -104,7 +104,7 @@ async def run_skill(req: RunSkillRequest):
                 "-p", 
                 prompt,
                 "--dangerously-skip-permissions",
-                "--add-dir", "/Users/alexjansen/Dev/interview-coach-skill",
+                "--add-dir", "/Users/alexjansen/Dev/project-artemis/agent/skills/interview-coach-skill",
                 "--add-dir", "/Users/alexjansen/Dev/alex-s-lens"
             ],
             cwd="/Users/alexjansen/Dev/project-artemis",

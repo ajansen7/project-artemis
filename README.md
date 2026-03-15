@@ -105,7 +105,7 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ### 3. Verify the DB connection
 
 ```bash
-uv run python .agent/skills/artemis/scripts/db.py status
+uv run python agent/skills/artemis/scripts/db.py status
 ```
 
 You should see a pipeline status dashboard (all zeros if fresh).
@@ -116,7 +116,7 @@ Artemis reads from two sibling projects for candidate context:
 
 | Project | What it provides | Expected path |
 |---------|-----------------|---------------|
-| `interview-coach-skill` | `coaching_state.md` (profile, storybank, interview history) | `~/Dev/interview-coach-skill/` |
+| `interview-coach-skill` | `coaching_state.md` (profile, storybank, interview history) | `agent/skills/interview-coach-skill/` |
 | `alex-s-lens` | `public/resume.json` (structured resume) | `~/Dev/alex-s-lens/` |
 
 If these projects exist at those paths, Artemis will read from them directly. If not, the skill still works — you'll just need to provide context manually when asked.
@@ -209,7 +209,7 @@ All Supabase operations go through `scripts/db.py`. Claude calls this automatica
 
 ```bash
 # Add a job
-uv run python .agent/skills/artemis/scripts/db.py add-job \
+uv run python agent/skills/artemis/scripts/db.py add-job \
   --title "Senior AI PM" \
   --company "Anthropic" \
   --url "https://..." \
@@ -217,26 +217,26 @@ uv run python .agent/skills/artemis/scripts/db.py add-job \
   --source "scout"
 
 # List all jobs
-uv run python .agent/skills/artemis/scripts/db.py list-jobs
+uv run python agent/skills/artemis/scripts/db.py list-jobs
 
 # List by status
-uv run python .agent/skills/artemis/scripts/db.py list-jobs --status scouted
+uv run python agent/skills/artemis/scripts/db.py list-jobs --status scouted
 
 # Get full details
-uv run python .agent/skills/artemis/scripts/db.py get-job --id "uuid-here"
+uv run python agent/skills/artemis/scripts/db.py get-job --id "uuid-here"
 
 # Update status
-uv run python .agent/skills/artemis/scripts/db.py update-job --id "uuid" --status "to_review"
+uv run python agent/skills/artemis/scripts/db.py update-job --id "uuid" --status "to_review"
 
 # Mark not interested with reason
-uv run python .agent/skills/artemis/scripts/db.py update-job --id "uuid" --status "not_interested" --reason "Too junior"
+uv run python agent/skills/artemis/scripts/db.py update-job --id "uuid" --status "not_interested" --reason "Too junior"
 ```
 
 ### Companies
 
 ```bash
 # Add a target company
-uv run python .agent/skills/artemis/scripts/db.py add-company \
+uv run python agent/skills/artemis/scripts/db.py add-company \
   --name "Anthropic" \
   --domain "anthropic.com" \
   --careers-url "https://anthropic.com/careers" \
@@ -244,14 +244,14 @@ uv run python .agent/skills/artemis/scripts/db.py add-company \
   --priority high
 
 # List target companies
-uv run python .agent/skills/artemis/scripts/db.py list-companies
+uv run python agent/skills/artemis/scripts/db.py list-companies
 ```
 
 ### Pipeline
 
 ```bash
 # Dashboard
-uv run python .agent/skills/artemis/scripts/db.py status
+uv run python agent/skills/artemis/scripts/db.py status
 ```
 
 ---
@@ -260,7 +260,7 @@ uv run python .agent/skills/artemis/scripts/db.py status
 
 ```
 project-artemis/
-├── .agent/skills/artemis/
+├── agent/skills/artemis/
 │   ├── SKILL.md              # Skill definition — commands, context refs, instructions
 │   ├── context/
 │   │   └── preferences.md    # Target roles, companies, deal-breakers (Artemis-owned)
@@ -276,7 +276,7 @@ project-artemis/
 ### What the skill reads from other projects
 
 ```
-~/Dev/interview-coach-skill/
+agent/skills/interview-coach-skill/
 ├── coaching_state.md              # Profile, storybank, interview loops, coaching notes
 ├── references/storybank-guide.md  # Story framework and deployment guidance
 └── CLAUDE.md                      # Full interview coaching skill instructions
