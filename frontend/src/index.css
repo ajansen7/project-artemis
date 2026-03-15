@@ -247,10 +247,12 @@ button {
   align-items: center;
   justify-content: center;
   min-width: 40px;
-  padding: 3px 10px;
+  padding: 4px 12px;
   border-radius: var(--radius-full);
   font-size: 0.75rem;
   font-weight: 700;
+  width: fit-content;
+  justify-self: start;
 }
 
 .job-score-pill.high {
@@ -327,13 +329,16 @@ button {
 .status-badge {
   display: inline-flex;
   align-items: center;
-  padding: 3px 10px;
+  justify-content: center;
+  padding: 4px 12px;
   border-radius: var(--radius-full);
   font-size: 0.7rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
   white-space: nowrap;
+  width: fit-content;
+  justify-self: start;
 }
 
 .status-badge.scouted {
