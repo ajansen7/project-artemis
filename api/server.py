@@ -27,17 +27,17 @@ async def generate_application(req: GenerateRequest):
     if not req.job_id:
         raise HTTPException(status_code=400, detail="job_id is required")
 
-    # We need to construct the command. The skill `/apply` is instructed to accept a company or job ID.
-    # In SKILL.md the instruction says: `/apply <company or job>`
-    # The safest bet when triggering from UI is to pass the explicit job ID.
-    target = req.company_name if req.company_name else req.job_id
+    # We need to explicitly pass the job_id to prevent ambiguity when there are multiple roles at the same company.
+    target_str = f"Job ID: {req.job_id}"
+    if req.company_name:
+        target_str += f" at {req.company_name}"
     
-    print(f"Triggering application generation for: {target}")
+    print(f"Triggering application generation for: {target_str}")
 
     try:
         # Build the command string. Since `-p` doesn't support slash commands natively,
         # we tell Claude exactly what to do using natural language.
-        prompt = f"Follow the instructions for the `/apply` command in SKILL.md to generate application materials for '{target}'."
+        prompt = f"Follow the instructions for the `/apply` command in SKILL.md to generate application materials for '{target_str}'."
         
         process = subprocess.Popen(
             [
@@ -64,7 +64,7 @@ async def generate_application(req: GenerateRequest):
         
         return {
             "status": "success", 
-            "message": f"Application materials generated for {target}.",
+            "message": f"Application materials generated for {target_str}.",
             "output": stdout
         }
 
