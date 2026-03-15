@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { Job } from '../types';
 
 interface JobDetailProps {
@@ -9,6 +10,33 @@ interface JobDetailProps {
 
 export function JobDetail({ job, onAdvance, onSkip, onDelete }: JobDetailProps) {
   const nextStatus = getNextStatus(job.status);
+  const [generating, setGenerating] = useState(false);
+  const [generateMessage, setGenerateMessage] = useState<string | null>(null);
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    setGenerateMessage(null);
+    try {
+      const companyName = job.companies?.name || '';
+      const response = await fetch('http://localhost:8000/api/generate-application', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: job.id, company_name: companyName }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.detail || 'Generation failed');
+      }
+      
+      setGenerateMessage('✅ Generated in applications folder.');
+    } catch (err: any) {
+      setGenerateMessage(`❌ Error: ${err.message}`);
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   return (
     <div className="job-detail">
@@ -43,6 +71,14 @@ export function JobDetail({ job, onAdvance, onSkip, onDelete }: JobDetailProps) 
         </div>
 
         <div className="detail-actions">
+          <button 
+            className="action-btn" 
+            style={{ backgroundColor: 'var(--primary)', color: 'white' }}
+            onClick={handleGenerate}
+            disabled={generating}
+          >
+            {generating ? '✨ Generating...' : '✨ Generate Application'}
+          </button>
           {nextStatus && (
             <button className="action-btn review" onClick={onAdvance}>
               → Move to {nextStatus.replace('_', ' ')}
@@ -55,6 +91,11 @@ export function JobDetail({ job, onAdvance, onSkip, onDelete }: JobDetailProps) 
             Delete
           </button>
         </div>
+        {generateMessage && (
+          <div style={{ marginTop: 12, fontSize: '0.85rem', color: generateMessage.startsWith('✅') ? 'var(--success)' : 'var(--danger)' }}>
+            {generateMessage}
+          </div>
+        )}
       </div>
     </div>
   );
