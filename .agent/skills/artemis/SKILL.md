@@ -155,8 +155,20 @@ Generate a tailored resume, cover letter, and primer for a specific job applicat
    - `/Users/alexjansen/Dev/interview-coach-skill/coaching_state.md` (authentic voice, storybank, interview prep context)
 3. Create a new directory `applications/<company_name>-<role_name>/` within the Artemis workspace.
 4. Generate and save three markdown files in that directory:
-   - **`resume.md`**: A tailored version of the resume that highlights the most relevant experiences for the specific job description. Reorder bullets to match the JD priorities, but keep the exact format and completely avoid fabricating any history.
-   - **`cover_letter.md`**: A concise, authentic cover letter written in the candidate's established voice (no generic AI-speak, lean heavily on the "builder and tinkerer" positioning from `coaching_state.md`).
+   - **`resume.md`**: A tailored version of the resume that highlights the most relevant experiences for the specific job description. Reorder bullets to match the JD priorities, but keep the exact format and completely avoid fabricating any history. MUST use this exact header block at the top:
+     ```markdown
+     # Alex Jansen
+     ajansen1090@gmail.com | 509-531-9857 | [LinkedIn](https://www.linkedin.com/in/alex-jansen-product/) | [Portfolio](https://alex-jansen-portfolio.lovable.app/) | [GitHub](https://github.com/ajansen7)
+     ```
+   - **`cover_letter.md`**: A concise, authentic cover letter written in the candidate's established voice (no generic AI-speak, lean heavily on the "builder and tinkerer" positioning from `coaching_state.md`). MUST use this exact header block at the top:
+     ```markdown
+     Alex Jansen
+     ajansen1090@gmail.com
+     509-531-9857
+     
+     Hiring Team
+     [Company Name]
+     ```
    - **`primer.md`**: A company/role primer combining gap analysis from `/analyze` and interview strategy from `/prep`, serving as a cheat sheet for the application process.
 
 ---
