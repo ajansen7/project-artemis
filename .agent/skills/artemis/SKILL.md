@@ -20,10 +20,10 @@ Artemis sits at the intersection of two other projects. These are the **sources 
 
 | File | Project | Purpose | When to read |
 |------|---------|---------|-------------|
-| `coaching_state.md` | Interview Coach | Full candidate profile, career history, coaching notes, interview loops | `/analyze`, `/prep`, `/scout` |
-| `references/storybank-guide.md` | Interview Coach | Storybank framework and deployment guidance | `/analyze`, `/prep` |
+| `coaching_state.md` | Interview Coach | Full candidate profile, career history, coaching notes, interview loops | `/context` (full read); `/analyze`, `/prep` (targeted story sections only) |
+| `references/storybank-guide.md` | Interview Coach | Storybank framework and deployment guidance | `/prep` (if needed for drill structure) |
 | `CLAUDE.md` | Interview Coach | Full coaching skill instructions | `/prep` (for coaching context) |
-| `public/resume.json` | Portfolio | Structured resume data (source of truth) | `/analyze`, `/scout` |
+| `public/resume.json` | Portfolio | Structured resume data (source of truth) | `/context` (full read); `/apply` (for tailored resume generation) |
 | `src/` | Portfolio | Portfolio site source (work descriptions, projects) | When researching the candidate's own positioning |
 
 ### When Artemis discovers something that should update other projects:
@@ -34,36 +34,77 @@ Artemis sits at the intersection of two other projects. These are the **sources 
 
 ## Local Context Files
 
-These files are **owned by Artemis** and specific to the job search:
+These files are **owned by Artemis** and live in the `references/` directory:
 
 | File | Purpose | When to read |
 |------|---------|-------------|
-| [preferences.md](file://context/preferences.md) | Target roles, companies, deal-breakers, search criteria | `/scout` |
+| [candidate_context.md](file://references/candidate_context.md) | **Cached candidate profile** — compact summary of profile, career, stories, scoring factors, positioning | Every command (primary context source) |
+| [preferences.md](file://references/preferences.md) | Target roles, companies, deal-breakers, search keywords | `/context` (to build cache), `/scout` (for search keywords) |
+
+### Context Freshness Check
+
+**Before running any command**, check whether `candidate_context.md` needs refreshing:
+1. If `candidate_context.md` **does not exist** → run `/context` first
+2. Check the `Last Synced` timestamp in the file's header comment
+3. Compare against the modification date of `coaching_state.md` in Interview Coach — if `coaching_state.md` is **newer** than `Last Synced`, run `/context` to refresh
+4. If the cache is fresh, proceed with the command using `candidate_context.md` as the primary context source
 
 ## Commands
+
+### `/context` — Build & Refresh Candidate Context
+
+Builds or refreshes the cached candidate context from source-of-truth files. This is the **only command** that reads the full external files — all other commands use the cache.
+
+**When to run:**
+- First time using Artemis (cache doesn't exist yet)
+- Automatically triggered when any command detects the cache is stale (see Context Freshness Check above)
+- After updating `coaching_state.md`, resume, or preferences
+- After a coaching session, interview, or major profile change
+
+**Steps:**
+1. Read the full source-of-truth files:
+   - `coaching_state.md` from Interview Coach (profile, stories, positioning, interview intelligence)
+   - `resume.json` from Portfolio (career history, skills)
+   - `references/preferences.md` (target roles, companies, deal-breakers)
+2. Distill into `references/candidate_context.md` with these sections:
+   - **Profile Summary** — name, current role, target roles, experience level, location, contact
+   - **Core Positioning** — voice, differentiator, headline, career arc
+   - **Career History** (compact table) — company, title, dates, 1-line highlight
+   - **Key Strengths & Differentiators** — top 5-7 with brief evidence
+   - **Story Index** (compact table) — ID, title, "deploy for" tag, drilled status (no full STAR)
+   - **Scoring Factors** — weighted criteria for job matching
+   - **Deal Breakers** — from preferences
+   - **Target Companies** — tiered list from preferences
+   - **Known Gaps** — to address proactively in applications/interviews
+   - **Interview Intelligence** — effective/ineffective patterns, coaching focus
+3. Set `Last Synced` timestamp in the file header and note source file dates
+4. Report what was updated and any changes detected since last sync
+
+---
 
 ### `/scout` — Find Jobs
 
 Search the web for job opportunities that match the candidate's profile.
 
 **Steps:**
-1. Read `coaching_state.md` from Interview Coach (for profile context) and `context/preferences.md`
-2. Generate diverse search queries based on the profile (target roles, companies, industries)
-3. Use web search to find job postings, career pages, hiring threads, company blogs
-4. For each promising find:
+1. **Context freshness check** (see above) — refresh cache if stale
+2. Read `references/candidate_context.md` (for profile, scoring factors, target companies) and `references/preferences.md` (for search keywords)
+3. Generate diverse search queries based on the profile (target roles, companies, industries)
+4. Use web search to find job postings, career pages, hiring threads, company blogs
+5. For each promising find:
    - Read the posting to extract title, company, location, URL, and brief description
-   - **Score relevance (0-100)** based on fit with profile, preferences, and role type:
+   - **Score relevance (0-100)** using the Scoring Factors from `candidate_context.md`:
      - **80-100**: Strong match — role title, company type, and seniority all align
      - **50-79**: Moderate match — some alignment but role may be adjacent or company less targeted
      - **20-49**: Weak match — tangentially relevant, worth tracking
      - **0-19**: Barely relevant — only save if the company itself is interesting
    - Save to Supabase with the score: `uv run python .agent/skills/artemis/scripts/db.py add-job --title "..." --company "..." --url "..." --description "..." --source "scout" --match-score <0-100>`
-5. For interesting companies without specific openings, save as target companies:
+6. For interesting companies without specific openings, save as target companies:
    - `uv run python .agent/skills/artemis/scripts/db.py add-company --name "..." --domain "..." --careers-url "..." --why "..." --priority "high|medium|low"`
-6. Report what you found: jobs saved, companies discovered, score distribution, patterns noticed
+7. Report what you found: jobs saved, companies discovered, score distribution, patterns noticed
 
-**Scoring factors** (weight roughly in this order):
-- Role title match to target roles in `preferences.md`
+**Scoring factors** (from `candidate_context.md`, weight roughly in this order):
+- Role title match to target roles
 - Company match to target companies / industries
 - Seniority band match (Senior PM / GPM / Director range)
 - AI/ML depth of the role (not just "AI-powered" marketing)
@@ -102,17 +143,18 @@ Show the current state of the job pipeline and let the user triage.
 Deep analysis of a specific job posting against the candidate's profile.
 
 **Steps:**
-1. Read `coaching_state.md` from Interview Coach (profile + storybank sections)
-2. Read the job posting URL
-3. Produce a structured analysis:
+1. **Context freshness check** (see above) — refresh cache if stale
+2. Read `references/candidate_context.md` (for profile, strengths, story index, known gaps)
+3. Read the job posting URL
+4. Produce a structured analysis:
    - **Fit Score** (0-100)
    - **Matched Requirements**: where the candidate is strong, with evidence
    - **Gaps**: requirements not fully met, with severity (high/medium/low) and suggestions
-   - **Story Recommendations**: which STAR stories from the storybank to deploy and why
+   - **Story Recommendations**: use the Story Index from `candidate_context.md` to identify which stories to deploy. If you need full STAR details for specific stories, read **only those story sections** from `coaching_state.md` (e.g., "#### S001", "#### S004") — do not read the entire file.
    - **Red Flags**: anything concerning about the role/company
    - **Recommendation**: apply / skip / worth exploring
-4. Save the full markdown output of your analysis to a temporary file `analysis.md`.
-5. Update the job in Supabase: `uv run python .agent/skills/artemis/scripts/db.py update-job --id "<job_id>" --match-score <score> --analysis-file "analysis.md"`
+5. Save the full markdown output of your analysis to a temporary file `analysis.md`.
+6. Update the job in Supabase: `uv run python .agent/skills/artemis/scripts/db.py update-job --id "<job_id>" --match-score <score> --analysis-file "analysis.md"`
 
 ---
 
@@ -121,17 +163,18 @@ Deep analysis of a specific job posting against the candidate's profile.
 Generate tailored interview prep for a specific company or role.
 
 **Steps:**
-1. Read `coaching_state.md` and `references/storybank-guide.md` from Interview Coach
-2. Look up the job/company in Supabase: `uv run python .agent/skills/artemis/scripts/db.py get-job --id "..."`
-3. Research the company (web search for recent news, culture, leadership, tech stack)
-4. Generate:
+1. **Context freshness check** (see above) — refresh cache if stale
+2. Read `references/candidate_context.md` (for profile, story index, interview intelligence, known gaps)
+3. Look up the job/company in Supabase: `uv run python .agent/skills/artemis/scripts/db.py get-job --id "..."`
+4. Research the company (web search for recent news, culture, leadership, tech stack)
+5. Generate:
    - **Company Overview**: what they do, recent news, culture signals
    - **Role Fit Summary**: why the candidate is competitive
    - **Anticipated Questions** (5-7) with suggested story deployments
    - **Questions to Ask** (3-5) that show genuine understanding
-   - **Stories to Drill**: which stories to practice, with opening lines
-   - **Watch Out For**: potential concerns to address proactively
-5. If the Interview Coach skill should capture a new interview loop, update `coaching_state.md`
+   - **Stories to Drill**: which stories to practice — read **only those story sections** from `coaching_state.md` for full STAR details and opening lines
+   - **Watch Out For**: potential concerns to address proactively (use Known Gaps from cache)
+6. If the Interview Coach skill should capture a new interview loop, update `coaching_state.md`
 
 ---
 
@@ -150,18 +193,19 @@ Quick pipeline overview.
 Generate a tailored resume, cover letter, and primer for a specific job application.
 
 **Steps:**
-1. Look up the job/company in Supabase: `uv run python .agent/skills/artemis/scripts/db.py get-job --id "..."`
-2. Read the source of truth files:
-   - `/Users/alexjansen/Dev/alex-s-lens/public/resume.json` (career history and skills)
-   - `/Users/alexjansen/Dev/interview-coach-skill/coaching_state.md` (authentic voice, storybank, interview prep context)
-3. Create a new directory `applications/<company_name>-<role_name>/` within the Artemis workspace.
-4. Generate and save three markdown files in that directory:
+1. **Context freshness check** (see above) — refresh cache if stale
+2. Look up the job/company in Supabase: `uv run python .agent/skills/artemis/scripts/db.py get-job --id "..."`
+3. Read context:
+   - `references/candidate_context.md` (for positioning, voice, strengths, known gaps)
+   - `/Users/alexjansen/Dev/alex-s-lens/public/resume.json` (full structured resume data — needed for tailored resume generation)
+4. Create a new directory `applications/<company_name>-<role_name>/` within the Artemis workspace.
+5. Generate and save three markdown files in that directory:
    - **`resume.md`**: A tailored version of the resume that highlights the most relevant experiences for the specific job description. Reorder bullets to match the JD priorities, but keep the exact format and completely avoid fabricating any history. MUST use this exact header block at the top:
      ```markdown
      # Alex Jansen
      ajansen1090@gmail.com | 509-531-9857 | [LinkedIn](https://www.linkedin.com/in/alex-jansen-product/) | [Portfolio](https://alex-jansen-portfolio.lovable.app/) | [GitHub](https://github.com/ajansen7)
      ```
-   - **`cover_letter.md`**: A concise, authentic cover letter written in the candidate's established voice (no generic AI-speak, lean heavily on the "builder and tinkerer" positioning from `coaching_state.md`). MUST use this exact header block at the top:
+   - **`cover_letter.md`**: A concise, authentic cover letter written in the candidate's established voice (no generic AI-speak, lean heavily on the "builder and tinkerer" positioning from `candidate_context.md`). MUST use this exact header block at the top:
      ```markdown
      Alex Jansen
      ajansen1090@gmail.com
@@ -171,7 +215,7 @@ Generate a tailored resume, cover letter, and primer for a specific job applicat
      [Company Name]
      ```
    - **`primer.md`**: A company/role primer combining gap analysis from `/analyze` and interview strategy from `/prep`, serving as a cheat sheet for the application process.
-5. Save the generated files to Supabase by running:
+6. Save the generated files to Supabase by running:
  `uv run python .agent/skills/artemis/scripts/db.py save-application --id "<job_id>" --resume "applications/.../resume.md" --cover-letter "applications/.../cover_letter.md" --primer "applications/.../primer.md"`
 
 ---
@@ -181,9 +225,10 @@ Generate a tailored resume, cover letter, and primer for a specific job applicat
 Bulk maintenance: re-score, prune dead links, and update based on latest preferences.
 
 **Steps:**
-1. Read current `coaching_state.md` and `context/preferences.md` (in case priorities have changed)
-2. Get all active jobs: `uv run python .agent/skills/artemis/scripts/db.py list-jobs`
-3. For each job (batch by status — `scouted` and `to_review` first, then `applied`/`interviewing`):
+1. **Context freshness check** (see above) — refresh cache if stale
+2. Read `references/candidate_context.md` (for scoring factors, target companies, deal breakers)
+3. Get all active jobs: `uv run python .agent/skills/artemis/scripts/db.py list-jobs`
+4. For each job (batch by status — `scouted` and `to_review` first, then `applied`/`interviewing`):
    - **Check if still live**: Try to read the job URL.
      - **If the URL works**: re-read the posting content for re-scoring (step below)
      - **If the URL is dead** (404, redirect to generic careers page, "position filled", "no longer accepting"):
@@ -191,11 +236,11 @@ Bulk maintenance: re-score, prune dead links, and update based on latest prefere
        2. **If found at a new URL**: update the job's URL → `update-job --id "..." --url "new-url"` and re-score from the live posting.
        3. **If the role genuinely no longer exists**: mark as deleted → `update-job --id "..." --status "deleted" --reason "Posting no longer available — verified via search"`
        4. **If unclear** (e.g. company careers page has no listings at all): flag for user review rather than auto-deleting → include in the sync summary as "⚠️ Needs manual check"
-   - **Re-score against current preferences**: Re-evaluate the match_score using the same 0-100 rubric as `/scout`, using the latest profile and preferences
+   - **Re-score against current preferences**: Re-evaluate the match_score using the Scoring Factors from `candidate_context.md`
    - **Update description** if the posting content has changed materially
-4. Collect all changes and apply via batch:
+5. Collect all changes and apply via batch:
    - `echo '<json>' | uv run python .agent/skills/artemis/scripts/db.py batch-update`
-5. Report a sync summary:
+6. Report a sync summary:
    - Jobs removed (confirmed dead)
    - Jobs with updated URLs (moved)
    - Jobs flagged for manual review (unclear)
