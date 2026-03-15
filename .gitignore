@@ -40,3 +40,10 @@ frontend/out/
 *.swp
 *.swo
 .DS_Store
+
+# ─── Personal Context & Agent Outputs ──────────────────────────
+applications/
+ingestion/
+analysis.md
+agent/skills/artemis/references/*.md
+agent/skills/interview-coach-skill/coaching_state.md
