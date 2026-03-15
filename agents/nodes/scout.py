@@ -398,7 +398,7 @@ async def _tool_find_jobs_via_llm(query: str) -> str:
             "3. Focus on recent postings (last 7-14 days if possible)."
         )
         response = await client.aio.models.generate_content(
-            model="gemini-2.5-flash",
+            model=settings.gemini_model,
             contents=f"Find recent job openings based on this query: {query}",
             config=types.GenerateContentConfig(
                 system_instruction=system_instruction,
@@ -526,7 +526,7 @@ of potential opportunities. If a role or company is even somewhat relevant, save
 Do not filter rigidly — downstream agents will carefully review and score the leads you find."""
 
     chat = client.aio.chats.create(
-        model="gemini-2.5-flash",
+        model=settings.gemini_model,
         config=types.GenerateContentConfig(
             system_instruction=system_prompt,
             tools=SCOUT_TOOLS,

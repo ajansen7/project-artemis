@@ -10,8 +10,9 @@ client = genai.Client(api_key=api_key)
 
 async def test_search():
     try:
+        model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
         response = await client.aio.models.generate_content(
-            model="gemini-2.5-flash",
+            model=model_name,
             contents="Find recent AI Product Manager job openings at Braintrust or Confident AI.",
             config=types.GenerateContentConfig(
                 tools=[{'google_search': {}}]

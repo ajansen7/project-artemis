@@ -37,20 +37,21 @@ def load_system_prompt(agent_name: str) -> str:
 async def generate_text(
     prompt: str,
     system_prompt: str | None = None,
-    model_name: str = "gemini-2.5-flash",
+    model_name: str | None = None,
 ) -> str:
     """Generate free-text completion from Gemini.
 
     Args:
         prompt: The user prompt / main instruction.
         system_prompt: Optional system instruction.
-        model_name: Gemini model to use.
+        model_name: Gemini model to use (defaults to settings.gemini_model).
 
     Returns:
         The generated text response.
     """
+    selected_model = model_name or settings.gemini_model
     response = await client.aio.models.generate_content(
-        model=model_name,
+        model=selected_model,
         contents=prompt,
         config=types.GenerateContentConfig(
             system_instruction=system_prompt,
@@ -72,7 +73,7 @@ async def generate_text(
 async def generate_json(
     prompt: str,
     system_prompt: str | None = None,
-    model_name: str = "gemini-2.5-flash",
+    model_name: str | None = None,
 ) -> dict[str, Any]:
     """Generate a JSON response from Gemini.
 
@@ -82,11 +83,12 @@ async def generate_json(
     Args:
         prompt: The user prompt with JSON output instructions.
         system_prompt: Optional system instruction.
-        model_name: Gemini model to use.
+        model_name: Gemini model to use (defaults to settings.gemini_model).
 
     Returns:
         Parsed JSON as a dict.
     """
+    selected_model = model_name or settings.gemini_model
     # Append JSON instruction to the system prompt
     json_system = (system_prompt or "") + (
         "\n\nIMPORTANT: You MUST respond with valid JSON only. "
@@ -95,7 +97,7 @@ async def generate_json(
     )
 
     response = await client.aio.models.generate_content(
-        model=model_name,
+        model=selected_model,
         contents=prompt,
         config=types.GenerateContentConfig(
             system_instruction=json_system,

@@ -58,6 +58,16 @@ uv run pytest
 uv run uvicorn agents.api:app --reload --port 8080
 ```
 
+### List Available Models
+
+To see all available Gemini models you can run:
+
+```bash
+uv run python scripts/list_models.py
+```
+
+You can set your preferred model in your `.env` file using the `GEMINI_MODEL` variable (e.g., `GEMINI_MODEL=gemini-2.0-flash-exp`).
+
 ### Analyze a Job
 
 ```bash
