@@ -144,6 +144,23 @@ Quick pipeline overview.
 
 ---
 
+### `/apply <company or job>` — Application Material Generation
+
+Generate a tailored resume, cover letter, and primer for a specific job application.
+
+**Steps:**
+1. Look up the job/company in Supabase: `uv run python .agent/skills/artemis/scripts/db.py get-job --id "..."`
+2. Read the source of truth files:
+   - `/Users/alexjansen/Dev/alex-s-lens/public/resume.json` (career history and skills)
+   - `/Users/alexjansen/Dev/interview-coach-skill/coaching_state.md` (authentic voice, storybank, interview prep context)
+3. Create a new directory `applications/<company_name>-<role_name>/` within the Artemis workspace.
+4. Generate and save three markdown files in that directory:
+   - **`resume.md`**: A tailored version of the resume that highlights the most relevant experiences for the specific job description. Reorder bullets to match the JD priorities, but keep the exact format and completely avoid fabricating any history.
+   - **`cover_letter.md`**: A concise, authentic cover letter written in the candidate's established voice (no generic AI-speak, lean heavily on the "builder and tinkerer" positioning from `coaching_state.md`).
+   - **`primer.md`**: A company/role primer combining gap analysis from `/analyze` and interview strategy from `/prep`, serving as a cheat sheet for the application process.
+
+---
+
 ### `/sync` — Refresh & Re-score Pipeline
 
 Bulk maintenance: re-score, prune dead links, and update based on latest preferences.
