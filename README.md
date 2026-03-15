@@ -84,6 +84,8 @@ db/migrations/003_optional_company.sql  # Make company_id optional on jobs
 db/migrations/004_job_management.sql    # Add not_interested/deleted statuses
 db/migrations/005_relax_rls.sql         # Relax RLS for local dev
 db/migrations/006_target_companies.sql  # Target company watchlist fields
+db/migrations/007_application_markdown.sql  # Dedicated application artifacts table
+db/migrations/008_applications_rls.sql  # Relax RLS for anonymous application reads
 ```
 
 3. Copy your credentials:
@@ -137,7 +139,7 @@ uv run uvicorn api.server:app --reload
 cd frontend
 npm run dev
 ```
-*This will open the dashboard on `http://localhost:5173`. You can manage your pipeline from here.*
+*This will open the dashboard on `http://localhost:5173`. You can manually trigger `/sync`, `/analyze`, or "Generate Applications" directly from the UI without opening the Claude CLI.*
 
 ---
 
@@ -150,6 +152,8 @@ Open the project in Claude Code and use natural language. These are the core cap
 > *"Scout for jobs"* or *"Find AI product manager roles"*
 
 Claude reads your profile and search preferences, then uses its built-in web search to find job postings, career pages, hiring threads, and interesting companies. Results are saved to Supabase.
+
+*Note: If Claude adds a job with a match score of `80` or higher, the parent company is immediately auto-targeted and added to your UI sidebar!*
 
 ### `/review` — Review Pipeline
 
@@ -178,6 +182,16 @@ Generates tailored interview prep:
 - Anticipated questions with story deployments
 - Questions to ask
 - Stories to drill with opening lines
+
+### `/apply <job_id>` — Generate Application
+
+> *"Generate cover letter for job `1c1682a7`"*
+
+Generates highly tailored job application artifacts:
+- Uses `coaching_state.md` to emulate your authentic voice (not generic AI-speak).
+- Reads the specific job description and your resume JSON.
+- Creates `resume.md`, `cover_letter.md`, and an interview `primer.md` specifically suited for the target role.
+- Automatically saves the markdown to the `applications` table in Supabase so it can be viewed directly in the UI.
 
 ### `/status` — Dashboard
 
