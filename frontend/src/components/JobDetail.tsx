@@ -7,9 +7,10 @@ interface JobDetailProps {
   onAdvance: () => void;
   onSkip: () => void;
   onDelete: () => void;
+  onUpdate: () => void;
 }
 
-export function JobDetail({ job, onAdvance, onSkip, onDelete }: JobDetailProps) {
+export function JobDetail({ job, onAdvance, onSkip, onDelete, onUpdate }: JobDetailProps) {
   const nextStatus = getNextStatus(job.status);
   const [generating, setGenerating] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
@@ -38,6 +39,8 @@ export function JobDetail({ job, onAdvance, onSkip, onDelete }: JobDetailProps) 
       setModalTitle(`/analyze Results for ${job.companies?.name || 'Job'}`);
       setModalContent(data.output);
       setModalOpen(true);
+      // Give the DB a tiny beat to finish persisting, then fetch fresh data
+      setTimeout(onUpdate, 1000);
     } catch (err: any) {
       setModalTitle(`Error running /analyze`);
       setModalContent(`❌ **Error:** ${err.message}`);
@@ -71,6 +74,8 @@ export function JobDetail({ job, onAdvance, onSkip, onDelete }: JobDetailProps) 
       }
       
       setGenerateMessage('✅ Generated in applications folder.');
+      // Give the DB a tiny beat to finish persisting, then fetch fresh data
+      setTimeout(onUpdate, 1000);
     } catch (err: any) {
       setGenerateMessage(`❌ Error: ${err.message}`);
     } finally {

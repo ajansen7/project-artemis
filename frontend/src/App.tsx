@@ -38,6 +38,7 @@ function App() {
             loading={loading}
             onUpdateStatus={handleStatusChange}
             onDelete={handleDelete}
+            onUpdate={refetch}
           />
         </div>
         <CompanySidebar

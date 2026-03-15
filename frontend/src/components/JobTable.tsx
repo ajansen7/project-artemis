@@ -8,9 +8,10 @@ interface JobTableProps {
   loading: boolean;
   onUpdateStatus: (jobId: string, status: JobStatus) => void;
   onDelete: (jobId: string) => void;
+  onUpdate: () => void;
 }
 
-export function JobTable({ jobs, loading, onUpdateStatus, onDelete }: JobTableProps) {
+export function JobTable({ jobs, loading, onUpdateStatus, onDelete, onUpdate }: JobTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   if (loading) {
@@ -93,6 +94,7 @@ export function JobTable({ jobs, loading, onUpdateStatus, onDelete }: JobTablePr
                 onAdvance={() => nextStatus && onUpdateStatus(job.id, nextStatus)}
                 onSkip={() => onUpdateStatus(job.id, 'not_interested')}
                 onDelete={() => onDelete(job.id)}
+                onUpdate={onUpdate}
               />
             )}
           </div>
