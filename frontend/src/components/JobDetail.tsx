@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Job } from '../types';
+import { MarkdownModal } from './MarkdownModal';
 
 interface JobDetailProps {
   job: Job;
@@ -11,7 +12,40 @@ interface JobDetailProps {
 export function JobDetail({ job, onAdvance, onSkip, onDelete }: JobDetailProps) {
   const nextStatus = getNextStatus(job.status);
   const [generating, setGenerating] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const [generateMessage, setGenerateMessage] = useState<string | null>(null);
+  
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalContent, setModalContent] = useState('');
+  const [modalTitle, setModalTitle] = useState('');
+
+  const handleAnalyze = async () => {
+    if (!job.url) {
+      setGenerateMessage('❌ Error: No URL found to analyze.');
+      return;
+    }
+    setAnalyzing(true);
+    setGenerateMessage(null);
+    try {
+      const response = await fetch('http://localhost:8000/api/run-skill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skill: 'analyze', target: job.url }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'Execution failed');
+      
+      setModalTitle(`/analyze Results for ${job.companies?.name || 'Job'}`);
+      setModalContent(data.output);
+      setModalOpen(true);
+    } catch (err: any) {
+      setModalTitle(`Error running /analyze`);
+      setModalContent(`❌ **Error:** ${err.message}`);
+      setModalOpen(true);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
 
   const handleGenerate = async () => {
     setGenerating(true);
@@ -75,10 +109,20 @@ export function JobDetail({ job, onAdvance, onSkip, onDelete }: JobDetailProps) 
             className="action-btn" 
             style={{ backgroundColor: 'var(--primary)', color: 'white' }}
             onClick={handleGenerate}
-            disabled={generating}
+            disabled={generating || analyzing}
           >
             {generating ? '✨ Generating...' : '✨ Generate Application'}
           </button>
+          
+          <button 
+            className="action-btn" 
+            style={{ backgroundColor: 'var(--blue-dim)', color: 'var(--blue)' }}
+            onClick={handleAnalyze}
+            disabled={generating || analyzing || !job.url}
+          >
+            {analyzing ? '🔍 Analyzing...' : '🔍 /analyze'}
+          </button>
+
           {nextStatus && (
             <button className="action-btn review" onClick={onAdvance}>
               → Move to {nextStatus.replace('_', ' ')}
@@ -97,6 +141,13 @@ export function JobDetail({ job, onAdvance, onSkip, onDelete }: JobDetailProps) 
           </div>
         )}
       </div>
+      
+      <MarkdownModal 
+        isOpen={modalOpen} 
+        onClose={() => setModalOpen(false)} 
+        title={modalTitle} 
+        content={modalContent} 
+      />
     </div>
   );
 }

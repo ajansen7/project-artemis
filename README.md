@@ -26,7 +26,7 @@ Claude: researches the company → maps your stories → generates talking point
 ```
 ┌─────────────────────────────────────────────────┐
 │                  Claude Code                     │
-│  (the agent — reasoning, web search, commands)   │
+│  (headless engine for UI / interactive agent)    │
 ├─────────────────────────────────────────────────┤
 │               Artemis Skill                      │
 │  SKILL.md  → instructions + commands             │
@@ -41,6 +41,9 @@ Claude: researches the company → maps your stories → generates talking point
 │                 Supabase                         │
 │  jobs · companies · contacts · anecdotes         │
 │  (persistent CRM — the pipeline state)           │
+├─────────────────────────────────────────────────┤
+│           Vite React + FastAPI Backend           │
+│  (Custom dashboard and visual interaction layer) │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -59,7 +62,14 @@ Claude: researches the company → maps your stories → generates talking point
 ```bash
 git clone <repo-url> project-artemis
 cd project-artemis
+
+# Install Python backend dependencies
 uv sync
+
+# Install Node frontend dependencies
+cd frontend
+npm install
+cd ..
 ```
 
 ### 2. Set up Supabase
@@ -108,6 +118,26 @@ Artemis reads from two sibling projects for candidate context:
 | `alex-s-lens` | `public/resume.json` (structured resume) | `~/Dev/alex-s-lens/` |
 
 If these projects exist at those paths, Artemis will read from them directly. If not, the skill still works — you'll just need to provide context manually when asked.
+
+### 5. Start the Web Dashboard
+
+Artemis includes a local UI (built with Vite + React) and a FastAPI bridging server that allows you to trigger Claude headlessly to analyze, generate materials, and sync data directly from the browser.
+
+Open two terminal windows:
+
+**Window 1: Start the generic API bridge**
+```bash
+# From the project-artemis root directory
+uv run uvicorn api.server:app --reload
+```
+*This server listens on port 8000 and executes the `claude` CLI headlessly to perform skills like generating tailored cover letters and resumes.*
+
+**Window 2: Start the React Frontend**
+```bash
+cd frontend
+npm run dev
+```
+*This will open the dashboard on `http://localhost:5173`. You can manage your pipeline from here.*
 
 ---
 

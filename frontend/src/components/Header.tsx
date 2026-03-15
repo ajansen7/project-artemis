@@ -1,8 +1,39 @@
+import { useState } from 'react';
+import { MarkdownModal } from './MarkdownModal';
+
 interface HeaderProps {
   counts: Record<string, number>;
 }
 
 export function Header({ counts }: HeaderProps) {
+  const [runningSkill, setRunningSkill] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalContent, setModalContent] = useState('');
+  const [modalTitle, setModalTitle] = useState('');
+
+  const handleRunSkill = async (skill: string) => {
+    setRunningSkill(skill);
+    try {
+      const response = await fetch('http://localhost:8000/api/run-skill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skill }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'Execution failed');
+      
+      setModalTitle(`/${skill} Results`);
+      setModalContent(data.output);
+      setModalOpen(true);
+    } catch (err: any) {
+      setModalTitle(`Error running /${skill}`);
+      setModalContent(`❌ **Error:** ${err.message}`);
+      setModalOpen(true);
+    } finally {
+      setRunningSkill(null);
+    }
+  };
+
   const stats = [
     { key: 'scouted', label: 'Scouted' },
     { key: 'to_review', label: 'To Review' },
@@ -31,6 +62,32 @@ export function Header({ counts }: HeaderProps) {
           ))}
         </div>
       </div>
+      
+      <div className="header-right" style={{ display: 'flex', gap: '8px' }}>
+        <button 
+          className="action-btn"
+          style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
+          onClick={() => handleRunSkill('review')}
+          disabled={runningSkill !== null}
+        >
+          {runningSkill === 'review' ? '⏳ Running...' : '📋 /review'}
+        </button>
+        <button 
+          className="action-btn"
+          style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
+          onClick={() => handleRunSkill('sync')}
+          disabled={runningSkill !== null}
+        >
+          {runningSkill === 'sync' ? '⏳ Syncing...' : '🔄 /sync'}
+        </button>
+      </div>
+
+      <MarkdownModal 
+        isOpen={modalOpen} 
+        onClose={() => setModalOpen(false)} 
+        title={modalTitle} 
+        content={modalContent} 
+      />
     </header>
   );
 }
