@@ -40,10 +40,10 @@ def add_job(args):
             print(f"⚠️  Job already exists with this URL (id: {existing.data[0]['id']})")
             return
 
-    # Ensure company exists
+    # Ensure company exists and auto-target if score is high
     company_id = None
     if args.company:
-        company_id = _ensure_company(args.company)
+        company_id = _ensure_company(args.company, job_score=args.match_score)
 
     data = {
         "title": args.title,
@@ -294,12 +294,34 @@ def status(args):
 # ─── Helpers ─────────────────────────────────────────────────────
 
 
-def _ensure_company(name):
-    """Find or create a company, return its ID."""
-    result = sb.table("companies").select("id").eq("name", name).execute()
+def _ensure_company(name, job_score=None):
+    """Find or create a company, return its ID. Auto-targets if job_score >= 80."""
+    result = sb.table("companies").select("id, is_target").eq("name", name).execute()
+    
     if result.data:
-        return result.data[0]["id"]
-    insert = sb.table("companies").insert({"name": name}).execute()
+        company_id = result.data[0]["id"]
+        is_target = result.data[0].get("is_target", False)
+        
+        if job_score is not None and job_score >= 80 and not is_target:
+            priority = "high" if job_score >= 90 else "medium"
+            sb.table("companies").update({
+                "is_target": True,
+                "scout_priority": priority
+            }).eq("id", company_id).execute()
+            print(f"🌟 Auto-targeted existing company '{name}' (priority: {priority}) due to high job score ({job_score}).")
+            
+        return company_id
+
+    # Create new company
+    data = {"name": name, "is_target": False}
+    
+    if job_score is not None and job_score >= 80:
+        priority = "high" if job_score >= 90 else "medium"
+        data["is_target"] = True
+        data["scout_priority"] = priority
+        print(f"🌟 Created and auto-targeted company '{name}' (priority: {priority}) due to high job score ({job_score}).")
+
+    insert = sb.table("companies").insert(data).execute()
     return insert.data[0]["id"] if insert.data else None
 
 
