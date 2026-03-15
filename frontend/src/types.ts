@@ -13,6 +13,7 @@ export interface Job {
   created_at: string;
   updated_at: string;
   companies: { name: string; domain: string | null; careers_url: string | null } | null;
+  applications?: { resume_md: string | null; cover_letter_md: string | null; primer_md: string | null }[];
 }
 
 export type JobStatus =

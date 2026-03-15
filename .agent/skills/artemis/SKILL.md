@@ -171,6 +171,8 @@ Generate a tailored resume, cover letter, and primer for a specific job applicat
      [Company Name]
      ```
    - **`primer.md`**: A company/role primer combining gap analysis from `/analyze` and interview strategy from `/prep`, serving as a cheat sheet for the application process.
+5. Save the generated files to Supabase by running:
+ `uv run python .agent/skills/artemis/scripts/db.py save-application --id "<job_id>" --resume "applications/.../resume.md" --cover-letter "applications/.../cover_letter.md" --primer "applications/.../primer.md"`
 
 ---
 

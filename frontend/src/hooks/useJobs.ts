@@ -12,7 +12,7 @@ export function useJobs(statusFilter: JobStatus | 'all' = 'all') {
     try {
       let query = supabase
         .from('jobs')
-        .select('*, companies(name, domain, careers_url)')
+        .select('*, companies(name, domain, careers_url), applications(resume_md, cover_letter_md, primer_md)')
         .not('status', 'eq', 'deleted')
         .order('created_at', { ascending: false });
 

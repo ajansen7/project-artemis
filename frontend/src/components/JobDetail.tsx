@@ -47,13 +47,10 @@ export function JobDetail({ job, onAdvance, onSkip, onDelete }: JobDetailProps) 
     }
   };
 
-  const handleViewAnalysis = () => {
-    const md = (job.gap_analysis_json as any)?.markdown;
-    if (md) {
-      setModalTitle(`Analysis for ${job.companies?.name || 'Job'}`);
-      setModalContent(md);
-      setModalOpen(true);
-    }
+  const handleViewDocument = (t: string, content: string) => {
+    setModalTitle(`${t} for ${job.companies?.name || 'Job'}`);
+    setModalContent(content);
+    setModalOpen(true);
   };
 
   const handleGenerate = async () => {
@@ -120,15 +117,43 @@ export function JobDetail({ job, onAdvance, onSkip, onDelete }: JobDetailProps) 
             onClick={handleGenerate}
             disabled={generating || analyzing}
           >
-            {generating ? '✨ Generating...' : '✨ Generate Application'}
+            {generating ? '✨ Generating...' : (job.applications?.[0]?.resume_md ? '🔄 Re-generate' : '✨ Generate Application')}
           </button>
+
+          {job.applications?.[0]?.resume_md && (
+            <button 
+              className="action-btn" 
+              style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)', padding: '0.4rem 0.75rem' }}
+              onClick={() => handleViewDocument('Resume', job.applications![0].resume_md!)}
+            >
+              📄 Resume
+            </button>
+          )}
+          {job.applications?.[0]?.cover_letter_md && (
+            <button 
+              className="action-btn" 
+              style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)', padding: '0.4rem 0.75rem' }}
+              onClick={() => handleViewDocument('Cover Letter', job.applications![0].cover_letter_md!)}
+            >
+              ✉️ Cover Letter
+            </button>
+          )}
+          {job.applications?.[0]?.primer_md && (
+            <button 
+              className="action-btn" 
+              style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)', padding: '0.4rem 0.75rem' }}
+              onClick={() => handleViewDocument('Primer', job.applications![0].primer_md!)}
+            >
+              📚 Primer
+            </button>
+          )}
           
           {(job.gap_analysis_json as any)?.markdown ? (
             <>
               <button 
                 className="action-btn" 
                 style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
-                onClick={handleViewAnalysis}
+                onClick={() => handleViewDocument('Analysis', (job.gap_analysis_json as any).markdown)}
               >
                 📖 View Analysis
               </button>

@@ -156,6 +156,45 @@ def get_job(args):
         print(f"  {json.dumps(job['gap_analysis_json'], indent=2)}")
 
 
+def save_application(args):
+    """Save generated application materials into the applications table."""
+    # Read the markdown files
+    files = {"resume_md": args.resume, "cover_letter_md": args.cover_letter, "primer_md": args.primer}
+    content = {}
+    
+    for key, filepath in files.items():
+        if filepath:
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    content[key] = f.read()
+            except Exception as e:
+                print(f"⚠️ Failed to read {filepath}: {e}")
+                
+    if not content:
+        print("❌ No application files provided or found.")
+        return
+
+    # Check if an application already exists for this job
+    existing = sb.table("applications").select("id").eq("job_id", args.id).execute()
+    
+    if existing.data:
+        # Update existing
+        app_id = existing.data[0]["id"]
+        update_res = sb.table("applications").update(content).eq("id", app_id).execute()
+        if update_res.data:
+            print(f"✅ Updated existing application materials for job {args.id}")
+        else:
+            print(f"❌ Failed to update application {app_id}")
+    else:
+        # Insert new
+        content["job_id"] = args.id
+        insert_res = sb.table("applications").insert(content).execute()
+        if insert_res.data:
+            print(f"✅ Created new application record with materials for job {args.id}")
+        else:
+            print(f"❌ Failed to insert application for job {args.id}")
+
+
 # ─── Companies ───────────────────────────────────────────────────
 
 
@@ -459,6 +498,14 @@ def main():
     # batch-add (JSON via stdin)
     p = subparsers.add_parser("batch-add", help="Batch add jobs from JSON on stdin")
     p.set_defaults(func=batch_add)
+
+    # save-application
+    p = subparsers.add_parser("save-application", help="Save application materials to DB")
+    p.add_argument("--id", required=True)
+    p.add_argument("--resume", help="Path to resume markdown file")
+    p.add_argument("--cover-letter", help="Path to cover letter markdown file")
+    p.add_argument("--primer", help="Path to primer markdown file")
+    p.set_defaults(func=save_application)
 
     # status
     p = subparsers.add_parser("status", help="Show pipeline dashboard")
