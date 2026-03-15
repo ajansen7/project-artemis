@@ -30,7 +30,7 @@ export function JobDetail({ job, onAdvance, onSkip, onDelete }: JobDetailProps) 
       const response = await fetch('http://localhost:8000/api/run-skill', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ skill: 'analyze', target: job.url }),
+        body: JSON.stringify({ skill: 'analyze', target: `Job ID: ${job.id}, URL: ${job.url}` }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || 'Execution failed');
@@ -44,6 +44,15 @@ export function JobDetail({ job, onAdvance, onSkip, onDelete }: JobDetailProps) 
       setModalOpen(true);
     } finally {
       setAnalyzing(false);
+    }
+  };
+
+  const handleViewAnalysis = () => {
+    const md = (job.gap_analysis_json as any)?.markdown;
+    if (md) {
+      setModalTitle(`Analysis for ${job.companies?.name || 'Job'}`);
+      setModalContent(md);
+      setModalOpen(true);
     }
   };
 
@@ -94,7 +103,7 @@ export function JobDetail({ job, onAdvance, onSkip, onDelete }: JobDetailProps) 
             <strong>Score:</strong> {job.match_score ?? 'Not scored'}<br />
             <strong>Added:</strong> {new Date(job.created_at).toLocaleDateString()}
           </p>
-          {job.gap_analysis_json && (
+          {job.gap_analysis_json && !(job.gap_analysis_json as any).markdown && (
             <>
               <h4 style={{ marginTop: 16 }}>Gap Analysis</h4>
               <pre style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
@@ -114,14 +123,34 @@ export function JobDetail({ job, onAdvance, onSkip, onDelete }: JobDetailProps) 
             {generating ? '✨ Generating...' : '✨ Generate Application'}
           </button>
           
-          <button 
-            className="action-btn" 
-            style={{ backgroundColor: 'var(--blue-dim)', color: 'var(--blue)' }}
-            onClick={handleAnalyze}
-            disabled={generating || analyzing || !job.url}
-          >
-            {analyzing ? '🔍 Analyzing...' : '🔍 /analyze'}
-          </button>
+          {(job.gap_analysis_json as any)?.markdown ? (
+            <>
+              <button 
+                className="action-btn" 
+                style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
+                onClick={handleViewAnalysis}
+              >
+                📖 View Analysis
+              </button>
+              <button 
+                className="action-btn" 
+                style={{ backgroundColor: 'var(--blue-dim)', color: 'var(--blue)' }}
+                onClick={handleAnalyze}
+                disabled={generating || analyzing || !job.url}
+              >
+                {analyzing ? '🔍 Analyzing...' : '🔄 Re-analyze'}
+              </button>
+            </>
+          ) : (
+            <button 
+              className="action-btn" 
+              style={{ backgroundColor: 'var(--blue-dim)', color: 'var(--blue)' }}
+              onClick={handleAnalyze}
+              disabled={generating || analyzing || !job.url}
+            >
+              {analyzing ? '🔍 Analyzing...' : '🔍 /analyze'}
+            </button>
+          )}
 
           {nextStatus && (
             <button className="action-btn review" onClick={onAdvance}>

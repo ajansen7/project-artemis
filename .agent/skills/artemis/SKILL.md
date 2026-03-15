@@ -111,7 +111,8 @@ Deep analysis of a specific job posting against the candidate's profile.
    - **Story Recommendations**: which STAR stories from the storybank to deploy and why
    - **Red Flags**: anything concerning about the role/company
    - **Recommendation**: apply / skip / worth exploring
-4. Offer to save to Supabase with the analysis attached
+4. Save the full markdown output of your analysis to a temporary file `analysis.md`.
+5. Update the job in Supabase: `uv run python .agent/skills/artemis/scripts/db.py update-job --id "<job_id>" --match-score <score> --analysis-file "analysis.md"`
 
 ---
 

@@ -110,6 +110,14 @@ def update_job(args):
         data["match_score"] = args.match_score
     if args.reason:
         data["description_md"] = sb.table("jobs").select("description_md").eq("id", args.id).execute().data[0].get("description_md", "") + f"\n\n**Not interested reason:** {args.reason}"
+    if getattr(args, "analysis_file", None):
+        try:
+            with open(args.analysis_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+            data["gap_analysis_json"] = {"markdown": content}
+        except Exception as e:
+            print(f"❌ Failed to read analysis file: {e}")
+            return
 
     if not data:
         print("Nothing to update. Provide --status, --match-score, or --reason.")
@@ -416,6 +424,7 @@ def main():
     p.add_argument("--status", default=None)
     p.add_argument("--match-score", type=int, default=None)
     p.add_argument("--reason", default=None, help="Reason for not interested / rejection")
+    p.add_argument("--analysis-file", default=None, help="Path to markdown file containing the analysis text")
     p.set_defaults(func=update_job)
 
     # get-job
