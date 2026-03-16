@@ -45,5 +45,5 @@ frontend/out/
 applications/
 ingestion/
 analysis.md
-agent/skills/artemis/references/*.md
-agent/skills/interview-coach-skill/coaching_state.md
+.claude/skills/scout/references/candidate_context.md
+.claude/skills/interview-coach/coaching_state.md
