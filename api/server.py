@@ -36,9 +36,9 @@ async def generate_application(req: GenerateRequest):
 
     try:
         # Build the command string. Since `-p` doesn't support slash commands natively,
-        # we tell Claude exactly what to do using natural language. Use the /artemis prefix 
+        # we tell Claude exactly what to do using natural language. Use the /scout prefix
         # to ensure it strictly maps to our custom skill.
-        prompt = f"Follow the instructions for the `/artemis apply` command in SKILL.md to generate application materials for '{target_str}'."
+        prompt = f"Follow the instructions for the `/scout apply` command in SKILL.md to generate application materials for '{target_str}'."
         
         process = subprocess.Popen(
             [
@@ -46,7 +46,7 @@ async def generate_application(req: GenerateRequest):
                 "-p", 
                 prompt,
                 "--dangerously-skip-permissions",
-                "--add-dir", "/Users/alexjansen/Dev/project-artemis/agent/skills/interview-coach-skill",
+                "--add-dir", "/Users/alexjansen/Dev/project-artemis/.claude/skills/interview-coach",
                 "--add-dir", "/Users/alexjansen/Dev/alex-s-lens"
             ],
             cwd="/Users/alexjansen/Dev/project-artemis",
@@ -54,9 +54,9 @@ async def generate_application(req: GenerateRequest):
             stderr=subprocess.PIPE,
             text=True
         )
-        
+
         stdout, stderr = process.communicate()
-        
+
         if process.returncode != 0:
             print(f"claude CLI error: {stderr}")
             raise HTTPException(status_code=500, detail=f"Generation failed: {stderr}")
@@ -90,8 +90,8 @@ async def run_skill(req: RunSkillRequest):
     print(f"Triggering skill: {req.skill} for target: {req.target}")
     
     # Construct prompt
-    # We prefix with /artemis to avoid conflation with built-in Claude commands (like /sync)
-    skill_cmd = f"/artemis {req.skill.lstrip('/')}"
+    # We prefix with /scout to avoid conflation with built-in Claude commands (like /sync)
+    skill_cmd = f"/scout {req.skill.lstrip('/')}"
     if req.target:
         prompt = f"Follow the instructions for the `{skill_cmd}` command in SKILL.md for '{req.target}'."
     else:
@@ -104,7 +104,7 @@ async def run_skill(req: RunSkillRequest):
                 "-p", 
                 prompt,
                 "--dangerously-skip-permissions",
-                "--add-dir", "/Users/alexjansen/Dev/project-artemis/agent/skills/interview-coach-skill",
+                "--add-dir", "/Users/alexjansen/Dev/project-artemis/.claude/skills/interview-coach",
                 "--add-dir", "/Users/alexjansen/Dev/alex-s-lens"
             ],
             cwd="/Users/alexjansen/Dev/project-artemis",
@@ -112,9 +112,9 @@ async def run_skill(req: RunSkillRequest):
             stderr=subprocess.PIPE,
             text=True
         )
-        
+
         stdout, stderr = process.communicate()
-        
+
         if process.returncode != 0:
             print(f"claude CLI error: {stderr}")
             raise HTTPException(status_code=500, detail=f"Skill execution failed: {stderr}")

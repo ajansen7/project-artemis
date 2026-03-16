@@ -3,7 +3,7 @@
 Artemis DB Helper — Supabase CRUD operations for the job hunting pipeline.
 
 CLI interface for Artemis Supabase database.
-Called by Claude via `uv run python agent/skills/artemis/scripts/db.py <command>`.
+Called by Claude via `uv run python .claude/skills/scout/scripts/db.py <command>`.
 Reads credentials from .env in the project root.
 """
 
