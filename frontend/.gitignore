@@ -22,3 +22,5 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+.claude/skills/candidate_context.md
+.claude/skills/preferences.md
