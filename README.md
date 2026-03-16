@@ -15,9 +15,9 @@ Artemis is built around an **agent orchestrator** that coordinates two peer skil
 │  Central intelligence — coordinates the full job search     │
 │  campaign: scouting → pipeline → applications → networking  │
 ├────────────────────────┬────────────────────────────────────┤
-│     Artemis Skill      │      Interview Coach Skill         │
+│      Scout Skill       │      Interview Coach Skill         │
 │  .claude/skills/       │   .claude/skills/                  │
-│    artemis/SKILL.md    │     interview-coach/SKILL.md       │
+│    scout/SKILL.md      │     interview-coach/SKILL.md       │
 │                        │                                    │
 │  Job scouting          │  Interview prep & drills           │
 │  Pipeline management   │  Story bank management             │
@@ -108,7 +108,7 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ### 3. Verify the DB connection
 
 ```bash
-uv run python .claude/skills/artemis/scripts/db.py status
+uv run python .claude/skills/scout/scripts/db.py status
 ```
 
 You should see a pipeline status dashboard (all zeros if fresh).
@@ -195,13 +195,13 @@ Re-evaluates all active jobs against your current preferences, checks for dead p
 
 ## DB Helper CLI
 
-All Supabase operations go through `.claude/skills/artemis/scripts/db.py`. Claude calls this automatically, but you can also use it directly:
+All Supabase operations go through `.claude/skills/scout/scripts/db.py`. Claude calls this automatically, but you can also use it directly:
 
 ### Jobs
 
 ```bash
 # Add a job
-uv run python .claude/skills/artemis/scripts/db.py add-job \
+uv run python .claude/skills/scout/scripts/db.py add-job \
   --title "Senior AI PM" \
   --company "Anthropic" \
   --url "https://..." \
@@ -209,26 +209,26 @@ uv run python .claude/skills/artemis/scripts/db.py add-job \
   --source "scout"
 
 # List all jobs
-uv run python .claude/skills/artemis/scripts/db.py list-jobs
+uv run python .claude/skills/scout/scripts/db.py list-jobs
 
 # List by status
-uv run python .claude/skills/artemis/scripts/db.py list-jobs --status scouted
+uv run python .claude/skills/scout/scripts/db.py list-jobs --status scouted
 
 # Get full details
-uv run python .claude/skills/artemis/scripts/db.py get-job --id "uuid-here"
+uv run python .claude/skills/scout/scripts/db.py get-job --id "uuid-here"
 
 # Update status
-uv run python .claude/skills/artemis/scripts/db.py update-job --id "uuid" --status "to_review"
+uv run python .claude/skills/scout/scripts/db.py update-job --id "uuid" --status "to_review"
 
 # Mark not interested with reason
-uv run python .claude/skills/artemis/scripts/db.py update-job --id "uuid" --status "not_interested" --reason "Too junior"
+uv run python .claude/skills/scout/scripts/db.py update-job --id "uuid" --status "not_interested" --reason "Too junior"
 ```
 
 ### Companies
 
 ```bash
 # Add a target company
-uv run python .claude/skills/artemis/scripts/db.py add-company \
+uv run python .claude/skills/scout/scripts/db.py add-company \
   --name "Anthropic" \
   --domain "anthropic.com" \
   --careers-url "https://anthropic.com/careers" \
@@ -236,26 +236,26 @@ uv run python .claude/skills/artemis/scripts/db.py add-company \
   --priority high
 
 # List target companies
-uv run python .claude/skills/artemis/scripts/db.py list-companies
+uv run python .claude/skills/scout/scripts/db.py list-companies
 ```
 
 ### Pipeline
 
 ```bash
-uv run python .claude/skills/artemis/scripts/db.py status
+uv run python .claude/skills/scout/scripts/db.py status
 ```
 
 ### Networking
 
 ```bash
 # Seed initial contacts (run once, or re-run to upsert)
-uv run python .claude/skills/artemis/scripts/seed_contacts.py
+uv run python .claude/skills/scout/scripts/seed_contacts.py
 
 # Resync DB → local memory file (run after any contact status changes)
-uv run python .claude/skills/artemis/scripts/sync_contacts.py
+uv run python .claude/skills/scout/scripts/sync_contacts.py
 
 # Check for drift without writing
-uv run python .claude/skills/artemis/scripts/sync_contacts.py --check
+uv run python .claude/skills/scout/scripts/sync_contacts.py --check
 ```
 
 **Source of truth:** Supabase `contacts` table. The local memory file (`.claude/agent-memory/artemis-orchestrator/project_contact_pipeline.md`) is a generated view — never edit it directly.
@@ -270,7 +270,7 @@ project-artemis/
 │   ├── agents/
 │   │   └── artemis-orchestrator.md   # Orchestrator — coordinates the full job search campaign
 │   └── skills/
-│       ├── artemis/                  # Artemis skill (job scouting, pipeline, applications)
+│       ├── scout/                    # Scout skill (job scouting, pipeline, applications)
 │       │   ├── SKILL.md              # Skill definition — commands, context refs, instructions
 │       │   ├── references/
 │       │   │   ├── candidate_context.md  # Cached candidate profile (generated — do not edit)
@@ -309,7 +309,7 @@ By default, skills are available when this project is open in Claude Code. To ma
 
 ```bash
 mkdir -p ~/.claude/skills
-ln -s "$(pwd)/.claude/skills/artemis" ~/.claude/skills/artemis
+ln -s "$(pwd)/.claude/skills/scout" ~/.claude/skills/scout
 ln -s "$(pwd)/.claude/skills/interview-coach" ~/.claude/skills/interview-coach
 ```
 
