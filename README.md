@@ -1,50 +1,50 @@
 # Project Artemis
 
-**A Claude Code skill for autonomous job hunting.** Artemis is an AI copilot that scouts for jobs, manages your pipeline, analyzes postings against your profile, and preps you for interviews — all driven from Claude Code or Claude Cowork.
-
-> No frontend. No custom agents. Claude *is* the agent. Artemis provides the structure, context, and tools.
+**An autonomous job hunting system powered by Claude Code.** Artemis scouts for jobs, manages your pipeline, generates tailored application materials, preps you for interviews, and coordinates your networking — end to end.
 
 ---
 
 ## How It Works
 
-Artemis is a [Claude Code skill](https://docs.anthropic.com/en/docs/claude-code) — a set of instructions, context files, and helper scripts that teach Claude how to be your job hunting copilot. When you open this project in Claude Code, the skill is automatically available.
+Artemis is built around an **agent orchestrator** that coordinates two peer skills:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Artemis Orchestrator                      │
+│           .claude/agents/artemis-orchestrator.md            │
+│  Central intelligence — coordinates the full job search     │
+│  campaign: scouting → pipeline → applications → networking  │
+├────────────────────────┬────────────────────────────────────┤
+│     Artemis Skill      │      Interview Coach Skill         │
+│  .claude/skills/       │   .claude/skills/                  │
+│    artemis/SKILL.md    │     interview-coach/SKILL.md       │
+│                        │                                    │
+│  Job scouting          │  Interview prep & drills           │
+│  Pipeline management   │  Story bank management             │
+│  Resume & cover letter │  Behavioral coaching               │
+│  Company profiles      │  Mock interviews                   │
+│  Networking pipeline   │  Offer negotiation                 │
+├────────────────────────┴────────────────────────────────────┤
+│                        Supabase                             │
+│       jobs · companies · contacts · applications            │
+│              (persistent CRM — pipeline state)              │
+├─────────────────────────────────────────────────────────────┤
+│                 Vite React + FastAPI Backend                 │
+│         (Dashboard and headless skill execution)            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+Open the project in Claude Code and talk to it naturally. The orchestrator decides which skill to invoke.
 
 ```
 You:    "Scout for AI PM jobs"
-Claude: reads your profile → searches the web → saves findings to Supabase → reports back
+Artemis: reads your profile → searches the web → saves to Supabase → reports back
 
 You:    "Analyze this posting: https://..."
-Claude: reads the posting → compares to your profile + storybank → scores fit → identifies gaps
+Artemis: reads the posting → compares to your profile → scores fit → flags gaps
 
 You:    "Prep me for my Anthropic interview"
-Claude: researches the company → maps your stories → generates talking points
-```
-
-### Architecture
-
-```
-┌─────────────────────────────────────────────────┐
-│                  Claude Code                     │
-│  (headless engine for UI / interactive agent)    │
-├─────────────────────────────────────────────────┤
-│               Artemis Skill                      │
-│  SKILL.md  → instructions + commands             │
-│  context/  → search preferences                  │
-│  scripts/  → db.py (Supabase CRUD)               │
-├──────────────────┬──────────────────────────────┤
-│  Interview Coach │  Portfolio (alex-s-lens)       │
-│  coaching_state  │  resume.json                   │
-│  storybank       │  LinkedIn content              │
-│  (source of truth for who you are)                │
-├─────────────────────────────────────────────────┤
-│                 Supabase                         │
-│  jobs · companies · contacts · anecdotes         │
-│  (persistent CRM — the pipeline state)           │
-├─────────────────────────────────────────────────┤
-│           Vite React + FastAPI Backend           │
-│  (Custom dashboard and visual interaction layer) │
-└─────────────────────────────────────────────────┘
+Artemis: delegates to Interview Coach → researches company → maps stories → generates talking points
 ```
 
 ---
@@ -55,7 +55,7 @@ Claude: researches the company → maps your stories → generates talking point
 
 - **Python 3.11+** and **[uv](https://docs.astral.sh/uv/)** (Python package manager)
 - **Supabase** project (free tier works)
-- **Claude Code** or **Claude Cowork**
+- **Claude Code**
 
 ### 1. Clone and install dependencies
 
@@ -63,13 +63,14 @@ Claude: researches the company → maps your stories → generates talking point
 git clone <repo-url> project-artemis
 cd project-artemis
 
+# Initialize the interview-coach submodule
+git submodule update --init
+
 # Install Python backend dependencies
 uv sync
 
 # Install Node frontend dependencies
-cd frontend
-npm install
-cd ..
+cd frontend && npm install && cd ..
 ```
 
 ### 2. Set up Supabase
@@ -107,99 +108,78 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ### 3. Verify the DB connection
 
 ```bash
-uv run python agent/skills/artemis/scripts/db.py status
+uv run python .claude/skills/artemis/scripts/db.py status
 ```
 
 You should see a pipeline status dashboard (all zeros if fresh).
 
 ### 4. Connected projects (optional but recommended)
 
-Artemis reads from two sibling projects for candidate context:
+The skills read from two sibling projects for candidate context:
 
 | Project | What it provides | Expected path |
 |---------|-----------------|---------------|
-| `interview-coach-skill` | `coaching_state.md` (profile, storybank, interview history) | `agent/skills/interview-coach-skill/` |
 | `alex-s-lens` | `public/resume.json` (structured resume) | `~/Dev/alex-s-lens/` |
 
-If these projects exist at those paths, Artemis will read from them directly. If not, the skill still works — you'll just need to provide context manually when asked.
+If these projects exist at those paths, the skills will read from them directly. If not, you'll be prompted to provide context manually.
 
 ### 5. Start the Web Dashboard
 
-Artemis includes a local UI (built with Vite + React) and a FastAPI bridging server that allows you to trigger Claude headlessly to analyze, generate materials, and sync data directly from the browser.
+Artemis includes a local UI (Vite + React) and a FastAPI bridge that triggers Claude headlessly to run skills from the browser.
 
-Open two terminal windows:
-
-**Window 1: Start the generic API bridge**
+**Window 1: Start the API bridge**
 ```bash
-# From the project-artemis root directory
 uv run uvicorn api.server:app --reload
 ```
-*This server listens on port 8000 and executes the `claude` CLI headlessly to perform skills like generating tailored cover letters and resumes.*
 
-**Window 2: Start the React Frontend**
+**Window 2: Start the React frontend**
 ```bash
-cd frontend
-npm run dev
+cd frontend && npm run dev
 ```
-*This will open the dashboard on `http://localhost:5173`. You can manually trigger `/sync`, `/analyze`, or "Generate Applications" directly from the UI without opening the Claude CLI.*
+
+Opens at `http://localhost:5173`. Trigger `/sync`, `/analyze`, or "Generate Applications" directly from the UI.
 
 ---
 
 ## Commands
 
-Open the project in Claude Code and use natural language. These are the core capabilities:
+Open the project in Claude Code and use natural language, or invoke commands directly.
 
 ### `/scout` — Find Jobs
 
 > *"Scout for jobs"* or *"Find AI product manager roles"*
 
-Claude reads your profile and search preferences, then uses its built-in web search to find job postings, career pages, hiring threads, and interesting companies. Results are saved to Supabase.
-
-*Note: If Claude adds a job with a match score of `80` or higher, the parent company is immediately auto-targeted and added to your UI sidebar!*
+Reads your profile and search preferences, searches the web for job postings, scores each for fit, and saves results to Supabase.
 
 ### `/review` — Review Pipeline
 
-> *"Review my pipeline"* or *"Show me what's been scouted"*
+> *"Review my pipeline"*
 
-Queries Supabase and presents your job pipeline grouped by status. You can triage: advance jobs, mark as not interested (with a reason), or delete.
+Queries Supabase and presents your pipeline grouped by status. Triage: advance, mark not interested, or delete.
 
 ### `/analyze <url>` — Analyze a Posting
 
 > *"Analyze this posting: https://..."*
 
-Deep analysis of a specific job against your profile:
-- Fit score (0-100)
-- Matched requirements with evidence
-- Gaps with severity and suggestions
-- Story recommendations from your storybank
-- Red flags
-- Apply / skip / explore recommendation
+Deep fit analysis: score (0-100), matched requirements, gaps with severity, story recommendations, red flags, and a go/no-go recommendation.
 
 ### `/prep <company>` — Interview Prep
 
-> *"Prep me for Anthropic"* or *"Help me prepare for the Cursor interview"*
+> *"Prep me for Anthropic"*
 
-Generates tailored interview prep:
-- Company overview and recent news
-- Anticipated questions with story deployments
-- Questions to ask
-- Stories to drill with opening lines
+Delegates to the Interview Coach skill: company research, anticipated questions with story deployments, questions to ask, and stories to drill.
 
 ### `/apply <job_id>` — Generate Application
 
-> *"Generate cover letter for job `1c1682a7`"*
+> *"Generate cover letter for job 1c1682a7"*
 
-Generates highly tailored job application artifacts:
-- Uses `coaching_state.md` to emulate your authentic voice (not generic AI-speak).
-- Reads the specific job description and your resume JSON.
-- Creates `resume.md`, `cover_letter.md`, and an interview `primer.md` specifically suited for the target role.
-- Automatically saves the markdown to the `applications` table in Supabase so it can be viewed directly in the UI.
+Generates tailored `resume.md`, `cover_letter.md`, and `primer.md` for the role. Uses your coaching state to match your authentic voice. Saves artifacts to Supabase.
 
 ### `/network` — Networking Pipeline
 
 > *"Show my networking pipeline"* or *"Who should I reach out to today?"*
 
-Surfaces contacts ready for outreach, shows the pipeline status across all companies, and helps advance contacts through the funnel. Always ends with a resync of the local memory file from the DB.
+Surfaces contacts ready for outreach, shows pipeline status across all companies, and resyncs the local memory file from DB.
 
 ### `/status` — Dashboard
 
@@ -207,17 +187,21 @@ Surfaces contacts ready for outreach, shows the pipeline status across all compa
 
 Quick pipeline counts by status and target companies being monitored.
 
+### `/sync` — Refresh & Re-score Pipeline
+
+Re-evaluates all active jobs against your current preferences, checks for dead postings, and updates scores.
+
 ---
 
 ## DB Helper CLI
 
-All Supabase operations go through `scripts/db.py`. Claude calls this automatically, but you can also use it directly:
+All Supabase operations go through `.claude/skills/artemis/scripts/db.py`. Claude calls this automatically, but you can also use it directly:
 
 ### Jobs
 
 ```bash
 # Add a job
-uv run python agent/skills/artemis/scripts/db.py add-job \
+uv run python .claude/skills/artemis/scripts/db.py add-job \
   --title "Senior AI PM" \
   --company "Anthropic" \
   --url "https://..." \
@@ -225,26 +209,26 @@ uv run python agent/skills/artemis/scripts/db.py add-job \
   --source "scout"
 
 # List all jobs
-uv run python agent/skills/artemis/scripts/db.py list-jobs
+uv run python .claude/skills/artemis/scripts/db.py list-jobs
 
 # List by status
-uv run python agent/skills/artemis/scripts/db.py list-jobs --status scouted
+uv run python .claude/skills/artemis/scripts/db.py list-jobs --status scouted
 
 # Get full details
-uv run python agent/skills/artemis/scripts/db.py get-job --id "uuid-here"
+uv run python .claude/skills/artemis/scripts/db.py get-job --id "uuid-here"
 
 # Update status
-uv run python agent/skills/artemis/scripts/db.py update-job --id "uuid" --status "to_review"
+uv run python .claude/skills/artemis/scripts/db.py update-job --id "uuid" --status "to_review"
 
 # Mark not interested with reason
-uv run python agent/skills/artemis/scripts/db.py update-job --id "uuid" --status "not_interested" --reason "Too junior"
+uv run python .claude/skills/artemis/scripts/db.py update-job --id "uuid" --status "not_interested" --reason "Too junior"
 ```
 
 ### Companies
 
 ```bash
 # Add a target company
-uv run python agent/skills/artemis/scripts/db.py add-company \
+uv run python .claude/skills/artemis/scripts/db.py add-company \
   --name "Anthropic" \
   --domain "anthropic.com" \
   --careers-url "https://anthropic.com/careers" \
@@ -252,32 +236,29 @@ uv run python agent/skills/artemis/scripts/db.py add-company \
   --priority high
 
 # List target companies
-uv run python agent/skills/artemis/scripts/db.py list-companies
+uv run python .claude/skills/artemis/scripts/db.py list-companies
 ```
 
 ### Pipeline
 
 ```bash
-# Dashboard
-uv run python agent/skills/artemis/scripts/db.py status
+uv run python .claude/skills/artemis/scripts/db.py status
 ```
 
 ### Networking
 
-The contacts pipeline is managed via two dedicated scripts:
-
 ```bash
-# Seed initial contacts from pipeline session (run once, or re-run to upsert updates)
-uv run python agent/skills/artemis/scripts/seed_contacts.py
+# Seed initial contacts (run once, or re-run to upsert)
+uv run python .claude/skills/artemis/scripts/seed_contacts.py
 
 # Resync DB → local memory file (run after any contact status changes)
-uv run python agent/skills/artemis/scripts/sync_contacts.py
+uv run python .claude/skills/artemis/scripts/sync_contacts.py
 
 # Check for drift without writing
-uv run python agent/skills/artemis/scripts/sync_contacts.py --check
+uv run python .claude/skills/artemis/scripts/sync_contacts.py --check
 ```
 
-**Source of truth:** Supabase `contacts` table. The local memory file (`.claude/agent-memory/artemis-orchestrator/project_contact_pipeline.md`) is a **generated view** — never edit it directly. Always update the DB and then resync.
+**Source of truth:** Supabase `contacts` table. The local memory file (`.claude/agent-memory/artemis-orchestrator/project_contact_pipeline.md`) is a generated view — never edit it directly.
 
 ---
 
@@ -285,38 +266,51 @@ uv run python agent/skills/artemis/scripts/sync_contacts.py --check
 
 ```
 project-artemis/
-├── agent/skills/artemis/
-│   ├── SKILL.md                  # Skill definition — commands, context refs, instructions
-│   ├── references/
-│   │   ├── candidate_context.md  # Cached candidate profile (generated — do not edit)
-│   │   └── preferences.md        # Target roles, companies, deal-breakers (Artemis-owned)
-│   └── scripts/
-│       ├── db.py                 # Supabase CRUD CLI helper (jobs, companies, applications)
-│       ├── seed_contacts.py      # One-time (or upsert) seed of networking contacts to DB
-│       └── sync_contacts.py      # Regenerate contacts memory file from DB (zero LLM tokens)
-├── db/migrations/                # Supabase schema (10 migrations)
-├── frontend/                     # Vite + React dashboard
-│   └── src/
-│       ├── components/
-│       │   └── NetworkingPanel.tsx  # Contacts pipeline UI (grouped by company, status stepper)
-│       └── hooks/
-│           └── useContacts.ts       # Supabase contacts hook
-├── api/server.py                 # FastAPI bridge (headless Claude skill execution)
-├── AGENT.md                      # Project-level agent instructions
-├── pyproject.toml                # Python dependencies
-└── .env                          # Supabase credentials (not committed)
+├── .claude/
+│   ├── agents/
+│   │   └── artemis-orchestrator.md   # Orchestrator — coordinates the full job search campaign
+│   └── skills/
+│       ├── artemis/                  # Artemis skill (job scouting, pipeline, applications)
+│       │   ├── SKILL.md              # Skill definition — commands, context refs, instructions
+│       │   ├── references/
+│       │   │   ├── candidate_context.md  # Cached candidate profile (generated — do not edit)
+│       │   │   └── preferences.md        # Target roles, companies, deal-breakers
+│       │   └── scripts/
+│       │       ├── db.py             # Supabase CRUD CLI helper
+│       │       ├── seed_contacts.py  # One-time seed of networking contacts to DB
+│       │       └── sync_contacts.py  # Regenerate contacts memory file from DB
+│       └── interview-coach/          # Interview Coach skill (git submodule — noamseg/interview-coach-skill)
+│           ├── SKILL.md              # Full coaching skill instructions
+│           ├── coaching_state.md     # Candidate profile, storybank, interview history
+│           └── references/           # Rubrics, calibration engine, command references
+├── api/server.py                     # FastAPI bridge (headless Claude skill execution)
+├── frontend/                         # Vite + React dashboard
+│   └── src/components/
+│       └── NetworkingPanel.tsx       # Contacts pipeline UI
+├── db/migrations/                    # Supabase schema (10 migrations)
+├── AGENT.md                          # Project-level agent instructions
+├── pyproject.toml                    # Python dependencies
+└── .env                              # Supabase credentials (not committed)
 ```
 
-### What the skill reads from other projects
+### Updating the Interview Coach skill
 
+The `interview-coach` skill is maintained as a git submodule from [noamseg/interview-coach-skill](https://github.com/noamseg/interview-coach-skill). To pull upstream changes:
+
+```bash
+git submodule update --remote .claude/skills/interview-coach
+git add .claude/skills/interview-coach
+git commit -m "chore: update interview-coach submodule"
 ```
-agent/skills/interview-coach-skill/
-├── coaching_state.md              # Profile, storybank, interview loops, coaching notes
-├── references/storybank-guide.md  # Story framework and deployment guidance
-└── CLAUDE.md                      # Full interview coaching skill instructions
 
-~/Dev/alex-s-lens/
-└── public/resume.json             # Structured resume (source of truth)
+### Making skills globally available (optional)
+
+By default, skills are available when this project is open in Claude Code. To make them available globally in any Claude Code session, create symlinks in `~/.claude/skills/`:
+
+```bash
+mkdir -p ~/.claude/skills
+ln -s "$(pwd)/.claude/skills/artemis" ~/.claude/skills/artemis
+ln -s "$(pwd)/.claude/skills/interview-coach" ~/.claude/skills/interview-coach
 ```
 
 ---
@@ -327,9 +321,9 @@ agent/skills/interview-coach-skill/
 |-------|---------|
 | `jobs` | Pipeline — title, URL, status, match score, gap analysis, source |
 | `companies` | Company directory + target watchlist (is_target, why_target, priority) |
-| `contacts` | Networking contacts — name, title, LinkedIn, outreach status, priority, draft message, personal connection flag |
+| `contacts` | Networking contacts — name, title, LinkedIn, outreach status, priority, draft message |
 | `contact_job_links` | Many-to-many join between contacts and specific job postings |
-| `contact_interactions` | Timestamped event log per contact (message sent, response received, meeting scheduled, etc.) |
+| `contact_interactions` | Timestamped event log per contact |
 | `anecdotes` | STAR-format stories (situation, task, action, result, tags) |
 | `applications` | Application artifacts — tailored resume, cover letter, and primer (markdown) |
 | `cost_log` | API usage tracking |
@@ -349,8 +343,7 @@ The original full-stack implementation is preserved on the `archive/full-stack-v
 - LangGraph agent orchestration with StateGraph
 - Next.js Kanban frontend with job detail modals
 - ChromaDB vector embeddings + ingestion pipelines
-- Gemini function-calling Scout agent with iterative tool-use loop
-- Serper.dev + DuckDuckGo web search integration
+- Gemini function-calling Scout agent with Serper.dev integration
 - FastAPI server + Discord bot stubs
 
 To access: `git checkout archive/full-stack-v1`
@@ -359,6 +352,6 @@ To access: `git checkout archive/full-stack-v1`
 
 ## Future Considerations
 
-- **Gemini Google Search Grounding** — if Claude's built-in search isn't sufficient for scouting, the `google.genai` SDK supports `tools: [{ googleSearch: {} }]` for structured Google Search results. Exploration code is on the archive branch.
-- **Discord Bot** — for push notifications on new scouted jobs or pipeline reminders.
-- **Scheduled scouting** — automated periodic runs to check target company career pages.
+- **Gemini Google Search Grounding** — if Claude's built-in search isn't sufficient, the `google.genai` SDK supports `tools: [{ googleSearch: {} }]`. Exploration code is on the archive branch.
+- **Discord Bot** — push notifications on new scouted jobs or pipeline reminders.
+- **Scheduled scouting** — automated periodic runs against target company career pages.

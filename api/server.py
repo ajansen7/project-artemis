@@ -46,7 +46,7 @@ async def generate_application(req: GenerateRequest):
                 "-p", 
                 prompt,
                 "--dangerously-skip-permissions",
-                "--add-dir", "/Users/alexjansen/Dev/project-artemis/agent/skills/interview-coach-skill",
+                "--add-dir", "/Users/alexjansen/Dev/project-artemis/.claude/skills/interview-coach",
                 "--add-dir", "/Users/alexjansen/Dev/alex-s-lens"
             ],
             cwd="/Users/alexjansen/Dev/project-artemis",
@@ -54,9 +54,9 @@ async def generate_application(req: GenerateRequest):
             stderr=subprocess.PIPE,
             text=True
         )
-        
+
         stdout, stderr = process.communicate()
-        
+
         if process.returncode != 0:
             print(f"claude CLI error: {stderr}")
             raise HTTPException(status_code=500, detail=f"Generation failed: {stderr}")
@@ -104,7 +104,7 @@ async def run_skill(req: RunSkillRequest):
                 "-p", 
                 prompt,
                 "--dangerously-skip-permissions",
-                "--add-dir", "/Users/alexjansen/Dev/project-artemis/agent/skills/interview-coach-skill",
+                "--add-dir", "/Users/alexjansen/Dev/project-artemis/.claude/skills/interview-coach",
                 "--add-dir", "/Users/alexjansen/Dev/alex-s-lens"
             ],
             cwd="/Users/alexjansen/Dev/project-artemis",
@@ -112,9 +112,9 @@ async def run_skill(req: RunSkillRequest):
             stderr=subprocess.PIPE,
             text=True
         )
-        
+
         stdout, stderr = process.communicate()
-        
+
         if process.returncode != 0:
             print(f"claude CLI error: {stderr}")
             raise HTTPException(status_code=500, detail=f"Skill execution failed: {stderr}")
