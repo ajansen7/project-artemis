@@ -78,14 +78,16 @@ cd ..
 2. Run the SQL migrations in order via the Supabase SQL Editor:
 
 ```
-db/migrations/001_initial_schema.sql    # Core tables: jobs, companies, contacts, anecdotes
-db/migrations/002_allow_anon.sql        # Allow anonymous access for dev
-db/migrations/003_optional_company.sql  # Make company_id optional on jobs
-db/migrations/004_job_management.sql    # Add not_interested/deleted statuses
-db/migrations/005_relax_rls.sql         # Relax RLS for local dev
-db/migrations/006_target_companies.sql  # Target company watchlist fields
+db/migrations/001_initial_schema.sql        # Core tables: jobs, companies, contacts, anecdotes
+db/migrations/002_allow_anon.sql            # Allow anonymous access for dev
+db/migrations/003_optional_company.sql      # Make company_id optional on jobs
+db/migrations/004_job_management.sql        # Add not_interested/deleted statuses
+db/migrations/005_relax_rls.sql             # Relax RLS for local dev
+db/migrations/006_target_companies.sql      # Target company watchlist fields
 db/migrations/007_application_markdown.sql  # Dedicated application artifacts table
-db/migrations/008_applications_rls.sql  # Relax RLS for anonymous application reads
+db/migrations/008_applications_rls.sql      # Relax RLS for anonymous application reads
+db/migrations/009_networking.sql            # Networking: outreach status, contact-job links, interaction log
+db/migrations/010_contacts_rls.sql          # Relax RLS on contacts for local dev
 ```
 
 3. Copy your credentials:
@@ -193,6 +195,12 @@ Generates highly tailored job application artifacts:
 - Creates `resume.md`, `cover_letter.md`, and an interview `primer.md` specifically suited for the target role.
 - Automatically saves the markdown to the `applications` table in Supabase so it can be viewed directly in the UI.
 
+### `/network` — Networking Pipeline
+
+> *"Show my networking pipeline"* or *"Who should I reach out to today?"*
+
+Surfaces contacts ready for outreach, shows the pipeline status across all companies, and helps advance contacts through the funnel. Always ends with a resync of the local memory file from the DB.
+
 ### `/status` — Dashboard
 
 > *"Show my status"*
@@ -254,6 +262,23 @@ uv run python agent/skills/artemis/scripts/db.py list-companies
 uv run python agent/skills/artemis/scripts/db.py status
 ```
 
+### Networking
+
+The contacts pipeline is managed via two dedicated scripts:
+
+```bash
+# Seed initial contacts from pipeline session (run once, or re-run to upsert updates)
+uv run python agent/skills/artemis/scripts/seed_contacts.py
+
+# Resync DB → local memory file (run after any contact status changes)
+uv run python agent/skills/artemis/scripts/sync_contacts.py
+
+# Check for drift without writing
+uv run python agent/skills/artemis/scripts/sync_contacts.py --check
+```
+
+**Source of truth:** Supabase `contacts` table. The local memory file (`.claude/agent-memory/artemis-orchestrator/project_contact_pipeline.md`) is a **generated view** — never edit it directly. Always update the DB and then resync.
+
 ---
 
 ## Project Structure
@@ -261,16 +286,25 @@ uv run python agent/skills/artemis/scripts/db.py status
 ```
 project-artemis/
 ├── agent/skills/artemis/
-│   ├── SKILL.md              # Skill definition — commands, context refs, instructions
-│   ├── context/
-│   │   └── preferences.md    # Target roles, companies, deal-breakers (Artemis-owned)
+│   ├── SKILL.md                  # Skill definition — commands, context refs, instructions
+│   ├── references/
+│   │   ├── candidate_context.md  # Cached candidate profile (generated — do not edit)
+│   │   └── preferences.md        # Target roles, companies, deal-breakers (Artemis-owned)
 │   └── scripts/
-│       └── db.py             # Supabase CRUD CLI helper
-├── db/migrations/            # Supabase schema (6 migrations)
-├── ingestion/                # Raw source files (resume JSON, coaching state)
-├── AGENT.md                  # Project-level agent instructions
-├── pyproject.toml            # Python dependencies (supabase, httpx, python-dotenv)
-└── .env                      # Supabase credentials (not committed)
+│       ├── db.py                 # Supabase CRUD CLI helper (jobs, companies, applications)
+│       ├── seed_contacts.py      # One-time (or upsert) seed of networking contacts to DB
+│       └── sync_contacts.py      # Regenerate contacts memory file from DB (zero LLM tokens)
+├── db/migrations/                # Supabase schema (10 migrations)
+├── frontend/                     # Vite + React dashboard
+│   └── src/
+│       ├── components/
+│       │   └── NetworkingPanel.tsx  # Contacts pipeline UI (grouped by company, status stepper)
+│       └── hooks/
+│           └── useContacts.ts       # Supabase contacts hook
+├── api/server.py                 # FastAPI bridge (headless Claude skill execution)
+├── AGENT.md                      # Project-level agent instructions
+├── pyproject.toml                # Python dependencies
+└── .env                          # Supabase credentials (not committed)
 ```
 
 ### What the skill reads from other projects
@@ -293,9 +327,11 @@ agent/skills/interview-coach-skill/
 |-------|---------|
 | `jobs` | Pipeline — title, URL, status, match score, gap analysis, source |
 | `companies` | Company directory + target watchlist (is_target, why_target, priority) |
-| `contacts` | People at companies (name, title, LinkedIn, relationship type) |
+| `contacts` | Networking contacts — name, title, LinkedIn, outreach status, priority, draft message, personal connection flag |
+| `contact_job_links` | Many-to-many join between contacts and specific job postings |
+| `contact_interactions` | Timestamped event log per contact (message sent, response received, meeting scheduled, etc.) |
 | `anecdotes` | STAR-format stories (situation, task, action, result, tags) |
-| `applications` | Submitted applications (resume URL, cover letter, follow-up dates) |
+| `applications` | Application artifacts — tailored resume, cover letter, and primer (markdown) |
 | `cost_log` | API usage tracking |
 
 ### Job Statuses

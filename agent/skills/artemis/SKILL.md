@@ -220,6 +220,31 @@ Generate a tailored resume, cover letter, and primer for a specific job applicat
 
 ---
 
+### `/network` — Networking Pipeline
+
+Surface contacts ready for outreach, advance pipeline status, and log interactions.
+
+**Steps:**
+1. Query all contacts from Supabase:
+   ```bash
+   uv run python agent/skills/artemis/scripts/sync_contacts.py --check
+   ```
+2. Read `references/candidate_context.md` for current target companies and active roles.
+3. Present a prioritized action list:
+   - **Personal connections** (★) first — highest leverage
+   - Then `draft_ready` contacts ordered by priority (high → medium → low)
+   - Flag any contacts where `last_contacted_at` is >7 days ago with no status change (follow-up candidates)
+4. For any contact status changes (sent, connected, responded, etc.), update Supabase directly or instruct the user to update in the frontend UI.
+5. If new contacts should be added (e.g. after a new networking session), add them to `seed_contacts.py` and re-run, or insert directly via the Supabase client.
+6. **Always end with a resync** to regenerate the memory file from DB state:
+   ```bash
+   uv run python agent/skills/artemis/scripts/sync_contacts.py
+   ```
+
+**Resync rule:** Any time contacts are added, updated, or status changes are made — always run `sync_contacts.py` before ending the session. This keeps the local memory file and DB in sync at zero token cost.
+
+---
+
 ### `/sync` — Refresh & Re-score Pipeline
 
 Bulk maintenance: re-score, prune dead links, and update based on latest preferences.
@@ -247,6 +272,11 @@ Bulk maintenance: re-score, prune dead links, and update based on latest prefere
    - Jobs re-scored (with notable changes, e.g. "Anthropic PM: 65 → 82 after adding AI eval to preferences")
    - Any new observations (e.g. "3 of your top-scored jobs are at AI dev tools companies")
 
+7. **Resync the contacts memory file** after all job/pipeline updates:
+   ```bash
+   uv run python agent/skills/artemis/scripts/sync_contacts.py
+   ```
+
 **When to run:** After updating `preferences.md`, after a new coaching session, or periodically (weekly).
 
 ---
@@ -254,6 +284,20 @@ Bulk maintenance: re-score, prune dead links, and update based on latest prefere
 ## Supabase Access
 
 All database operations go through `scripts/db.py`. The script reads credentials from `.env` in the project root.
+
+### Contacts Sync (zero LLM tokens)
+
+The contacts memory file is a **generated view** of the DB — never the source of truth. After any networking operation (adding contacts, updating status, logging interactions), run:
+
+```bash
+# Resync DB → memory file
+uv run python agent/skills/artemis/scripts/sync_contacts.py
+
+# Check for drift without writing
+uv run python agent/skills/artemis/scripts/sync_contacts.py --check
+```
+
+This runs in <2 seconds with no LLM calls. It is safe to run after every session.
 
 > **⚠️ CRITICAL: CLI commands must be a single line.** Never put newlines inside command arguments. Strip all newlines from `--description`, `--reason`, `--why`, and other text fields before passing them. Replace newlines with spaces or ` | ` separators. The shell will reject multi-line commands.
 

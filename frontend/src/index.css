@@ -673,6 +673,409 @@ button {
   padding: 0;
 }
 
+/* ─── View Tabs ─── */
+.view-tabs {
+  display: flex;
+  gap: var(--gap-xs);
+  margin-bottom: var(--gap-lg);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0;
+}
+
+.view-tab {
+  padding: 8px 20px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  border: 1px solid transparent;
+  border-bottom: none;
+  transition: all var(--transition);
+  position: relative;
+  bottom: -1px;
+}
+
+.view-tab:hover {
+  color: var(--text-secondary);
+}
+
+.view-tab.active {
+  background: var(--bg-secondary);
+  color: var(--accent);
+  border-color: var(--border);
+  border-bottom-color: var(--bg-secondary);
+}
+
+/* ─── Networking Panel ─── */
+.networking-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-lg);
+}
+
+.networking-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.networking-stats {
+  display: flex;
+  gap: var(--gap-lg);
+}
+
+.networking-stat {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.networking-stat strong {
+  color: var(--text-primary);
+}
+
+.networking-stat.personal strong {
+  color: var(--yellow);
+}
+
+/* ─── Pipeline Summary Bar ─── */
+.networking-pipeline-summary {
+  display: flex;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--gap-md) var(--gap-lg);
+  gap: 0;
+}
+
+.pipeline-stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  border-right: 1px solid var(--border);
+  padding: 0 var(--gap-sm);
+}
+
+.pipeline-stage:last-child {
+  border-right: none;
+}
+
+.pipeline-stage-count {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.pipeline-stage-count.has-contacts {
+  color: var(--text-primary);
+}
+
+.pipeline-stage-label {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+/* ─── Company Contact Group ─── */
+.company-contact-group {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.company-contact-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--gap-md) var(--gap-lg);
+  border-bottom: 1px solid var(--border);
+}
+
+.company-contact-name {
+  font-weight: 700;
+  color: var(--accent);
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.company-contact-count {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+
+.contact-cards {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── Contact Card ─── */
+.contact-card {
+  border-bottom: 1px solid var(--border);
+  transition: background var(--transition);
+}
+
+.contact-card:last-child {
+  border-bottom: none;
+}
+
+.contact-card.expanded {
+  background: var(--bg-card);
+}
+
+.contact-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--gap-md) var(--gap-lg);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.contact-card-header:hover {
+  background: var(--bg-card-hover);
+}
+
+.contact-card-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.contact-name-row {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+}
+
+.contact-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.personal-flag {
+  color: var(--yellow);
+  font-size: 0.85rem;
+}
+
+.contact-title {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.contact-linked-role {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.contact-card-right {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+}
+
+.expand-chevron {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  margin-left: var(--gap-xs);
+}
+
+/* ─── Contact Card Body ─── */
+.contact-card-body {
+  padding: 0 var(--gap-lg) var(--gap-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+  animation: slideDown 200ms ease;
+}
+
+.contact-linkedin {
+  font-size: 0.8rem;
+}
+
+.contact-section h4 {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--gap-xs);
+}
+
+.contact-section p {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.outreach-message {
+  font-family: inherit;
+  font-size: 0.83rem;
+  color: var(--text-secondary);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--gap-md);
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+/* ─── Status Stepper ─── */
+.status-stepper {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+}
+
+.stepper-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  border: 2px solid var(--border);
+  flex-shrink: 0;
+  transition: all var(--transition);
+}
+
+.stepper-dot.done {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+}
+
+.stepper-dot.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 6px var(--accent-glow);
+}
+
+/* ─── Interaction Log ─── */
+.interaction-log {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
+}
+
+.interaction-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--gap-sm);
+  font-size: 0.8rem;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.interaction-item:last-child {
+  border-bottom: none;
+}
+
+.interaction-type {
+  color: var(--accent);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.interaction-date {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.interaction-notes-text {
+  color: var(--text-secondary);
+}
+
+/* ─── Log Interaction Form ─── */
+.log-interaction-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--gap-md);
+}
+
+.interaction-select {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  font-family: inherit;
+}
+
+.interaction-notes {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.interaction-notes::placeholder {
+  color: var(--text-muted);
+}
+
+/* ─── Outreach Status Badges ─── */
+.outreach-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.outreach-badge--identified {
+  background: var(--blue-dim);
+  color: var(--blue);
+}
+
+.outreach-badge--draft-ready {
+  background: var(--yellow-dim);
+  color: var(--yellow);
+}
+
+.outreach-badge--sent {
+  background: var(--purple-dim);
+  color: var(--purple);
+}
+
+.outreach-badge--connected {
+  background: var(--accent-glow);
+  color: var(--accent);
+}
+
+.outreach-badge--responded {
+  background: var(--green-dim);
+  color: var(--green);
+}
+
+.outreach-badge--meeting-scheduled {
+  background: var(--green-dim);
+  color: var(--green);
+}
+
+.outreach-badge--warm {
+  background: var(--orange-dim);
+  color: var(--orange);
+}
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }

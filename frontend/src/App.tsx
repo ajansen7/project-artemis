@@ -6,8 +6,12 @@ import { Header } from './components/Header';
 import { StatusFilter } from './components/StatusFilter';
 import { JobTable } from './components/JobTable';
 import { CompanySidebar } from './components/CompanySidebar';
+import { NetworkingPanel } from './components/NetworkingPanel';
+
+type View = 'pipeline' | 'networking';
 
 function App() {
+  const [view, setView] = useState<View>('pipeline');
   const [statusFilter, setStatusFilter] = useState<JobStatus | 'all'>('all');
   const { jobs, loading, updateStatus, deleteJob, refetch } = useJobs(statusFilter);
   const allCounts = useAllCounts();
@@ -28,18 +32,39 @@ function App() {
       <Header counts={allCounts} />
       <div className="app-body">
         <div className="main-content">
-          <StatusFilter
-            active={statusFilter}
-            counts={allCounts}
-            onChange={setStatusFilter}
-          />
-          <JobTable
-            jobs={jobs}
-            loading={loading}
-            onUpdateStatus={handleStatusChange}
-            onDelete={handleDelete}
-            onUpdate={refetch}
-          />
+          <div className="view-tabs">
+            <button
+              className={`view-tab ${view === 'pipeline' ? 'active' : ''}`}
+              onClick={() => setView('pipeline')}
+            >
+              Pipeline
+            </button>
+            <button
+              className={`view-tab ${view === 'networking' ? 'active' : ''}`}
+              onClick={() => setView('networking')}
+            >
+              Networking
+            </button>
+          </div>
+
+          {view === 'pipeline' ? (
+            <>
+              <StatusFilter
+                active={statusFilter}
+                counts={allCounts}
+                onChange={setStatusFilter}
+              />
+              <JobTable
+                jobs={jobs}
+                loading={loading}
+                onUpdateStatus={handleStatusChange}
+                onDelete={handleDelete}
+                onUpdate={refetch}
+              />
+            </>
+          ) : (
+            <NetworkingPanel />
+          )}
         </div>
         <CompanySidebar
           companies={companies}

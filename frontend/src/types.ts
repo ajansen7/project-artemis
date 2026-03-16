@@ -45,6 +45,91 @@ export const STATUS_ORDER: JobStatus[] = [
   'offer',
 ];
 
+// ─── Networking Types ────────────────────────────────────────────
+
+export type OutreachStatus =
+  | 'identified'
+  | 'draft_ready'
+  | 'sent'
+  | 'connected'
+  | 'responded'
+  | 'meeting_scheduled'
+  | 'warm';
+
+export type ContactPriority = 'high' | 'medium' | 'low';
+
+export type InteractionType =
+  | 'connection_request'
+  | 'message_sent'
+  | 'response_received'
+  | 'meeting_scheduled'
+  | 'referral_requested'
+  | 'referral_given'
+  | 'note';
+
+export interface ContactInteraction {
+  id: string;
+  contact_id: string;
+  interaction_type: InteractionType;
+  notes: string | null;
+  occurred_at: string;
+  created_at: string;
+}
+
+export interface Contact {
+  id: string;
+  company_id: string | null;
+  name: string;
+  title: string | null;
+  linkedin_url: string | null;
+  email: string | null;
+  relationship_type: string;
+  notes: string | null;
+  last_contacted_at: string | null;
+  outreach_status: OutreachStatus;
+  priority: ContactPriority | null;
+  outreach_message_md: string | null;
+  is_personal_connection: boolean;
+  mutual_connection_notes: string | null;
+  created_at: string;
+  updated_at: string;
+  companies: { name: string } | null;
+  contact_job_links?: { job_id: string; jobs?: { title: string; companies?: { name: string } | null } | null }[];
+  contact_interactions?: ContactInteraction[];
+}
+
+export const OUTREACH_STATUS_ORDER: OutreachStatus[] = [
+  'identified',
+  'draft_ready',
+  'sent',
+  'connected',
+  'responded',
+  'meeting_scheduled',
+  'warm',
+];
+
+export const OUTREACH_STATUS_LABELS: Record<OutreachStatus, string> = {
+  identified: 'Identified',
+  draft_ready: 'Draft Ready',
+  sent: 'Sent',
+  connected: 'Connected',
+  responded: 'Responded',
+  meeting_scheduled: 'Meeting Set',
+  warm: 'Warm',
+};
+
+export const INTERACTION_TYPE_LABELS: Record<InteractionType, string> = {
+  connection_request: 'Connection Request',
+  message_sent: 'Message Sent',
+  response_received: 'Response Received',
+  meeting_scheduled: 'Meeting Scheduled',
+  referral_requested: 'Referral Requested',
+  referral_given: 'Referral Given',
+  note: 'Note',
+};
+
+// ─── Job Status Labels ───────────────────────────────────────────
+
 export const STATUS_LABELS: Record<JobStatus, string> = {
   scouted: 'Scouted',
   to_review: 'To Review',
