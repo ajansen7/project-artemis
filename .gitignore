@@ -47,3 +47,4 @@ ingestion/
 analysis.md
 .claude/skills/scout/references/candidate_context.md
 .claude/skills/interview-coach/coaching_state.md
+.claude/skills/scout/scripts/update_outreach_messages.py
