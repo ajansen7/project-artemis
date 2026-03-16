@@ -234,8 +234,22 @@ Surface contacts ready for outreach, advance pipeline status, and log interactio
    - **Personal connections** (★) first — highest leverage
    - Then `draft_ready` contacts ordered by priority (high → medium → low)
    - Flag any contacts where `last_contacted_at` is >7 days ago with no status change (follow-up candidates)
-4. For any contact status changes (sent, connected, responded, etc.), update Supabase directly or instruct the user to update in the frontend UI.
-5. If new contacts should be added (e.g. after a new networking session), add them to `seed_contacts.py` and re-run, or insert directly via the Supabase client.
+4. For any contact status changes (sent, connected, responded, etc.), use `update-contact`:
+   ```bash
+   uv run python .claude/skills/scout/scripts/db.py update-contact \
+     --linkedin-url "linkedin.com/in/handle" --status "sent"
+   ```
+5. If new contacts should be added (e.g. after a new networking session), use `batch-add-contacts` — pipe a JSON array directly, **never write bespoke seed scripts**:
+   ```bash
+   echo '[{"name":"Jane Smith","company":"Anthropic","title":"PM","linkedin_url":"linkedin.com/in/janesmith","relationship_type":"hiring_manager","outreach_status":"draft_ready","priority":"high","is_personal_connection":false,"outreach_message_md":"Subject: ...\n\nHi Jane...","notes":"...","jobs":["4cfb2cb8"]}]' | uv run python .claude/skills/scout/scripts/db.py batch-add-contacts
+   ```
+   Full contact schema (all fields optional except `name` and `company`):
+   `name`, `company`, `title`, `linkedin_url` (dedup key), `relationship_type`
+   (`recruiter|hiring_manager|referral|alumni|unknown`), `outreach_status`
+   (`identified|draft_ready|sent|connected|responded|meeting_scheduled|warm`),
+   `priority` (`high|medium|low`), `is_personal_connection`, `outreach_message_md`
+   (include `Subject:` line at top), `mutual_connection_notes`, `notes`,
+   `jobs` (array of 8-char job ID prefixes to link).
 6. **Always end with a resync** to regenerate the memory file from DB state:
    ```bash
    uv run python .claude/skills/scout/scripts/sync_contacts.py
