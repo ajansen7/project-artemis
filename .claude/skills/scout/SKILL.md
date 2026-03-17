@@ -201,11 +201,14 @@ Generate a tailored resume, cover letter, and primer for a specific job applicat
    - `references/apply_lessons.md` — **lessons extracted from past corrections**. Read every entry and apply any that are relevant to the current draft. This is how the agent improves over time.
 4. Create a new directory `applications/<company_name>-<role_name>/` within the Scout workspace.
 5. Generate and save three markdown files in that directory:
-   - **`resume.md`**: Select and reorder bullets from `resume_master.md` to match JD priorities. **Do NOT rewrite or invent bullet points** — only use what is in `resume_master.md`, verbatim. You may omit less-relevant bullets to keep the resume focused, but never fabricate new ones. MUST use this exact header block at the top:
+   - **`resume.md`**: Select and reorder bullets from `resume_master.md` to match JD priorities. **Do NOT rewrite or invent bullet points** — only use what is in `resume_master.md`, verbatim. You may omit less-relevant bullets to keep the resume focused, but never fabricate new ones. MUST use this exact structure at the top:
      ```markdown
      # Alex Jansen
      ajansen1090@gmail.com | 509-531-9857 | [LinkedIn](https://www.linkedin.com/in/alex-jansen-product/) | [Portfolio](https://alex-jansen-portfolio.lovable.app/) | [GitHub](https://github.com/ajansen7)
+
+     <2–4 sentence about paragraph tailored to this specific role and company. Lead with the clearest signal for THIS job (e.g. "10+ years of AI product leadership" for an AI PM role, "operator who has scaled from 0→1 and $500M→$1B" for a growth role). Draw from candidate_context.md positioning. No bullets — prose only.>
      ```
+     The about paragraph is **required on every resume** — it is the story arc lens that makes the bullets coherent. Tailor it to the job, but keep it grounded in the candidate's actual positioning from `candidate_context.md`.
    - **`cover_letter.md`**: A concise, authentic cover letter written in the candidate's established voice (no generic AI-speak, lean heavily on the "builder and tinkerer" positioning from `candidate_context.md`). MUST use this exact header block at the top:
      ```markdown
      Alex Jansen
@@ -226,9 +229,9 @@ Generate a tailored resume, cover letter, and primer for a specific job applicat
    ```
 7. Generate a styled PDF resume from the saved markdown:
    ```bash
-   uv run python .claude/skills/scout/scripts/generate_resume_pdf.py --job-id "<job_id>"
+   uv run python .claude/skills/scout/scripts/generate_resume_docx.py --job-id "<job_id>"
    ```
-   This writes `applications/<company>-<role>/resume.pdf` and records the path in the DB (`applications.resume_pdf_path`).
+   This builds a DOCX from the Noto Sans template, converts to PDF via LibreOffice, and records the path in the DB (`applications.resume_pdf_path`).
 
 ---
 
@@ -247,7 +250,7 @@ Automates filling out the online application form using Chrome. **Must be run in
 4. **Verify PDF resume exists.** Check `applications/<company>-<role>/resume.pdf` (or `resume_pdf_path` in DB).
    - If not: generate it:
      ```bash
-     uv run python .claude/skills/scout/scripts/generate_resume_pdf.py --job-id "<job_id>"
+     uv run python .claude/skills/scout/scripts/generate_resume_docx.py --job-id "<job_id>"
      ```
 5. **Navigate to the job URL** in Chrome. Note the ATS platform (Greenhouse, Lever, Workday, iCIMS, Taleo, custom).
 

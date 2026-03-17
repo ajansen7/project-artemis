@@ -96,8 +96,8 @@ async def generate_pdf(req: GeneratePdfRequest):
     try:
         process = subprocess.Popen(
             [
-                ".venv/bin/python",
-                ".claude/skills/scout/scripts/generate_resume_pdf.py",
+                "uv", "run", "python",
+                ".claude/skills/scout/scripts/generate_resume_docx.py",
                 "--job-id", req.job_id,
             ],
             cwd="/Users/alexjansen/Dev/project-artemis",

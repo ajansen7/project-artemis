@@ -3,4 +3,4 @@ uvicorn
 pydantic
 supabase
 python-dotenv
-reportlab
+python-docx
