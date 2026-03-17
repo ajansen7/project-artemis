@@ -23,7 +23,7 @@ Scout sits at the intersection of two other projects. These are the **sources of
 | `coaching_state.md` | Interview Coach | Full candidate profile, career history, coaching notes, interview loops | `/context` (full read); `/analyze`, `/prep` (targeted story sections only) |
 | `references/storybank-guide.md` | Interview Coach | Storybank framework and deployment guidance | `/prep` (if needed for drill structure) |
 | `CLAUDE.md` | Interview Coach | Full coaching skill instructions | `/prep` (for coaching context) |
-| `public/resume.json` | Portfolio | Structured resume data (source of truth) | `/context` (full read); `/apply` (for tailored resume generation) |
+| `public/resume.json` | Portfolio | Structured resume data (source of truth) | `/context` (full read); `/scout apply` (for tailored resume generation) |
 | `src/` | Portfolio | Portfolio site source (work descriptions, projects) | When researching the candidate's own positioning |
 
 ### When Scout discovers something that should update other projects:
@@ -188,9 +188,9 @@ Quick pipeline overview.
 
 ---
 
-### `/apply <company or job>` — Application Material Generation
+### `/scout apply <job_id>` — Application Material Generation
 
-Generate a tailored resume, cover letter, and primer for a specific job application.
+Generate a tailored resume, cover letter, primer, and form-fill cheat sheet for a specific job application.
 
 **Steps:**
 1. **Context freshness check** (see above) — refresh cache if stale
@@ -199,8 +199,9 @@ Generate a tailored resume, cover letter, and primer for a specific job applicat
    - `references/candidate_context.md` — positioning, voice, strengths, known gaps, story index
    - `references/resume_master.md` — **canonical, verified resume content**. All bullet points, exact wording, and experience entries are pre-approved. This is the single source of truth for resume content.
    - `references/apply_lessons.md` — **lessons extracted from past corrections**. Read every entry and apply any that are relevant to the current draft. This is how the agent improves over time.
+   - `references/preferences.md` — salary range, work authorization, location preferences (needed for form_fills.md)
 4. Create a new directory `applications/<company_name>-<role_name>/` within the Scout workspace.
-5. Generate and save three markdown files in that directory:
+5. Generate and save **four** markdown files in that directory:
    - **`resume.md`**: Select and reorder bullets from `resume_master.md` to match JD priorities. **Do NOT rewrite or invent bullet points** — only use what is in `resume_master.md`, verbatim. You may omit less-relevant bullets to keep the resume focused, but never fabricate new ones. MUST use this exact structure at the top:
      ```markdown
      # Alex Jansen
@@ -219,91 +220,77 @@ Generate a tailored resume, cover letter, and primer for a specific job applicat
      [Company Name]
      ```
    - **`primer.md`**: A company/role primer combining gap analysis from `/analyze` and interview strategy from `/prep`, serving as a cheat sheet for the application process.
+   - **`form_fills.md`**: Pre-written answers to common application form questions, ready to copy-paste. Generate this **last** so it can draw on the cover letter and primer already written. Structure:
+     ```markdown
+     # Form Fills — [Company] [Role]
+
+     ## Contact
+     - **Name**: Alex Jansen
+     - **Email**: ajansen1090@gmail.com
+     - **Phone**: 509-531-9857
+     - **LinkedIn**: https://www.linkedin.com/in/alex-jansen-product/
+     - **Portfolio**: https://alex-jansen-portfolio.lovable.app/
+     - **GitHub**: https://github.com/ajansen7
+     - **Location**: [from preferences.md]
+     - **Work Authorization**: [from preferences.md]
+     - **Expected Start Date**: 2–4 weeks notice (flexible)
+     - **How did you hear about this role?**: LinkedIn
+
+     ## Salary
+     [Expected range from preferences.md]
+
+     ## Short Bio (tweet-length)
+     [2–3 sentences. Lead with the strongest signal for this role. Grounded in candidate_context.md positioning.]
+
+     ## Why [Company]?
+     [3–5 sentences. Genuine, specific. Reference the company's actual work/mission/product. Draw on research from the primer. No generic "I admire your values" language.]
+
+     ## Why this role?
+     [3–5 sentences. Connect candidate's specific background to the role's stated priorities. Reference 1–2 concrete things from the job description.]
+
+     ## What would you bring to this team?
+     [2–4 sentences. Lead with the most differentiating thing — usually the AI + PM + engineering combination. Ground in a concrete example or story from the story index.]
+
+     ## Additional Info / Anything Else?
+     [Optional. Use only if there's a genuine gap to address proactively (from Known Gaps in candidate_context.md), e.g. recency of developer tools experience. Keep it brief and confident, not defensive.]
+     ```
+     **Rules for form_fills.md:**
+     - "Why [Company]?" and "Why this role?" must be specific to THIS company and job — never generic
+     - Pull company-specific language from the primer research
+     - The short bio should differ from the resume about paragraph (more casual, first-person voice)
+     - Salary: use the range from `references/preferences.md` for this role type/level
+     - Skip the "Additional Info" section entirely if there's nothing meaningful to say
+
 6. Save the generated files to Supabase:
    ```bash
    uv run python .claude/skills/scout/scripts/db.py save-application \
      --id "<job_id>" \
      --resume "applications/.../resume.md" \
      --cover-letter "applications/.../cover_letter.md" \
-     --primer "applications/.../primer.md"
+     --primer "applications/.../primer.md" \
+     --form-fills "applications/.../form_fills.md"
    ```
 7. Generate a styled PDF resume from the saved markdown:
    ```bash
    uv run python .claude/skills/scout/scripts/generate_resume_docx.py --job-id "<job_id>"
    ```
    This builds a DOCX from the Noto Sans template, converts to PDF via LibreOffice, and records the path in the DB (`applications.resume_pdf_path`).
-
----
-
-### `/fill <job_id>` — Auto-fill Job Application
-
-Automates filling out the online application form using Chrome. **Must be run interactively** — it requires browser access and user confirmation before submitting.
-
-**Steps:**
-1. **Context freshness check** (see above)
-2. Look up job details:
+8. **Open the applications folder in Finder** so the resume PDF is immediately accessible for upload:
    ```bash
-   uv run python .claude/skills/scout/scripts/db.py get-job --id "<job_id>"
+   open ".claude/skills/scout/applications/<company_name>-<role_name>/"
    ```
-3. **Verify application materials exist.** Check if `resume_md` and `cover_letter_md` are in the DB for this job.
-   - If not: run `/apply <job_id>` first. Do not proceed without materials.
-4. **Verify PDF resume exists.** Check `applications/<company>-<role>/resume.pdf` (or `resume_pdf_path` in DB).
-   - If not: generate it:
+9. **Prompt the user to apply and confirm when done.** After all materials are ready, tell the user:
+   - What was generated (resume.md, cover_letter.md, primer.md, form_fills.md, resume.pdf)
+   - Where the folder is (Finder should already be open)
+   - Remind them: "When you've submitted the application, just say 'done' and I'll mark it in the pipeline."
+   - When the user confirms, run:
      ```bash
-     uv run python .claude/skills/scout/scripts/generate_resume_docx.py --job-id "<job_id>"
+     uv run python .claude/skills/scout/scripts/db.py mark-submitted --id "<job_id>"
      ```
-5. **Navigate to the job URL** in Chrome. Note the ATS platform (Greenhouse, Lever, Workday, iCIMS, Taleo, custom).
-
-6. **Look for a "Parse resume / Upload to auto-fill" shortcut first.** Many ATS systems have a button like "Upload resume to auto-fill", "Import from resume", or "Parse resume". If present:
-   - Use the JS file-inject method (see step 7) to upload the PDF to that input
-   - Let the ATS auto-populate the fields
-   - Review everything it filled — ATS parsers often garble dates, job titles, or skills
-   - Correct any errors, then proceed to fill remaining empty fields
-   This shortcut can save filling 10–15 fields manually.
-
-7. **Uploading files (resume PDF).** Do NOT rely on triggering a native file-picker dialog — this is unreliable in automation. Instead, inject the file directly via JavaScript:
-   ```javascript
-   // Run this in the browser console / via Chrome tool evaluate:
-   const base64 = "<base64-encoded PDF content>";
-   const binary = atob(base64);
-   const bytes = new Uint8Array(binary.length);
-   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-   const file = new File([bytes], "Alex_Jansen_Resume.pdf", { type: "application/pdf" });
-   const dt = new DataTransfer();
-   dt.items.add(file);
-   document.querySelector('input[type="file"]').files = dt.files;
-   document.querySelector('input[type="file"]').dispatchEvent(new Event('change', { bubbles: true }));
-   ```
-   To get the base64 content, read the PDF file first:
-   ```bash
-   base64 -i "<resume_pdf_path>" | tr -d '\n'
-   ```
-   If there are multiple file inputs, use a more specific selector (e.g. `input[name="resume"]` or `input[accept*="pdf"]`).
-
-8. **Fill remaining standard fields** using the candidate profile from `references/candidate_context.md`:
-   - **Name**: Alex Jansen
-   - **Email / Phone / LinkedIn / Portfolio / GitHub**: from the header block in `candidate_context.md`
-   - **Cover letter**: paste `cover_letter_md` text (strip the markdown header block; start from the salutation) or inject as a file using the same JS approach above
-   - **Work authorization / location / salary**: answer per candidate preferences in `references/preferences.md`
-   - **"How did you hear about this role?"**: "LinkedIn" unless noted otherwise
-   - **Any question you are unsure how to answer** — stop immediately and ask before filling that field. Do not guess.
-
-9. **Do not submit yet.** Screenshot or describe every filled field to the user and explicitly ask: *"All fields look good — should I submit?"*
-10. **Only on explicit user confirmation** — click Submit.
-11. **After successful submission**, update the DB:
-    ```bash
-    uv run python .claude/skills/scout/scripts/db.py mark-submitted --id "<job_id>"
-    ```
-    This sets `applications.submitted_at = now()` and advances `jobs.status → applied`.
-12. Confirm to the user: "✅ Application submitted and pipeline updated."
-
-**ATS-specific notes:**
-- **Greenhouse**: Look for "Fill application from resume" at top of form. Resume upload + free-text cover letter field common.
-- **Lever**: Similar to Greenhouse; may have a combined "Additional info" field for cover letter.
-- **Workday**: Multi-step wizard — fill one step, click Next; watch for required-field validation before proceeding. File upload uses a custom widget, may need to trigger a `click()` on the upload button after setting `.files`.
-- **iCIMS / Taleo**: Older UIs; may require creating an account first — pause and ask the user if an account is needed.
+     And confirm: "Pipeline updated — [Company] [Role] is now marked applied."
 
 ---
+
 
 ### `/network` — Networking Pipeline
 

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Job } from '../types';
 import { MarkdownModal } from './MarkdownModal';
+import { ApplicationModal } from './ApplicationModal';
 
 interface JobDetailProps {
   job: Job;
@@ -12,23 +13,21 @@ interface JobDetailProps {
 
 export function JobDetail({ job, onAdvance, onSkip, onDelete, onUpdate }: JobDetailProps) {
   const nextStatus = getNextStatus(job.status);
-  const [generating, setGenerating] = useState(false);
-  const [generatingPdf, setGeneratingPdf] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
-  const [generateMessage, setGenerateMessage] = useState<string | null>(null);
-  
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const [applicationModalOpen, setApplicationModalOpen] = useState(false);
+
   const [modalOpen, setModalOpen] = useState(false);
   const [modalContent, setModalContent] = useState('');
   const [modalTitle, setModalTitle] = useState('');
-  const [modalDocType, setModalDocType] = useState<'resume' | 'cover_letter' | 'primer' | undefined>();
 
   const handleAnalyze = async () => {
     if (!job.url) {
-      setGenerateMessage('❌ Error: No URL found to analyze.');
+      setStatusMsg('❌ No URL to analyze.');
       return;
     }
     setAnalyzing(true);
-    setGenerateMessage(null);
+    setStatusMsg(null);
     try {
       const response = await fetch('http://localhost:8000/api/run-skill', {
         method: 'POST',
@@ -37,78 +36,16 @@ export function JobDetail({ job, onAdvance, onSkip, onDelete, onUpdate }: JobDet
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || 'Execution failed');
-      
-      setModalTitle(`/analyze Results for ${job.companies?.name || 'Job'}`);
+      setModalTitle(`/analyze — ${job.companies?.name || 'Job'}`);
       setModalContent(data.output);
       setModalOpen(true);
-      // Give the DB a tiny beat to finish persisting, then fetch fresh data
       setTimeout(onUpdate, 1000);
     } catch (err: any) {
-      setModalTitle(`Error running /analyze`);
+      setModalTitle('Error running /analyze');
       setModalContent(`❌ **Error:** ${err.message}`);
       setModalOpen(true);
     } finally {
       setAnalyzing(false);
-    }
-  };
-
-  const docTypeMap: Record<string, 'resume' | 'cover_letter' | 'primer'> = {
-    'Resume': 'resume',
-    'Cover Letter': 'cover_letter',
-    'Primer': 'primer',
-  };
-
-  const handleViewDocument = (t: string, content: string) => {
-    setModalTitle(`${t} — ${job.companies?.name || 'Job'}`);
-    setModalContent(content);
-    setModalDocType(docTypeMap[t]);
-    setModalOpen(true);
-  };
-
-  const handleGeneratePdf = async () => {
-    setGeneratingPdf(true);
-    setGenerateMessage(null);
-    try {
-      const response = await fetch('http://localhost:8000/api/generate-pdf', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ job_id: job.id }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.detail || 'PDF generation failed');
-      setGenerateMessage(`✅ PDF saved: ${data.pdf_path || 'applications folder'}`);
-      setTimeout(onUpdate, 500);
-    } catch (err: any) {
-      setGenerateMessage(`❌ PDF error: ${err.message}`);
-    } finally {
-      setGeneratingPdf(false);
-    }
-  };
-
-  const handleGenerate = async () => {
-    setGenerating(true);
-    setGenerateMessage(null);
-    try {
-      const companyName = job.companies?.name || '';
-      const response = await fetch('http://localhost:8000/api/generate-application', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ job_id: job.id, company_name: companyName }),
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.detail || 'Generation failed');
-      }
-      
-      setGenerateMessage('✅ Generated in applications folder.');
-      // Give the DB a tiny beat to finish persisting, then fetch fresh data
-      setTimeout(onUpdate, 1000);
-    } catch (err: any) {
-      setGenerateMessage(`❌ Error: ${err.message}`);
-    } finally {
-      setGenerating(false);
     }
   };
 
@@ -124,9 +61,7 @@ export function JobDetail({ job, onAdvance, onSkip, onDelete, onUpdate }: JobDet
           <h4>Details</h4>
           {job.url && (
             <div className="detail-url" style={{ marginBottom: 8 }}>
-              <a href={job.url} target="_blank" rel="noopener noreferrer">
-                {job.url}
-              </a>
+              <a href={job.url} target="_blank" rel="noopener noreferrer">{job.url}</a>
             </div>
           )}
           <p>
@@ -145,130 +80,79 @@ export function JobDetail({ job, onAdvance, onSkip, onDelete, onUpdate }: JobDet
         </div>
 
         <div className="detail-actions">
-          <button 
-            className="action-btn" 
+          {/* Primary CTA — opens the full application flow modal */}
+          <button
+            className="action-btn"
             style={{ backgroundColor: 'var(--primary)', color: 'white' }}
-            onClick={handleGenerate}
-            disabled={generating || analyzing}
+            onClick={() => setApplicationModalOpen(true)}
           >
-            {generating ? '✨ Generating...' : (job.applications?.[0]?.resume_md ? '🔄 Re-generate' : '✨ Generate Application')}
+            {(job.applications?.[0] as any)?.resume_md ? '📂 Application' : '🚀 Start Application'}
           </button>
 
-          {job.applications?.[0]?.resume_md && (
-            <button 
-              className="action-btn" 
-              style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)', padding: '0.4rem 0.75rem' }}
-              onClick={() => handleViewDocument('Resume', job.applications![0].resume_md!)}
-            >
-              📄 Resume
-            </button>
-          )}
-          {job.applications?.[0]?.cover_letter_md && (
-            <button 
-              className="action-btn" 
-              style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)', padding: '0.4rem 0.75rem' }}
-              onClick={() => handleViewDocument('Cover Letter', job.applications![0].cover_letter_md!)}
-            >
-              ✉️ Cover Letter
-            </button>
-          )}
-          {job.applications?.[0]?.primer_md && (
-            <button
-              className="action-btn"
-              style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)', padding: '0.4rem 0.75rem' }}
-              onClick={() => handleViewDocument('Primer', job.applications![0].primer_md!)}
-            >
-              📚 Primer
-            </button>
-          )}
-
-          {job.applications?.[0]?.resume_md && (
-            <button
-              className="action-btn"
-              style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)', padding: '0.4rem 0.75rem' }}
-              onClick={handleGeneratePdf}
-              disabled={generatingPdf}
-              title={(job.applications![0] as any).resume_pdf_path || 'Generate a styled PDF resume'}
-            >
-              {generatingPdf ? '⏳ Generating PDF…' : ((job.applications![0] as any).resume_pdf_path ? '🔄 Regen PDF' : '🖨 Generate PDF')}
-            </button>
-          )}
-
-          {(job.applications![0] as any)?.resume_pdf_path && (
-            <button
-              className="action-btn"
-              style={{ backgroundColor: 'var(--green-dim, #1a3a2a)', color: 'var(--success, #4caf78)', padding: '0.4rem 0.75rem' }}
-              onClick={() => setGenerateMessage(`📂 PDF at: ${(job.applications![0] as any).resume_pdf_path}`)}
-            >
-              📄 PDF Ready
-            </button>
-          )}
-
-          {(job.applications?.[0] as any)?.resume_pdf_path && (
-            <button
-              className="action-btn"
-              style={{ backgroundColor: 'var(--primary)', color: 'white', padding: '0.4rem 0.75rem' }}
-              onClick={() => setGenerateMessage('💡 Run /fill ' + job.id.slice(0, 8) + ' in your terminal to auto-fill the application form.')}
-            >
-              🤖 Auto-fill
-            </button>
-          )}
-
+          {/* Analysis */}
           {(job.gap_analysis_json as any)?.markdown ? (
             <>
-              <button 
-                className="action-btn" 
+              <button
+                className="action-btn"
                 style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
-                onClick={() => handleViewDocument('Analysis', (job.gap_analysis_json as any).markdown)}
+                onClick={() => {
+                  setModalTitle(`Analysis — ${job.companies?.name || 'Job'}`);
+                  setModalContent((job.gap_analysis_json as any).markdown);
+                  setModalOpen(true);
+                }}
               >
-                📖 View Analysis
+                📖 Analysis
               </button>
-              <button 
-                className="action-btn" 
+              <button
+                className="action-btn"
                 style={{ backgroundColor: 'var(--blue-dim)', color: 'var(--blue)' }}
                 onClick={handleAnalyze}
-                disabled={generating || analyzing || !job.url}
+                disabled={analyzing || !job.url}
               >
                 {analyzing ? '🔍 Analyzing...' : '🔄 Re-analyze'}
               </button>
             </>
           ) : (
-            <button 
-              className="action-btn" 
+            <button
+              className="action-btn"
               style={{ backgroundColor: 'var(--blue-dim)', color: 'var(--blue)' }}
               onClick={handleAnalyze}
-              disabled={generating || analyzing || !job.url}
+              disabled={analyzing || !job.url}
             >
-              {analyzing ? '🔍 Analyzing...' : '🔍 /analyze'}
+              {analyzing ? '🔍 Analyzing...' : '🔍 Analyze'}
             </button>
           )}
 
+          {/* Pipeline progression — skip to_review→applied since that's in the modal */}
           {nextStatus && (
             <button className="action-btn review" onClick={onAdvance}>
               → Move to {nextStatus.replace('_', ' ')}
             </button>
           )}
-          <button className="action-btn skip" onClick={onSkip}>
-            Skip
-          </button>
-          <button className="action-btn delete" onClick={onDelete}>
-            Delete
-          </button>
+          <button className="action-btn skip" onClick={onSkip}>Skip</button>
+          <button className="action-btn delete" onClick={onDelete}>Delete</button>
         </div>
-        {generateMessage && (
-          <div style={{ marginTop: 12, fontSize: '0.85rem', color: generateMessage.startsWith('✅') ? 'var(--success)' : 'var(--danger)' }}>
-            {generateMessage}
+
+        {statusMsg && (
+          <div style={{ marginTop: 12, fontSize: '0.85rem', color: statusMsg.startsWith('✅') ? 'var(--success)' : 'var(--danger)' }}>
+            {statusMsg}
           </div>
         )}
       </div>
-      
+
+      <ApplicationModal
+        isOpen={applicationModalOpen}
+        onClose={() => setApplicationModalOpen(false)}
+        job={job}
+        onGenerationComplete={() => { setTimeout(onUpdate, 1000); }}
+        onSubmitted={() => { onAdvance(); onUpdate(); }}
+      />
+
       <MarkdownModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         title={modalTitle}
         content={modalContent}
-        jobId={job.id}
-        docType={modalDocType}
         onSaved={() => setTimeout(onUpdate, 500)}
       />
     </div>
@@ -278,7 +162,7 @@ export function JobDetail({ job, onAdvance, onSkip, onDelete, onUpdate }: JobDet
 function getNextStatus(current: string): string | null {
   const flow: Record<string, string> = {
     scouted: 'to_review',
-    to_review: 'applied',
+    // to_review → applied is handled by the Start Application modal
     applied: 'interviewing',
     interviewing: 'offer',
   };

@@ -26,7 +26,7 @@ class GenerateRequest(BaseModel):
 @app.post("/api/generate-application")
 async def generate_application(req: GenerateRequest):
     """
-    Triggers the headless Claude Code CLI to run the `/apply` command for a given job.
+    Triggers the headless Claude Code CLI to run the `/scout apply` command for a given job.
     """
     if not req.job_id:
         raise HTTPException(status_code=400, detail="job_id is required")
@@ -225,6 +225,40 @@ async def learn_from_edit(req: LearnFromEditRequest):
         return {"status": "success", "message": "Agent updated from your corrections.", "output": stdout}
     except FileNotFoundError:
         raise HTTPException(status_code=500, detail="claude CLI not found in PATH.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class MarkSubmittedRequest(BaseModel):
+    job_id: str
+
+@app.post("/api/mark-submitted")
+async def mark_submitted(req: MarkSubmittedRequest):
+    """
+    Sets submitted_at on the application record and advances job status to 'applied'.
+    """
+    from datetime import datetime, timezone
+    if not req.job_id:
+        raise HTTPException(status_code=400, detail="job_id is required")
+
+    supabase_url = os.getenv("SUPABASE_URL", "")
+    supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+    if not supabase_url or not supabase_key:
+        raise HTTPException(status_code=500, detail="Supabase credentials not configured.")
+
+    try:
+        from supabase import create_client
+        sb = create_client(supabase_url, supabase_key)
+        now = datetime.now(timezone.utc).isoformat()
+
+        app_res = sb.table("applications").update({"submitted_at": now}).eq("job_id", req.job_id).execute()
+        if not app_res.data:
+            sb.table("applications").insert({"job_id": req.job_id, "submitted_at": now}).execute()
+
+        sb.table("jobs").update({"status": "applied"}).eq("id", req.job_id).execute()
+        return {"status": "success", "message": f"Application {req.job_id} marked submitted."}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

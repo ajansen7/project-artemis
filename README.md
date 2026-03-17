@@ -37,13 +37,13 @@ Artemis is built around an **agent orchestrator** that coordinates two peer skil
 Open the project in Claude Code and talk to it naturally. The orchestrator decides which skill to invoke.
 
 ```
-You:    "Scout for AI PM jobs"
+You:     "Scout for AI PM jobs"
 Artemis: reads your profile → searches the web → saves to Supabase → reports back
 
-You:    "Analyze this posting: https://..."
+You:     "Analyze this posting: https://..."
 Artemis: reads the posting → compares to your profile → scores fit → flags gaps
 
-You:    "Prep me for my Anthropic interview"
+You:     "Prep me for my Anthropic interview"
 Artemis: delegates to Interview Coach → researches company → maps stories → generates talking points
 ```
 
@@ -56,6 +56,7 @@ Artemis: delegates to Interview Coach → researches company → maps stories �
 - **Python 3.11+** and **[uv](https://docs.astral.sh/uv/)** (Python package manager)
 - **Supabase** project (free tier works)
 - **Claude Code**
+- **LibreOffice** (for PDF resume generation via `soffice` headless)
 
 ### 1. Clone and install dependencies
 
@@ -86,9 +87,12 @@ db/migrations/004_job_management.sql        # Add not_interested/deleted statuse
 db/migrations/005_relax_rls.sql             # Relax RLS for local dev
 db/migrations/006_target_companies.sql      # Target company watchlist fields
 db/migrations/007_application_markdown.sql  # Dedicated application artifacts table
-db/migrations/008_applications_rls.sql      # Relax RLS for anonymous application reads
+db/migrations/008_applications_rls.sql      # Relax RLS on applications for local dev
 db/migrations/009_networking.sql            # Networking: outreach status, contact-job links, interaction log
 db/migrations/010_contacts_rls.sql          # Relax RLS on contacts for local dev
+db/migrations/011_add_pdf_path.sql          # Add resume_pdf_path to applications
+db/migrations/012_applications_anon_full.sql # Grant anon full access to applications table
+db/migrations/013_add_form_fills.sql        # Add form_fills_md to applications
 ```
 
 3. Copy your credentials:
@@ -115,13 +119,13 @@ You should see a pipeline status dashboard (all zeros if fresh).
 
 ### 4. Connected projects (optional but recommended)
 
-The skills read from two sibling projects for candidate context:
+The skills read from a sibling project for candidate context:
 
 | Project | What it provides | Expected path |
 |---------|-----------------|---------------|
-| `alex-s-lens` | `public/resume.json` (structured resume) | `~/Dev/alex-s-lens/` |
+| `alex-s-lens` | `public/resume.json` (structured resume data) | `~/Dev/alex-s-lens/` |
 
-If these projects exist at those paths, the skills will read from them directly. If not, you'll be prompted to provide context manually.
+If this project exists at that path, the skills will read from it directly. If not, you'll be prompted to provide context manually.
 
 ### 5. Start the Web Dashboard
 
@@ -137,7 +141,7 @@ uv run uvicorn api.server:app --reload
 cd frontend && npm run dev
 ```
 
-Opens at `http://localhost:5173`. Trigger `/sync`, `/analyze`, or "Generate Applications" directly from the UI.
+Opens at `http://localhost:5173`.
 
 ---
 
@@ -169,11 +173,20 @@ Deep fit analysis: score (0-100), matched requirements, gaps with severity, stor
 
 Delegates to the Interview Coach skill: company research, anticipated questions with story deployments, questions to ask, and stories to drill.
 
-### `/apply <job_id>` — Generate Application
+### `/scout apply <job_id>` — Generate Application Materials
 
-> *"Generate cover letter for job 1c1682a7"*
+> *"Apply to job 1c1682a7"*
 
-Generates tailored `resume.md`, `cover_letter.md`, and `primer.md` for the role. Uses your coaching state to match your authentic voice. Saves artifacts to Supabase.
+Generates four files for the role, saves them to Supabase, builds a styled PDF resume, and opens the applications folder in Finder:
+
+| File | Purpose |
+|------|---------|
+| `resume.md` | Tailored resume — bullets selected from `resume_master.md`, never fabricated |
+| `cover_letter.md` | Authentic cover letter in the candidate's voice |
+| `form_fills.md` | Pre-written answers to common form fields: why this company, why this role, short bio, salary, work auth, etc. |
+| `primer.md` | Cheat sheet combining gap analysis + interview strategy |
+
+After generation, open the **Application** modal in the dashboard, review materials, apply, then click **Mark Submitted** to advance the job to `applied` in the pipeline.
 
 ### `/network` — Networking Pipeline
 
@@ -190,6 +203,33 @@ Quick pipeline counts by status and target companies being monitored.
 ### `/sync` — Refresh & Re-score Pipeline
 
 Re-evaluates all active jobs against your current preferences, checks for dead postings, and updates scores.
+
+---
+
+## Web Dashboard
+
+The React dashboard (`http://localhost:5173`) provides a visual interface over the same Supabase pipeline.
+
+**Job pipeline view:**
+- Table of all jobs grouped by status with match scores
+- Expand any job to see description, details, and gap analysis
+- **Start Application** — opens the Application modal for jobs not yet applied to
+- **Application** — reopens the modal to review existing materials
+
+**Application modal:**
+- Status strip showing which materials have been generated (Resume, Cover Letter, Form Fills, Primer, PDF)
+- **Generate Application** button — triggers the Claude CLI headlessly to run `/scout apply`; Finder window opens automatically when complete
+- Tabbed viewer for all four generated documents with inline edit + save
+- **Mark Submitted** — unlocks once resume and cover letter exist; sets `submitted_at` and advances job status to `applied`
+
+**Networking panel:**
+- Full contact pipeline with outreach status, priority, and drafted messages
+
+**Triggered from the UI (via FastAPI bridge):**
+- `/scout apply` — generate application materials
+- `/analyze` — deep job posting analysis
+- Save edited documents back to Supabase
+- Extract lessons from manual edits (`apply_lessons.md`)
 
 ---
 
@@ -224,6 +264,24 @@ uv run python .claude/skills/scout/scripts/db.py update-job --id "uuid" --status
 uv run python .claude/skills/scout/scripts/db.py update-job --id "uuid" --status "not_interested" --reason "Too junior"
 ```
 
+### Applications
+
+```bash
+# Save generated materials to DB
+uv run python .claude/skills/scout/scripts/db.py save-application \
+  --id "uuid" \
+  --resume "applications/company-role/resume.md" \
+  --cover-letter "applications/company-role/cover_letter.md" \
+  --primer "applications/company-role/primer.md" \
+  --form-fills "applications/company-role/form_fills.md"
+
+# Mark submitted (sets submitted_at + advances job status → applied)
+uv run python .claude/skills/scout/scripts/db.py mark-submitted --id "uuid"
+
+# Generate styled PDF from resume_md in DB
+uv run python .claude/skills/scout/scripts/generate_resume_docx.py --job-id "uuid"
+```
+
 ### Companies
 
 ```bash
@@ -248,9 +306,6 @@ uv run python .claude/skills/scout/scripts/db.py status
 ### Networking
 
 ```bash
-# Seed initial contacts (run once, or re-run to upsert)
-uv run python .claude/skills/scout/scripts/seed_contacts.py
-
 # Resync DB → local memory file (run after any contact status changes)
 uv run python .claude/skills/scout/scripts/sync_contacts.py
 
@@ -268,49 +323,45 @@ uv run python .claude/skills/scout/scripts/sync_contacts.py --check
 project-artemis/
 ├── .claude/
 │   ├── agents/
-│   │   └── artemis-orchestrator.md   # Orchestrator — coordinates the full job search campaign
+│   │   └── artemis-orchestrator.md       # Orchestrator — coordinates the full job search campaign
 │   └── skills/
-│       ├── scout/                    # Scout skill (job scouting, pipeline, applications)
-│       │   ├── SKILL.md              # Skill definition — commands, context refs, instructions
+│       ├── scout/                        # Scout skill (job scouting, pipeline, applications)
+│       │   ├── SKILL.md                  # Skill definition — commands, context refs, instructions
+│       │   ├── applications/             # Generated per-job: resume.md, cover_letter.md, form_fills.md, primer.md, resume.pdf
 │       │   ├── references/
 │       │   │   ├── candidate_context.md  # Cached candidate profile (generated — do not edit)
-│       │   │   └── preferences.md        # Target roles, companies, deal-breakers
+│       │   │   ├── resume_master.md      # Verified resume bullets (source of truth — human-approved)
+│       │   │   ├── apply_lessons.md      # Lessons extracted from past corrections (improves future drafts)
+│       │   │   ├── preferences.md        # Target roles, companies, deal-breakers, salary
+│       │   │   └── resume_template.docx  # Noto Sans styled DOCX template for PDF generation
 │       │   └── scripts/
-│       │       ├── db.py             # Supabase CRUD CLI helper
-│       │       ├── seed_contacts.py  # One-time seed of networking contacts to DB
-│       │       └── sync_contacts.py  # Regenerate contacts memory file from DB
-│       └── interview-coach/          # Interview Coach skill (git submodule — noamseg/interview-coach-skill)
-│           ├── SKILL.md              # Full coaching skill instructions
-│           ├── coaching_state.md     # Candidate profile, storybank, interview history
-│           └── references/           # Rubrics, calibration engine, command references
-├── api/server.py                     # FastAPI bridge (headless Claude skill execution)
-├── frontend/                         # Vite + React dashboard
-│   └── src/components/
-│       └── NetworkingPanel.tsx       # Contacts pipeline UI
-├── db/migrations/                    # Supabase schema (10 migrations)
-├── AGENT.md                          # Project-level agent instructions
-├── pyproject.toml                    # Python dependencies
-└── .env                              # Supabase credentials (not committed)
-```
-
-### Updating the Interview Coach skill
-
-The `interview-coach` skill is maintained as a git submodule from [noamseg/interview-coach-skill](https://github.com/noamseg/interview-coach-skill). To pull upstream changes:
-
-```bash
-git submodule update --remote .claude/skills/interview-coach
-git add .claude/skills/interview-coach
-git commit -m "chore: update interview-coach submodule"
-```
-
-### Making skills globally available (optional)
-
-By default, skills are available when this project is open in Claude Code. To make them available globally in any Claude Code session, create symlinks in `~/.claude/skills/`:
-
-```bash
-mkdir -p ~/.claude/skills
-ln -s "$(pwd)/.claude/skills/scout" ~/.claude/skills/scout
-ln -s "$(pwd)/.claude/skills/interview-coach" ~/.claude/skills/interview-coach
+│       │       ├── db.py                 # Supabase CRUD CLI (jobs, companies, contacts, applications)
+│       │       ├── generate_resume_docx.py # resume.md → DOCX → PDF via LibreOffice
+│       │       ├── sync_contacts.py      # Regenerate contacts memory file from DB
+│       │       └── seed_contacts.py      # One-time seed of networking contacts to DB
+│       └── interview-coach/              # Interview Coach skill (git submodule)
+│           ├── SKILL.md                  # Full coaching skill instructions
+│           ├── coaching_state.md         # Candidate profile, storybank, interview history
+│           └── references/               # Rubrics, calibration engine, command references
+├── api/
+│   └── server.py                         # FastAPI bridge — headless Claude skill execution + direct Supabase writes
+├── frontend/
+│   └── src/
+│       ├── components/
+│       │   ├── JobTable.tsx              # Job pipeline table with expandable rows
+│       │   ├── JobDetail.tsx             # Expanded job panel — description, analysis, action buttons
+│       │   ├── ApplicationModal.tsx      # Tabbed application modal — materials, generate, mark submitted
+│       │   ├── MarkdownModal.tsx         # Reusable markdown viewer/editor with save + extract lessons
+│       │   ├── NetworkingPanel.tsx       # Contacts pipeline UI
+│       │   └── StatusBadge.tsx           # Pipeline status pill
+│       ├── hooks/
+│       │   └── useJobs.ts                # Supabase job fetching + status update hook
+│       └── types.ts                      # TypeScript interfaces (Job, Contact, etc.)
+├── db/migrations/                        # Supabase SQL migrations (001–013)
+├── CLAUDE.md                             # Python env instructions (uv run, dependencies)
+├── AGENT.md                              # Project-level agent instructions
+├── pyproject.toml                        # Python dependencies
+└── .env                                  # Supabase credentials (not committed)
 ```
 
 ---
@@ -320,19 +371,32 @@ ln -s "$(pwd)/.claude/skills/interview-coach" ~/.claude/skills/interview-coach
 | Table | Purpose |
 |-------|---------|
 | `jobs` | Pipeline — title, URL, status, match score, gap analysis, source |
-| `companies` | Company directory + target watchlist (is_target, why_target, priority) |
+| `companies` | Company directory + target watchlist (`is_target`, `why_target`, `priority`) |
 | `contacts` | Networking contacts — name, title, LinkedIn, outreach status, priority, draft message |
 | `contact_job_links` | Many-to-many join between contacts and specific job postings |
-| `contact_interactions` | Timestamped event log per contact |
-| `anecdotes` | STAR-format stories (situation, task, action, result, tags) |
-| `applications` | Application artifacts — tailored resume, cover letter, and primer (markdown) |
-| `cost_log` | API usage tracking |
+| `contact_interactions` | Timestamped event log per contact (messages sent, responses, meetings) |
+| `anecdotes` | STAR-format stories |
+| `applications` | Application artifacts — `resume_md`, `cover_letter_md`, `form_fills_md`, `primer_md`, `resume_pdf_path`, `submitted_at` |
 
 ### Job Statuses
 
 `scouted` → `to_review` → `applied` → `interviewing` → `offer`
 
 Side statuses: `not_interested` (with reason), `rejected`, `deleted`
+
+> Note: the `to_review → applied` transition happens exclusively through the Application modal (Generate → review → Mark Submitted), not via a direct status advance button.
+
+---
+
+## Updating the Interview Coach skill
+
+The `interview-coach` skill is a git submodule. To pull upstream changes:
+
+```bash
+git submodule update --remote .claude/skills/interview-coach
+git add .claude/skills/interview-coach
+git commit -m "chore: update interview-coach submodule"
+```
 
 ---
 
@@ -347,11 +411,3 @@ The original full-stack implementation is preserved on the `archive/full-stack-v
 - FastAPI server + Discord bot stubs
 
 To access: `git checkout archive/full-stack-v1`
-
----
-
-## Future Considerations
-
-- **Gemini Google Search Grounding** — if Claude's built-in search isn't sufficient, the `google.genai` SDK supports `tools: [{ googleSearch: {} }]`. Exploration code is on the archive branch.
-- **Discord Bot** — push notifications on new scouted jobs or pipeline reminders.
-- **Scheduled scouting** — automated periodic runs against target company career pages.

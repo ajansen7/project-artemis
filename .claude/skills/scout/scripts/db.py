@@ -160,7 +160,12 @@ def get_job(args):
 def save_application(args):
     """Save generated application materials into the applications table."""
     # Read the markdown files
-    files = {"resume_md": args.resume, "cover_letter_md": args.cover_letter, "primer_md": args.primer}
+    files = {
+        "resume_md": args.resume,
+        "cover_letter_md": args.cover_letter,
+        "primer_md": args.primer,
+        "form_fills_md": getattr(args, "form_fills", None),
+    }
     content = {}
 
     for key, filepath in files.items():
@@ -755,6 +760,7 @@ def main():
     p.add_argument("--resume", help="Path to resume markdown file")
     p.add_argument("--cover-letter", help="Path to cover letter markdown file")
     p.add_argument("--primer", help="Path to primer markdown file")
+    p.add_argument("--form-fills", default=None, help="Path to form fills markdown file")
     p.add_argument("--pdf-path", default=None, help="Path to generated resume PDF")
     p.set_defaults(func=save_application)
 
