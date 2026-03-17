@@ -57,6 +57,7 @@ Artemis: delegates to Interview Coach → researches company → maps stories �
 - **Supabase** project (free tier works)
 - **Claude Code**
 - **LibreOffice** (for PDF resume generation via `soffice` headless)
+- **tmux** — `brew install tmux` (used to run Claude tasks in parallel with live output)
 
 ### 1. Clone and install dependencies
 
@@ -143,6 +144,13 @@ cd frontend && npm run dev
 
 Opens at `http://localhost:5173`.
 
+**Window 3 (optional): Watch Claude work**
+```bash
+tmux attach -t artemis
+```
+
+Every headless Claude task runs in its own named tmux window. Attach any time to watch tool calls stream live, or switch between windows to monitor parallel tasks.
+
 ---
 
 ## Commands
@@ -225,10 +233,22 @@ The React dashboard (`http://localhost:5173`) provides a visual interface over t
 **Networking panel:**
 - Full contact pipeline with outreach status, priority, and drafted messages
 
-**Triggered from the UI (via FastAPI bridge):**
-- `/scout apply` — generate application materials
-- `/analyze` — deep job posting analysis
-- Save edited documents back to Supabase
+**Tasks panel (bottom-right floating panel):**
+- Appears automatically when any task is running or recently completed
+- Pulsing dot = task in progress; click to expand and see a live output tail
+- Each task shows name, elapsed time, status, and a kill button
+- `tmux attach -t artemis` command with one-click copy to jump to the live view
+
+**All long-running Claude CLI tasks run asynchronously in tmux:**
+- UI fires the request and gets a `task_id` back immediately
+- Tasks panel polls for completion every 2 seconds
+- Multiple tasks can run in parallel in separate tmux windows
+- `/scout apply`, `/analyze`, `/sync`, `/scout`, and any other skill invocation all use this flow
+
+**Synchronous operations (direct Supabase writes — no tmux):**
+- Save edited documents
+- Mark application submitted
+- Generate PDF resume (`generate_resume_docx.py`)
 - Extract lessons from manual edits (`apply_lessons.md`)
 
 ---

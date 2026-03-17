@@ -28,6 +28,8 @@ PROJECT_ROOT = "/Users/alexjansen/Dev/project-artemis"
 TMUX_SESSION = "artemis"
 TASK_LOG_DIR = "/tmp/artemis-tasks"
 TMUX_BIN = "/opt/homebrew/bin/tmux"
+CLAUDE_BIN = "/Users/alexjansen/.local/bin/claude"
+UV_BIN = "/Users/alexjansen/.local/share/mise/installs/uv/0.10.4/uv-aarch64-apple-darwin/uv"
 
 # ─── Task Manager ────────────────────────────────────────────────
 
@@ -39,20 +41,34 @@ class Task:
     status: str  # "running" | "complete" | "failed"
     started_at: str
     ended_at: str | None = None
-    log_path: str = ""
+    sentinel_path: str = ""  # file written on exit: contains the exit code
 
-    def read_output(self) -> str:
+    def _read_sentinel(self) -> str | None:
+        """Returns the raw exit-code string if the sentinel file exists, else None."""
         try:
-            with open(self.log_path, "r", encoding="utf-8", errors="replace") as f:
-                return f.read()
+            with open(self.sentinel_path, "r") as f:
+                return f.read().strip()
         except FileNotFoundError:
-            return ""
+            return None
 
     def tail_output(self, lines: int = 30) -> str:
-        output = self.read_output()
-        # Strip the sentinel line from display
-        visible = [l for l in output.splitlines() if not l.startswith("ARTEMIS_EXIT:")]
-        return "\n".join(visible[-lines:])
+        """
+        Best-effort: capture recent output via `tmux capture-pane`.
+        Falls back to empty string if the window is gone.
+        """
+        try:
+            result = subprocess.run(
+                [TMUX_BIN, "capture-pane", "-t", f"{TMUX_SESSION}:{self.id}",
+                 "-p", "-J", "-e"],
+                capture_output=True, text=True,
+            )
+            pane_lines = result.stdout.splitlines()
+            # Strip trailing blank lines
+            while pane_lines and not pane_lines[-1].strip():
+                pane_lines.pop()
+            return "\n".join(pane_lines[-lines:])
+        except Exception:
+            return ""
 
 
 class TaskManager:
@@ -75,11 +91,14 @@ class TaskManager:
     def start(self, name: str, command: list[str]) -> str:
         """
         Run `command` in a new tmux window. Returns a task_id immediately.
-        Output is tee'd to a log file so the server can poll it.
+
+        Claude runs directly against the tmux PTY — no pipes — so output streams
+        in real time when you `tmux attach -t artemis`. Completion is detected via
+        a tiny sentinel file written after the command exits.
         """
         task_id = uuid.uuid4().hex[:8]
         os.makedirs(TASK_LOG_DIR, exist_ok=True)
-        log_path = f"{TASK_LOG_DIR}/{task_id}.log"
+        sentinel_path = f"{TASK_LOG_DIR}/{task_id}.exit"
 
         self._ensure_session()
 
@@ -89,15 +108,13 @@ class TaskManager:
             capture_output=True,
         )
 
-        # Build the shell command:
-        # - cd to project root
-        # - run the command, piping stdout+stderr through tee → log file (user sees it live)
-        # - append exit code sentinel so the server can detect completion
+        # Run the command directly (no pipes) so Claude gets a real PTY and
+        # streams output live. Write only the exit code to the sentinel file.
         cmd_str = shlex.join(command)
         shell_cmd = (
             f"cd {shlex.quote(PROJECT_ROOT)} && "
-            f"{cmd_str} 2>&1 | tee {shlex.quote(log_path)}; "
-            f'echo "ARTEMIS_EXIT:$?" >> {shlex.quote(log_path)}'
+            f"{cmd_str}; "
+            f'echo $? > {shlex.quote(sentinel_path)}'
         )
 
         subprocess.run(
@@ -109,7 +126,7 @@ class TaskManager:
             name=name,
             status="running",
             started_at=datetime.now(timezone.utc).isoformat(),
-            log_path=log_path,
+            sentinel_path=sentinel_path,
         )
 
         with self._lock:
@@ -124,12 +141,9 @@ class TaskManager:
             return None
 
         if task.status == "running":
-            output = task.read_output()
-            if "ARTEMIS_EXIT:0" in output:
-                task.status = "complete"
-                task.ended_at = datetime.now(timezone.utc).isoformat()
-            elif "ARTEMIS_EXIT:" in output:
-                task.status = "failed"
+            exit_code = task._read_sentinel()
+            if exit_code is not None:
+                task.status = "complete" if exit_code == "0" else "failed"
                 task.ended_at = datetime.now(timezone.utc).isoformat()
 
         return task
@@ -154,17 +168,15 @@ task_manager = TaskManager()
 
 
 def _task_to_dict(task: Task, include_output: bool = False) -> dict:
-    d = {
+    return {
         "id": task.id,
         "name": task.name,
         "status": task.status,
         "started_at": task.started_at,
         "ended_at": task.ended_at,
         "tmux_window": f"{TMUX_SESSION}:{task.id}",
+        **({"output": task.tail_output(50)} if include_output else {}),
     }
-    if include_output:
-        d["output"] = task.tail_output(50)
-    return d
 
 
 # ─── Task Endpoints ───────────────────────────────────────────────
@@ -217,7 +229,8 @@ async def generate_application(req: GenerateRequest):
     )
 
     command = [
-        "claude", "-p", prompt,
+        CLAUDE_BIN, "-p", prompt,
+        "--verbose",
         "--dangerously-skip-permissions",
         "--add-dir", "/Users/alexjansen/Dev/project-artemis/.claude/skills/interview-coach",
         "--add-dir", "/Users/alexjansen/Dev/alex-s-lens",
@@ -247,7 +260,7 @@ async def generate_pdf(req: GeneratePdfRequest):
     try:
         process = subprocess.Popen(
             [
-                "uv", "run", "python",
+                UV_BIN, "run", "python",
                 ".claude/skills/scout/scripts/generate_resume_docx.py",
                 "--job-id", req.job_id,
             ],
@@ -357,7 +370,7 @@ async def learn_from_edit(req: LearnFromEditRequest):
 
     try:
         process = subprocess.Popen(
-            ["claude", "-p", prompt, "--dangerously-skip-permissions"],
+            [CLAUDE_BIN, "-p", prompt, "--dangerously-skip-permissions"],
             cwd=PROJECT_ROOT,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -432,7 +445,8 @@ async def run_skill(req: RunSkillRequest):
         prompt = f"Follow the instructions for the `{skill_cmd}` command in SKILL.md."
 
     command = [
-        "claude", "-p", prompt,
+        CLAUDE_BIN, "-p", prompt,
+        "--verbose",
         "--dangerously-skip-permissions",
         "--add-dir", "/Users/alexjansen/Dev/project-artemis/.claude/skills/interview-coach",
         "--add-dir", "/Users/alexjansen/Dev/alex-s-lens",
