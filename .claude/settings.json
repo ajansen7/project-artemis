@@ -4,7 +4,49 @@
       "Bash(uv run *)",
       "Bash(uv add *)",
       "Bash(uv sync)",
-      "Bash(uv sync *)"
+      "Bash(uv sync *)",
+      "Bash(open *)",
+      "Bash(git *)",
+      "WebSearch"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/load-hot-memory.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/check-context.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/sync-extended.sh",
+            "timeout": 30,
+            "async": true
+          }
+        ]
+      }
     ]
   }
 }

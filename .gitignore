@@ -41,20 +41,25 @@ frontend/out/
 *.swo
 .DS_Store
 
-# ─── Personal Context & Agent Outputs ──────────────────────────
-applications/
+# ─── Generated Outputs ────────────────────────────────────────
+output/
 ingestion/
 analysis.md
 analysis_*.md
-.claude/skills/scout/references/candidate_context.md
-.claude/skills/scout/references/resume_master.md
-.claude/skills/scout/references/apply_lessons.md
-.claude/skills/scout/references/preferences.md
-.claude/skills/scout/references/resume_template.docx
+
+# ─── Personal Context (skill references, hot memory) ─────────
+.claude/skills/hunt/references/candidate_context.md
+.claude/skills/hunt/references/preferences.md
+.claude/skills/apply/references/resume_master.md
+.claude/skills/apply/references/apply_lessons.md
+.claude/skills/apply/references/resume_template.docx
+.claude/skills/apply/references/form_defaults.md
 .claude/skills/interview-coach/coaching_state.md
-.claude/skills/scout/scripts/update_outreach_messages.py
-.claude/skills/scout/scripts/seed_contacts*.py
-.claude/skills/scout/scripts/sync_contacts.py
+.claude/memory/hot/
+
+# ─── Legacy (remove after migration complete) ────────────────
 .claude/agent-memory/
+.claude/skills/scout/
+
 *.pdf
 *.docx

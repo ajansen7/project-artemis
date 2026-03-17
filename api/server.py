@@ -213,7 +213,7 @@ class GenerateRequest(BaseModel):
 @app.post("/api/generate-application")
 async def generate_application(req: GenerateRequest):
     """
-    Starts a headless Claude CLI task in tmux to run `/scout apply` for the given job.
+    Starts a headless Claude CLI task in tmux to run `/generate` for the given job.
     Returns a task_id immediately — poll /api/tasks/{task_id} for status.
     """
     if not req.job_id:
@@ -224,7 +224,7 @@ async def generate_application(req: GenerateRequest):
         target_str += f" at {req.company_name}"
 
     prompt = (
-        f"Follow the instructions for the `/scout apply` command in SKILL.md "
+        f"Follow the instructions for the `/generate` command in the apply skill's SKILL.md "
         f"to generate application materials for '{target_str}'."
     )
 
@@ -261,7 +261,7 @@ async def generate_pdf(req: GeneratePdfRequest):
         process = subprocess.Popen(
             [
                 UV_BIN, "run", "python",
-                ".claude/skills/scout/scripts/generate_resume_docx.py",
+                ".claude/tools/generate_resume_docx.py",
                 "--job-id", req.job_id,
             ],
             cwd=PROJECT_ROOT,
@@ -345,7 +345,7 @@ async def learn_from_edit(req: LearnFromEditRequest):
         return {"status": "skipped", "message": "No changes detected."}
 
     doc_label = "resume" if req.doc_type == "resume" else "cover letter"
-    lessons_path = ".claude/skills/scout/references/apply_lessons.md"
+    lessons_path = ".claude/skills/apply/references/apply_lessons.md"
     prompt = (
         f"The user manually corrected their AI-generated {doc_label}. "
         f"Your job is NOT to patch the document — it is to extract the reusable lessons "
@@ -438,7 +438,7 @@ async def run_skill(req: RunSkillRequest):
     if not req.skill:
         raise HTTPException(status_code=400, detail="skill is required")
 
-    skill_cmd = f"/scout {req.skill.lstrip('/')}"
+    skill_cmd = f"/{req.skill.lstrip('/')}"
     if req.target:
         prompt = f"Follow the instructions for the `{skill_cmd}` command in SKILL.md for '{req.target}'."
     else:
