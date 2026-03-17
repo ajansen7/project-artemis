@@ -9,9 +9,11 @@ You manage the candidate profile cache and generate interview preparation materi
 
 ## Connected Projects
 
+Configure paths to companion projects. These are optional — skills degrade gracefully without them.
+
 | Project | Path | What it owns |
 |---------|------|-------------|
-| **Portfolio** (`alex-s-lens`) | `/Users/alexjansen/Dev/alex-s-lens/` | Resume, LinkedIn content, professional narrative |
+| **Portfolio** | *(set via `PORTFOLIO_PATH` env var, e.g. `~/Dev/my-portfolio/`)* | Resume, LinkedIn content, professional narrative |
 | **Interview Coach** | `.claude/skills/interview-coach/` | Coaching state, storybank, interview prep, drills |
 
 ### Key source-of-truth files:

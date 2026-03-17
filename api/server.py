@@ -1,10 +1,12 @@
 import os
 import shlex
+import shutil
 import subprocess
 import threading
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
@@ -24,12 +26,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-PROJECT_ROOT = "/Users/alexjansen/Dev/project-artemis"
+PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
 TMUX_SESSION = "artemis"
 TASK_LOG_DIR = "/tmp/artemis-tasks"
-TMUX_BIN = "/opt/homebrew/bin/tmux"
-CLAUDE_BIN = "/Users/alexjansen/.local/bin/claude"
-UV_BIN = "/Users/alexjansen/.local/share/mise/installs/uv/0.10.4/uv-aarch64-apple-darwin/uv"
+TMUX_BIN = os.environ.get("TMUX_BIN", shutil.which("tmux") or "/opt/homebrew/bin/tmux")
+CLAUDE_BIN = os.environ.get("CLAUDE_BIN", shutil.which("claude") or "claude")
+UV_BIN = os.environ.get("UV_BIN", shutil.which("uv") or "uv")
 
 # ─── Task Manager ────────────────────────────────────────────────
 
@@ -232,9 +234,11 @@ async def generate_application(req: GenerateRequest):
         CLAUDE_BIN, "-p", prompt,
         "--verbose",
         "--dangerously-skip-permissions",
-        "--add-dir", "/Users/alexjansen/Dev/project-artemis/.claude/skills/interview-coach",
-        "--add-dir", "/Users/alexjansen/Dev/alex-s-lens",
+        "--add-dir", os.path.join(PROJECT_ROOT, ".claude", "skills", "interview-coach"),
     ]
+    portfolio_path = os.environ.get("PORTFOLIO_PATH")
+    if portfolio_path:
+        command.extend(["--add-dir", portfolio_path])
 
     name = f"Generate Application — {req.company_name or req.job_id[:8]}"
     task_id = task_manager.start(name, command)
@@ -448,9 +452,11 @@ async def run_skill(req: RunSkillRequest):
         CLAUDE_BIN, "-p", prompt,
         "--verbose",
         "--dangerously-skip-permissions",
-        "--add-dir", "/Users/alexjansen/Dev/project-artemis/.claude/skills/interview-coach",
-        "--add-dir", "/Users/alexjansen/Dev/alex-s-lens",
+        "--add-dir", os.path.join(PROJECT_ROOT, ".claude", "skills", "interview-coach"),
     ]
+    portfolio_path = os.environ.get("PORTFOLIO_PATH")
+    if portfolio_path:
+        command.extend(["--add-dir", portfolio_path])
 
     name = f"{req.skill.capitalize()}{' — ' + req.target[:40] if req.target else ''}"
     task_id = task_manager.start(name, command)

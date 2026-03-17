@@ -84,7 +84,7 @@ def render_md(groups):
         f"# LinkedIn Contact Pipeline — {now}",
         "",
         "**Why:** Track networking contacts so Artemis can manage follow-up timing, avoid duplicate outreach, and build on warm signals across sessions.",
-        "**How to apply:** Check before any new outreach session. Update status after Alex sends messages or receives responses.",
+        "**How to apply:** Check before any new outreach session. Update status after sending messages or receiving responses.",
         "**Source of truth:** Supabase `contacts` table. Edit status there; run `sync_contacts.py` to regenerate this file.",
         "",
         "---",

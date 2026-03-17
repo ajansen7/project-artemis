@@ -39,11 +39,11 @@ Search the web for job opportunities that match the candidate's profile.
 5. Save interesting companies: `uv run python .claude/tools/db.py add-company --name "..." --domain "..." --careers-url "..." --why "..." --priority "high|medium|low"`
 6. Report: jobs saved, companies discovered, score distribution, patterns noticed
 
-**Search strategy (be creative):**
-- Direct: "AI Product Manager remote jobs 2026"
-- Company-specific: "[Company] careers product manager"
-- Community: "Hacker News who is hiring March 2026"
-- Industry: "AI evaluation companies hiring"
+**Search strategy (be creative — pull target roles, companies, and industries from preferences.md):**
+- Direct: "[target role] remote jobs [year]"
+- Company-specific: "[target company] careers [target role]"
+- Community: "Hacker News who is hiring [month] [year]"
+- Industry: "[target industry] companies hiring"
 - Adjacent roles: titles the candidate might not think of
 - Career pages: target company careers pages
 

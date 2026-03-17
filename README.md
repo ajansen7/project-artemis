@@ -61,6 +61,7 @@ Each skill owns a slice of the job search lifecycle.
 | **connect** | `/network` | Manage contacts, draft outreach, track status |
 | **profile** | `/context`, `/prep` | Build candidate context cache, interview prep |
 | **interview-coach** | `/kickoff`, `/practice`, `/mock`, `/debrief` | Coaching, storybank, drills (git submodule) |
+| **kickoff** | `/setup` | One-time setup wizard for new users |
 
 ### Tools (discrete actions)
 
@@ -178,6 +179,12 @@ Quick pipeline counts by status and target companies.
 
 Re-evaluates all active jobs against current preferences, prunes dead postings, batch updates scores.
 
+### `/setup` -- Initial Setup
+
+> *"Set me up"* (first time using Artemis)
+
+Interactive wizard that walks you through building your candidate profile, search preferences, resume master, and application form defaults. Creates all the personal files that skills need to function.
+
 ---
 
 ## Setup
@@ -223,13 +230,19 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 uv run python .claude/tools/db.py status
 ```
 
-### 4. Connected projects (optional)
+### 4. Initialize your profile
 
-| Project | What it provides | Expected path |
-|---------|-----------------|---------------|
-| `alex-s-lens` | `public/resume.json` (structured resume data) | `~/Dev/alex-s-lens/` |
+Run `/setup` in Claude Code to build your candidate profile, search preferences, resume, and application defaults. The setup wizard walks you through each file interactively.
 
-### 5. Start the Web Dashboard
+Alternatively, copy the `.example.md` files in `.claude/memory/hot/` and `.claude/skills/*/references/` and fill them in manually.
+
+### 5. Connected projects (optional)
+
+| Project | What it provides | Setup |
+|---------|-----------------|-------|
+| Portfolio project | `public/resume.json` (structured resume data) | Set `PORTFOLIO_PATH` env var to the project directory |
+
+### 6. Start the Web Dashboard
 
 **Terminal 1 -- API:**
 ```bash
@@ -302,6 +315,8 @@ project-artemis/
         SKILL.md
       profile/                        # Candidate context + interview prep
         SKILL.md
+      kickoff/                        # One-time setup wizard
+        SKILL.md
       interview-coach/                # Git submodule -- coaching, storybank, drills
         SKILL.md
         coaching_state.md
@@ -315,10 +330,11 @@ project-artemis/
       sync-extended.sh                # Stop: sync contacts, cleanup
     memory/
       hot/
-        identity.md                   # Candidate identity + positioning
-        voice.md                      # Tone rules for communications
-        active_loops.md               # Current interview loops
-        lessons.md                    # Operational best practices
+        identity.md                   # Candidate identity + positioning (gitignored)
+        voice.md                      # Tone rules for communications (gitignored)
+        active_loops.md               # Current interview loops (gitignored)
+        lessons.md                    # Operational best practices (gitignored)
+        *.example.md                  # Templates for new users (committed)
   output/                             # All generated artifacts (gitignored)
     applications/                     # Per-job: resume, cover letter, primer, form fills, PDF
     contacts_pipeline.md              # Generated contacts view

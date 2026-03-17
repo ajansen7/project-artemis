@@ -55,23 +55,9 @@ Generate a tailored resume, cover letter, primer, and form-fill cheat sheet.
 3. Create directory `output/applications/<company_name>-<role_name>/`
 4. Generate and save **four** markdown files:
 
-**`resume.md`**: Select and reorder bullets from `resume_master.md` to match JD priorities. **Do NOT rewrite or invent bullet points** — only use verbatim content. May omit less-relevant bullets. MUST use this header:
-```markdown
-# Alex Jansen
-ajansen1090@gmail.com | 509-531-9857 | [LinkedIn](https://www.linkedin.com/in/alex-jansen-product/) | [Portfolio](https://alex-jansen-portfolio.lovable.app/) | [GitHub](https://github.com/ajansen7)
+**`resume.md`**: Select and reorder bullets from `resume_master.md` to match JD priorities. **Do NOT rewrite or invent bullet points** — only use verbatim content. May omit less-relevant bullets. Use the header from `resume_master.md` (name, contact info, links), followed by a 2-4 sentence about paragraph tailored to this specific role and company.
 
-<2-4 sentence about paragraph tailored to this specific role and company.>
-```
-
-**`cover_letter.md`**: Concise, authentic, in the candidate's voice. MUST use this header:
-```markdown
-Alex Jansen
-ajansen1090@gmail.com
-509-531-9857
-
-Hiring Team
-[Company Name]
-```
+**`cover_letter.md`**: Concise, authentic, in the candidate's voice. Use the candidate's name and contact info from `references/form_defaults.md` for the header. Address to: Hiring Team, [Company Name].
 
 **`primer.md`**: Company/role primer combining gap analysis and interview strategy.
 
