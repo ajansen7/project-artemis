@@ -29,6 +29,7 @@ function App() {
   };
 
   return (
+    <>
     <div className="app">
       <Header counts={allCounts} />
       <div className="app-body">
@@ -74,6 +75,7 @@ function App() {
       </div>
     </div>
     <TasksPanel />
+    </>
   );
 }
 

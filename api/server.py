@@ -27,6 +27,7 @@ app.add_middleware(
 PROJECT_ROOT = "/Users/alexjansen/Dev/project-artemis"
 TMUX_SESSION = "artemis"
 TASK_LOG_DIR = "/tmp/artemis-tasks"
+TMUX_BIN = "/opt/homebrew/bin/tmux"
 
 # ─── Task Manager ────────────────────────────────────────────────
 
@@ -62,12 +63,12 @@ class TaskManager:
     def _ensure_session(self):
         """Create the tmux session if it doesn't exist."""
         result = subprocess.run(
-            ["tmux", "has-session", "-t", TMUX_SESSION],
+            [TMUX_BIN, "has-session", "-t", TMUX_SESSION],
             capture_output=True,
         )
         if result.returncode != 0:
             subprocess.run(
-                ["tmux", "new-session", "-d", "-s", TMUX_SESSION, "-x", "220", "-y", "50"],
+                [TMUX_BIN, "new-session", "-d", "-s", TMUX_SESSION, "-x", "220", "-y", "50"],
                 capture_output=True,
             )
 
@@ -84,7 +85,7 @@ class TaskManager:
 
         # Create a dedicated window for this task
         subprocess.run(
-            ["tmux", "new-window", "-t", TMUX_SESSION, "-n", task_id, "-d"],
+            [TMUX_BIN, "new-window", "-t", TMUX_SESSION, "-n", task_id, "-d"],
             capture_output=True,
         )
 
@@ -100,7 +101,7 @@ class TaskManager:
         )
 
         subprocess.run(
-            ["tmux", "send-keys", "-t", f"{TMUX_SESSION}:{task_id}", shell_cmd, "Enter"],
+            [TMUX_BIN, "send-keys", "-t", f"{TMUX_SESSION}:{task_id}", shell_cmd, "Enter"],
         )
 
         task = Task(
@@ -142,7 +143,7 @@ class TaskManager:
         task = self._tasks.get(task_id)
         if task and task.status == "running":
             subprocess.run(
-                ["tmux", "kill-window", "-t", f"{TMUX_SESSION}:{task_id}"],
+                [TMUX_BIN, "kill-window", "-t", f"{TMUX_SESSION}:{task_id}"],
                 capture_output=True,
             )
             task.status = "failed"
