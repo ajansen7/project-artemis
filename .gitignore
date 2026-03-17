@@ -45,6 +45,7 @@ frontend/out/
 applications/
 ingestion/
 analysis.md
+analysis_*.md
 .claude/skills/scout/references/candidate_context.md
 .claude/skills/scout/references/resume_master.md
 .claude/skills/scout/references/apply_lessons.md
