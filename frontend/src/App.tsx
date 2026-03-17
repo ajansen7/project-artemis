@@ -7,6 +7,7 @@ import { StatusFilter } from './components/StatusFilter';
 import { JobTable } from './components/JobTable';
 import { CompanySidebar } from './components/CompanySidebar';
 import { NetworkingPanel } from './components/NetworkingPanel';
+import { TasksPanel } from './components/TasksPanel';
 
 type View = 'pipeline' | 'networking';
 
@@ -72,6 +73,7 @@ function App() {
         />
       </div>
     </div>
+    <TasksPanel />
   );
 }
 

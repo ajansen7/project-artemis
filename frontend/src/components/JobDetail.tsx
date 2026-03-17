@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Job } from '../types';
 import { MarkdownModal } from './MarkdownModal';
 import { ApplicationModal } from './ApplicationModal';
+import { useTaskPoller } from '../hooks/useTasks';
 
 interface JobDetailProps {
   job: Job;
@@ -14,8 +15,26 @@ interface JobDetailProps {
 export function JobDetail({ job, onAdvance, onSkip, onDelete, onUpdate }: JobDetailProps) {
   const nextStatus = getNextStatus(job.status);
   const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeTaskId, setAnalyzeTaskId] = useState<string | null>(null);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [applicationModalOpen, setApplicationModalOpen] = useState(false);
+
+  useTaskPoller(
+    analyzeTaskId,
+    (task) => {
+      setAnalyzing(false);
+      setAnalyzeTaskId(null);
+      setModalTitle(`Analysis — ${job.companies?.name || 'Job'}`);
+      setModalContent(task.output ?? '');
+      setModalOpen(true);
+      setTimeout(onUpdate, 500);
+    },
+    () => {
+      setAnalyzing(false);
+      setAnalyzeTaskId(null);
+      setStatusMsg('❌ Analyze failed. Run: tmux attach -t artemis');
+    },
+  );
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalContent, setModalContent] = useState('');
@@ -27,7 +46,7 @@ export function JobDetail({ job, onAdvance, onSkip, onDelete, onUpdate }: JobDet
       return;
     }
     setAnalyzing(true);
-    setStatusMsg(null);
+    setStatusMsg('Analyzing in tmux… check the task panel or run: tmux attach -t artemis');
     try {
       const response = await fetch('http://localhost:8000/api/run-skill', {
         method: 'POST',
@@ -35,17 +54,11 @@ export function JobDetail({ job, onAdvance, onSkip, onDelete, onUpdate }: JobDet
         body: JSON.stringify({ skill: 'analyze', target: `Job ID: ${job.id}, URL: ${job.url}` }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.detail || 'Execution failed');
-      setModalTitle(`/analyze — ${job.companies?.name || 'Job'}`);
-      setModalContent(data.output);
-      setModalOpen(true);
-      setTimeout(onUpdate, 1000);
+      if (!response.ok) throw new Error(data.detail || 'Failed to start task');
+      setAnalyzeTaskId(data.task_id);
     } catch (err: any) {
-      setModalTitle('Error running /analyze');
-      setModalContent(`❌ **Error:** ${err.message}`);
-      setModalOpen(true);
-    } finally {
       setAnalyzing(false);
+      setStatusMsg(`❌ ${err.message}`);
     }
   };
 
