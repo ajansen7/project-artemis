@@ -7,6 +7,7 @@ import { StatusFilter } from './components/StatusFilter';
 import { JobTable } from './components/JobTable';
 import { CompanySidebar } from './components/CompanySidebar';
 import { NetworkingPanel } from './components/NetworkingPanel';
+import { TasksPanel } from './components/TasksPanel';
 
 type View = 'pipeline' | 'networking';
 
@@ -28,6 +29,7 @@ function App() {
   };
 
   return (
+    <>
     <div className="app">
       <Header counts={allCounts} />
       <div className="app-body">
@@ -72,6 +74,8 @@ function App() {
         />
       </div>
     </div>
+    <TasksPanel />
+    </>
   );
 }
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import type { Job } from '../types';
+import { useTaskPoller } from '../hooks/useTasks';
 
 interface ApplicationModalProps {
   isOpen: boolean;
@@ -22,8 +23,24 @@ const TAB_LABELS: Record<Tab, string> = {
 export function ApplicationModal({ isOpen, onClose, job, onGenerationComplete, onSubmitted }: ApplicationModalProps) {
   const [activeTab, setActiveTab] = useState<Tab>('resume');
   const [generating, setGenerating] = useState(false);
+  const [generatingTaskId, setGeneratingTaskId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
+
+  useTaskPoller(
+    generatingTaskId,
+    () => {
+      setGenerating(false);
+      setGeneratingTaskId(null);
+      setStatusMsg('✅ Materials generated. Finder window opened — ready to apply.');
+      setTimeout(onGenerationComplete, 500);
+    },
+    () => {
+      setGenerating(false);
+      setGeneratingTaskId(null);
+      setStatusMsg('❌ Generation failed. Check tmux session for details: tmux attach -t artemis');
+    },
+  );
   const [mode, setMode] = useState<'preview' | 'edit'>('preview');
   const [editContent, setEditContent] = useState('');
   const [saving, setSaving] = useState(false);
@@ -64,7 +81,7 @@ export function ApplicationModal({ isOpen, onClose, job, onGenerationComplete, o
 
   const handleGenerate = async () => {
     setGenerating(true);
-    setStatusMsg(null);
+    setStatusMsg('Running in tmux… check the task panel or run: tmux attach -t artemis');
     try {
       const res = await fetch('http://localhost:8000/api/generate-application', {
         method: 'POST',
@@ -72,13 +89,11 @@ export function ApplicationModal({ isOpen, onClose, job, onGenerationComplete, o
         body: JSON.stringify({ job_id: job.id, company_name: job.companies?.name || '' }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Generation failed');
-      setStatusMsg('✅ Materials generated. Finder window opened — ready to apply.');
-      setTimeout(onGenerationComplete, 1000);
+      if (!res.ok) throw new Error(data.detail || 'Failed to start task');
+      setGeneratingTaskId(data.task_id);
     } catch (err: any) {
-      setStatusMsg(`❌ ${err.message}`);
-    } finally {
       setGenerating(false);
+      setStatusMsg(`❌ ${err.message}`);
     }
   };
 
