@@ -17,12 +17,10 @@ dependencies = [
     # API Server
     "fastapi>=0.115.0",
     "uvicorn>=0.32.0",
-    "weasyprint>=68.1",
-    "markdown>=3.10.2",
-    "reportlab>=4.4.10",
+    # Resume generation (DOCX → PDF via LibreOffice)
     "python-docx>=1.2.0",
     "docxtpl>=0.20.2",
 ]
 
 # No build system — this is a Claude Code skill, not a Python package.
-# Dependencies are installed via `uv` for the db.py helper script.
+# Use `uv run` to execute scripts; `uv add` to add dependencies.
