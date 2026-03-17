@@ -13,12 +13,14 @@ interface JobDetailProps {
 export function JobDetail({ job, onAdvance, onSkip, onDelete, onUpdate }: JobDetailProps) {
   const nextStatus = getNextStatus(job.status);
   const [generating, setGenerating] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [generateMessage, setGenerateMessage] = useState<string | null>(null);
   
   const [modalOpen, setModalOpen] = useState(false);
   const [modalContent, setModalContent] = useState('');
   const [modalTitle, setModalTitle] = useState('');
+  const [modalDocType, setModalDocType] = useState<'resume' | 'cover_letter' | 'primer' | undefined>();
 
   const handleAnalyze = async () => {
     if (!job.url) {
@@ -50,10 +52,37 @@ export function JobDetail({ job, onAdvance, onSkip, onDelete, onUpdate }: JobDet
     }
   };
 
+  const docTypeMap: Record<string, 'resume' | 'cover_letter' | 'primer'> = {
+    'Resume': 'resume',
+    'Cover Letter': 'cover_letter',
+    'Primer': 'primer',
+  };
+
   const handleViewDocument = (t: string, content: string) => {
-    setModalTitle(`${t} for ${job.companies?.name || 'Job'}`);
+    setModalTitle(`${t} — ${job.companies?.name || 'Job'}`);
     setModalContent(content);
+    setModalDocType(docTypeMap[t]);
     setModalOpen(true);
+  };
+
+  const handleGeneratePdf = async () => {
+    setGeneratingPdf(true);
+    setGenerateMessage(null);
+    try {
+      const response = await fetch('http://localhost:8000/api/generate-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: job.id }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'PDF generation failed');
+      setGenerateMessage(`✅ PDF saved: ${data.pdf_path || 'applications folder'}`);
+      setTimeout(onUpdate, 500);
+    } catch (err: any) {
+      setGenerateMessage(`❌ PDF error: ${err.message}`);
+    } finally {
+      setGeneratingPdf(false);
+    }
   };
 
   const handleGenerate = async () => {
@@ -144,15 +173,47 @@ export function JobDetail({ job, onAdvance, onSkip, onDelete, onUpdate }: JobDet
             </button>
           )}
           {job.applications?.[0]?.primer_md && (
-            <button 
-              className="action-btn" 
+            <button
+              className="action-btn"
               style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)', padding: '0.4rem 0.75rem' }}
               onClick={() => handleViewDocument('Primer', job.applications![0].primer_md!)}
             >
               📚 Primer
             </button>
           )}
-          
+
+          {job.applications?.[0]?.resume_md && (
+            <button
+              className="action-btn"
+              style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)', padding: '0.4rem 0.75rem' }}
+              onClick={handleGeneratePdf}
+              disabled={generatingPdf}
+              title={(job.applications![0] as any).resume_pdf_path || 'Generate a styled PDF resume'}
+            >
+              {generatingPdf ? '⏳ Generating PDF…' : ((job.applications![0] as any).resume_pdf_path ? '🔄 Regen PDF' : '🖨 Generate PDF')}
+            </button>
+          )}
+
+          {(job.applications![0] as any)?.resume_pdf_path && (
+            <button
+              className="action-btn"
+              style={{ backgroundColor: 'var(--green-dim, #1a3a2a)', color: 'var(--success, #4caf78)', padding: '0.4rem 0.75rem' }}
+              onClick={() => setGenerateMessage(`📂 PDF at: ${(job.applications![0] as any).resume_pdf_path}`)}
+            >
+              📄 PDF Ready
+            </button>
+          )}
+
+          {(job.applications?.[0] as any)?.resume_pdf_path && (
+            <button
+              className="action-btn"
+              style={{ backgroundColor: 'var(--primary)', color: 'white', padding: '0.4rem 0.75rem' }}
+              onClick={() => setGenerateMessage('💡 Run /fill ' + job.id.slice(0, 8) + ' in your terminal to auto-fill the application form.')}
+            >
+              🤖 Auto-fill
+            </button>
+          )}
+
           {(job.gap_analysis_json as any)?.markdown ? (
             <>
               <button 
@@ -201,11 +262,14 @@ export function JobDetail({ job, onAdvance, onSkip, onDelete, onUpdate }: JobDet
         )}
       </div>
       
-      <MarkdownModal 
-        isOpen={modalOpen} 
-        onClose={() => setModalOpen(false)} 
-        title={modalTitle} 
-        content={modalContent} 
+      <MarkdownModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={modalTitle}
+        content={modalContent}
+        jobId={job.id}
+        docType={modalDocType}
+        onSaved={() => setTimeout(onUpdate, 500)}
       />
     </div>
   );

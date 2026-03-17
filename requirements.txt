@@ -3,3 +3,4 @@ uvicorn
 pydantic
 supabase
 python-dotenv
+python-docx
