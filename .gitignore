@@ -46,5 +46,13 @@ applications/
 ingestion/
 analysis.md
 .claude/skills/scout/references/candidate_context.md
+.claude/skills/scout/references/resume_master.md
+.claude/skills/scout/references/apply_lessons.md
 .claude/skills/interview-coach/coaching_state.md
 .claude/skills/scout/scripts/update_outreach_messages.py
+.claude/skills/scout/scripts/seed_contacts_*.py
+.claude/agent-memory/artemis-orchestrator/project_contact_pipeline.md
+.claude/agent-memory/artemis-orchestrator/project_pipeline_status.md
+.claude/agent-memory/artemis-orchestrator/user_candidate_profile.md
+.claude/agent-memory/artemis-orchestrator/user_application_form_defaults.md
+*.pdf

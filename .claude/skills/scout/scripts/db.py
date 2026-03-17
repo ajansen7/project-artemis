@@ -162,7 +162,7 @@ def save_application(args):
     # Read the markdown files
     files = {"resume_md": args.resume, "cover_letter_md": args.cover_letter, "primer_md": args.primer}
     content = {}
-    
+
     for key, filepath in files.items():
         if filepath:
             try:
@@ -170,14 +170,17 @@ def save_application(args):
                     content[key] = f.read()
             except Exception as e:
                 print(f"⚠️ Failed to read {filepath}: {e}")
-                
+
+    if getattr(args, "pdf_path", None):
+        content["resume_pdf_path"] = args.pdf_path
+
     if not content:
         print("❌ No application files provided or found.")
         return
 
     # Check if an application already exists for this job
     existing = sb.table("applications").select("id").eq("job_id", args.id).execute()
-    
+
     if existing.data:
         # Update existing
         app_id = existing.data[0]["id"]
@@ -194,6 +197,25 @@ def save_application(args):
             print(f"✅ Created new application record with materials for job {args.id}")
         else:
             print(f"❌ Failed to insert application for job {args.id}")
+
+
+def mark_submitted(args):
+    """Mark an application as submitted: set submitted_at and advance job status to 'applied'."""
+    now = datetime.now(timezone.utc).isoformat()
+
+    # Update application submitted_at
+    app_res = sb.table("applications").update({"submitted_at": now}).eq("job_id", args.id).execute()
+    if app_res.data:
+        print(f"✅ Application marked submitted at {now}")
+    else:
+        # Application row may not exist yet — create a minimal one
+        sb.table("applications").insert({"job_id": args.id, "submitted_at": now}).execute()
+        print(f"✅ Created application record with submitted_at={now}")
+
+    # Advance job status to 'applied'
+    job_res = sb.table("jobs").update({"status": "applied"}).eq("id", args.id).execute()
+    if job_res.data:
+        print(f"✅ Job {args.id} status → applied")
 
 
 # ─── Companies ───────────────────────────────────────────────────
@@ -733,7 +755,13 @@ def main():
     p.add_argument("--resume", help="Path to resume markdown file")
     p.add_argument("--cover-letter", help="Path to cover letter markdown file")
     p.add_argument("--primer", help="Path to primer markdown file")
+    p.add_argument("--pdf-path", default=None, help="Path to generated resume PDF")
     p.set_defaults(func=save_application)
+
+    # mark-submitted
+    p = subparsers.add_parser("mark-submitted", help="Mark application as submitted and advance job to 'applied'")
+    p.add_argument("--id", required=True, help="Job UUID")
+    p.set_defaults(func=mark_submitted)
 
     # status
     p = subparsers.add_parser("status", help="Show pipeline dashboard")
