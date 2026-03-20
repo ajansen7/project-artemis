@@ -137,7 +137,7 @@ export const STATUS_LABELS: Record<JobStatus, string> = {
   scouted: 'Scouted',
   to_review: 'To Review',
   applied: 'Applied',
-  recruiter_engaged: 'Recruiter Engaged',
+  recruiter_engaged: 'Engaged',
   interviewing: 'Interviewing',
   offer: 'Offer',
   not_interested: 'Skipped',
