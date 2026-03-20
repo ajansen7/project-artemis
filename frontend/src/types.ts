@@ -20,6 +20,7 @@ export type JobStatus =
   | 'scouted'
   | 'to_review'
   | 'applied'
+  | 'recruiter_engaged'
   | 'interviewing'
   | 'offer'
   | 'not_interested'
@@ -41,6 +42,7 @@ export const STATUS_ORDER: JobStatus[] = [
   'scouted',
   'to_review',
   'applied',
+  'recruiter_engaged',
   'interviewing',
   'offer',
 ];
@@ -88,6 +90,7 @@ export interface Contact {
   last_contacted_at: string | null;
   outreach_status: OutreachStatus;
   priority: ContactPriority | null;
+  source: string;
   outreach_message_md: string | null;
   is_personal_connection: boolean;
   mutual_connection_notes: string | null;
@@ -134,9 +137,79 @@ export const STATUS_LABELS: Record<JobStatus, string> = {
   scouted: 'Scouted',
   to_review: 'To Review',
   applied: 'Applied',
+  recruiter_engaged: 'Recruiter Engaged',
   interviewing: 'Interviewing',
   offer: 'Offer',
   not_interested: 'Skipped',
   rejected: 'Rejected',
   deleted: 'Deleted',
 };
+
+// ─── Engagement Types ────────────────────────────────────────────
+
+export type EngagementPlatform = 'linkedin' | 'medium' | 'personal_blog';
+export type EngagementActionType = 'like' | 'comment' | 'share' | 'connection_request' | 'blog_post';
+export type EngagementStatus = 'drafted' | 'approved' | 'posted' | 'skipped';
+
+export interface EngagementEntry {
+  id: string;
+  platform: EngagementPlatform;
+  action_type: EngagementActionType;
+  target_url: string | null;
+  target_person: string | null;
+  content: string | null;
+  status: EngagementStatus;
+  posted_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export const ENGAGEMENT_STATUS_LABELS: Record<EngagementStatus, string> = {
+  drafted: 'Drafted',
+  approved: 'Approved',
+  posted: 'Posted',
+  skipped: 'Skipped',
+};
+
+export const ENGAGEMENT_ACTION_LABELS: Record<EngagementActionType, string> = {
+  like: 'Like',
+  comment: 'Comment',
+  share: 'Share',
+  connection_request: 'Connection Request',
+  blog_post: 'Blog Post',
+};
+
+export const ENGAGEMENT_PLATFORM_LABELS: Record<EngagementPlatform, string> = {
+  linkedin: 'LinkedIn',
+  medium: 'Medium',
+  personal_blog: 'Blog',
+};
+
+// ─── Blog Types ──────────────────────────────────────────────────
+
+export type BlogPostStatus = 'idea' | 'draft' | 'review' | 'published';
+
+export interface BlogPost {
+  id: string;
+  title: string;
+  slug: string;
+  status: BlogPostStatus;
+  platform: string | null;
+  tags: string[];
+  summary: string | null;
+  published_url: string | null;
+  published_at: string | null;
+  draft_path: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export const BLOG_STATUS_LABELS: Record<BlogPostStatus, string> = {
+  idea: 'Idea',
+  draft: 'Draft',
+  review: 'Review',
+  published: 'Published',
+};
+
+export const BLOG_STATUS_ORDER: BlogPostStatus[] = ['idea', 'draft', 'review', 'published'];
