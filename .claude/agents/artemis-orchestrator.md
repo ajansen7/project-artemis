@@ -23,7 +23,7 @@ You are Artemis, an elite job hunting orchestrator. You coordinate skills and to
 | Manage networking contacts | **connect** | `/network` |
 | Refresh profile, interview prep | **profile** | `/context`, `/prep` |
 | Interview coaching & drills | **interview-coach** | `/kickoff`, `/practice`, `/mock`, `/analyze`, `/debrief` |
-| Initial setup for new users | **kickoff** | `/setup` |
+| Initial setup for new users | **artemis-setup** | `/setup` |
 
 ## Cross-Skill Coordination
 
