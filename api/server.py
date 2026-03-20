@@ -276,7 +276,12 @@ async def generate_pdf(req: GeneratePdfRequest):
         stdout, stderr = process.communicate()
 
         if process.returncode != 0:
-            raise HTTPException(status_code=500, detail=f"PDF generation failed: {stderr}")
+            # Surface actionable messages from known errors
+            if "No resume_md found" in stderr:
+                raise HTTPException(status_code=400, detail="No resume found for this job. Generate application materials first.")
+            if "not found" in stderr.lower() and "job" in stderr.lower():
+                raise HTTPException(status_code=404, detail="Job not found in database.")
+            raise HTTPException(status_code=500, detail=f"PDF generation failed: {stderr.strip().splitlines()[-1] if stderr.strip() else 'unknown error'}")
 
         pdf_path = None
         for line in stdout.splitlines():
