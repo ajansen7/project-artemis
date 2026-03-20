@@ -69,7 +69,13 @@ Builds or refreshes the cached candidate context from source-of-truth files. Thi
    - **Known Gaps** — to address proactively
    - **Interview Intelligence** — effective/ineffective patterns, coaching focus
 3. Set `Last Synced` timestamp in the file header
-4. Report what was updated and changes detected since last sync
+4. **Bidirectional sync checks** (new):
+   - Run `uv run python .claude/tools/sync_state.py --check --json` to get current sync status
+   - If storybank → resume_master is stale: scan coaching_state.md storybank for stories with strong metrics/impact statements not yet in resume_master.md. Surface suggestions: "The story about [X] suggests a stronger bullet — want to update resume_master.md?"
+   - If resume → coaching is stale: note that resume positioning changes may not be reflected in coaching state
+   - If preferences changed: incorporate updated target companies and deal-breakers into the context
+   - Report all sync directions and their status
+5. Report what was updated and changes detected since last sync
 
 ---
 

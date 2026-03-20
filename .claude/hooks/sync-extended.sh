@@ -1,12 +1,12 @@
 #!/bin/bash
-# Session-end sync: refresh contact pipeline and clean up temp files.
+# Session-end sync: auto-sync safe operations and clean up temp files.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-# Sync contacts DB -> output/contacts_pipeline.md
+# Run comprehensive auto-sync (contacts pipeline, manifest update)
 if command -v uv &>/dev/null; then
-  cd "$PROJECT_ROOT" && uv run python .claude/tools/sync_contacts.py 2>/dev/null
+  cd "$PROJECT_ROOT" && uv run python .claude/tools/sync_state.py --auto 2>/dev/null
 fi
 
 # Clean up temp analysis files

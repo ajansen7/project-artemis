@@ -171,13 +171,28 @@ Copy from `.example.md` templates — no user input needed.
 
 ---
 
-### Step 5: Verify Supabase Connection
+### Step 5: Verify Connections
 
+**Supabase:**
 ```bash
 uv run python .claude/tools/db.py status
 ```
 
-If this fails, remind the user to set up `.env` with Supabase credentials per the README. Non-blocking — skip to Step 6.
+If this fails, remind the user to set up `.env` with Supabase credentials per the README. Non-blocking — continue.
+
+**Gmail/Calendar MCP (optional):**
+Check if Gmail MCP tools are available by attempting `gmail_get_profile`. If available, mention:
+> "Gmail and Calendar are connected. You can use `/inbox` to monitor for recruiter emails and `/schedule` to track upcoming interviews."
+
+If not available, mention:
+> "Gmail/Calendar MCP tools aren't set up yet. When you add them, the `/inbox` and `/schedule` commands will let you monitor for recruiter outreach and track interviews automatically."
+
+**Chrome MCP (optional):**
+Check if Chrome MCP tools are available. If available, mention:
+> "Chrome is connected. You can use `/linkedin-scout` to browse LinkedIn for jobs and `/linkedin-engage` to build your professional presence."
+
+If not available, mention:
+> "Chrome MCP isn't set up yet. When you add it, you'll be able to browse LinkedIn for jobs and engagement directly from Artemis."
 
 ---
 
@@ -208,8 +223,10 @@ Report:
 
 Suggested next steps, based on their orientation from Step 1:
 - **Urgent search / active interviewing**: "Try `/prep [company]` to get ready for your next interview, or `/scout` to find more opportunities."
-- **Building pipeline**: "Try `/scout` to find jobs, then `/review` to triage what comes in."
+- **Building pipeline**: "Try `/scout` to find jobs, then `/review` to triage what comes in. Or `/inbox` to scan for recruiter emails already in your inbox."
 - **Just exploring**: "Try `/scout` to see what's out there, or `/coach kickoff` to build your storybank."
+- **Building brand**: "Try `/blog-ideas` to generate content ideas that align with your positioning, or `/linkedin-engage` to start engaging with relevant posts."
+- **Full campaign**: "Start with `/inbox` + `/schedule` for a current-state check, then `/scout` for new opportunities, and `/blog-ideas` to build thought leadership."
 
 ---
 
