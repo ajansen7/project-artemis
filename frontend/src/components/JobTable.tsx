@@ -6,7 +6,7 @@ import { JobDetail } from './JobDetail';
 interface JobTableProps {
   jobs: Job[];
   loading: boolean;
-  onUpdateStatus: (jobId: string, status: JobStatus) => void;
+  onUpdateStatus: (jobId: string, status: JobStatus, notes?: string) => void;
   onDelete: (jobId: string) => void;
   onUpdate: () => void;
 }
@@ -48,7 +48,8 @@ export function JobTable({ jobs, loading, onUpdateStatus, onDelete, onUpdate }: 
     const flow: Record<string, JobStatus> = {
       scouted: 'to_review',
       to_review: 'applied',
-      applied: 'interviewing',
+      applied: 'recruiter_engaged',
+      recruiter_engaged: 'interviewing',
       interviewing: 'offer',
     };
     return flow[current] || null;
@@ -95,6 +96,7 @@ export function JobTable({ jobs, loading, onUpdateStatus, onDelete, onUpdate }: 
                 onSkip={() => onUpdateStatus(job.id, 'not_interested')}
                 onDelete={() => onDelete(job.id)}
                 onUpdate={onUpdate}
+                onSetStatus={(status, notes) => onUpdateStatus(job.id, status, notes)}
               />
             )}
           </div>

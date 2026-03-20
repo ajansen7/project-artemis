@@ -20,8 +20,8 @@ function App() {
   const allCounts = useAllCounts();
   const { companies, loading: companiesLoading } = useCompanies();
 
-  const handleStatusChange = async (jobId: string, status: JobStatus) => {
-    const ok = await updateStatus(jobId, status);
+  const handleStatusChange = async (jobId: string, status: JobStatus, notes?: string) => {
+    const ok = await updateStatus(jobId, status, notes);
     if (ok) refetch();
   };
 

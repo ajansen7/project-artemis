@@ -1080,6 +1080,30 @@ button {
   color: var(--orange);
 }
 
+/* ─── Status Picker ─── */
+.status-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--gap-md);
+  margin-top: var(--gap-md);
+  grid-column: 1 / -1;
+  animation: slideDown 200ms ease;
+}
+
+.status-picker-row {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+}
+
+.status-picker-row .interaction-select {
+  flex: 1;
+}
+
 /* ─── Engagement Panel ─── */
 .engagement-card,
 .blog-card {
