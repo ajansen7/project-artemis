@@ -26,8 +26,12 @@ Configure paths to companion projects. These are optional — skills degrade gra
 
 ### Cross-project updates:
 - **New story or refined anecdote** -> Update `coaching_state.md` in Interview Coach
+- **Story surfaces a better resume bullet** -> Surface to user and offer to update `resume_master.md` in Artemis
 - **Resume positioning change** -> Update resume data in Portfolio project
 - **Interview outcome** -> Update the Outcome Log in `coaching_state.md`
+
+### Storybank → resume_master feedback loop:
+When the interview-coach's storybank captures a story with a strong impact statement or metric that doesn't yet appear in `resume_master.md`, flag it: "The story you told about [X] suggests a stronger framing for this bullet — want to update resume_master.md?" This keeps both systems in sync as the storybank grows.
 
 ## Resources
 
