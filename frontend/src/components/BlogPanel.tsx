@@ -91,7 +91,7 @@ function BlogCard({
                 />
               ))}
               <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-                {post.draft_path && (
+                {(post.draft_path || post.content) && (
                   <button
                     className="action-btn"
                     style={{ padding: '4px 10px', fontSize: '0.72rem' }}

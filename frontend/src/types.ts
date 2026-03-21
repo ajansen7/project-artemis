@@ -200,6 +200,7 @@ export interface BlogPost {
   published_url: string | null;
   published_at: string | null;
   draft_path: string | null;
+  content: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;

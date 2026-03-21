@@ -772,6 +772,8 @@ def add_blog_post(args):
         data["summary"] = args.summary
     if args.draft_path:
         data["draft_path"] = args.draft_path
+    if args.content:
+        data["content"] = args.content
 
     result = sb.table("blog_posts").insert(data).execute()
     if result.data:
@@ -794,6 +796,8 @@ def update_blog_post(args):
         data["draft_path"] = args.draft_path
     if args.tags:
         data["tags"] = [t.strip() for t in args.tags.split(",")]
+    if args.content:
+        data["content"] = args.content
 
     if not data:
         print("Nothing to update.")
@@ -1049,6 +1053,7 @@ def main():
     p.add_argument("--tags", default=None, help="Comma-separated tags")
     p.add_argument("--summary", default=None, help="Brief description of the post angle")
     p.add_argument("--draft-path", default=None, help="Path to local draft markdown")
+    p.add_argument("--content", default=None, help="Full markdown body of the post")
     p.set_defaults(func=add_blog_post)
 
     # update-blog-post
@@ -1059,6 +1064,7 @@ def main():
     p.add_argument("--published-url", default=None)
     p.add_argument("--draft-path", default=None)
     p.add_argument("--tags", default=None, help="Comma-separated tags")
+    p.add_argument("--content", default=None, help="Full markdown body of the post")
     p.set_defaults(func=update_blog_post)
 
     # batch-import-blog-posts
