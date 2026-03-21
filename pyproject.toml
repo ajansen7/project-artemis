@@ -20,6 +20,7 @@ dependencies = [
     # Resume generation (DOCX → PDF via LibreOffice)
     "python-docx>=1.2.0",
     "docxtpl>=0.20.2",
+    "apscheduler>=3.11.2",
 ]
 
 # No build system — this is a Claude Code skill, not a Python package.

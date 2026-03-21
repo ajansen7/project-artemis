@@ -49,10 +49,13 @@ Dependencies are declared in `pyproject.toml`. The `requirements.txt` file is a 
     check-context.sh     # PreToolUse: context freshness check
     sync-extended.sh     # Stop: sync contacts, cleanup
   memory/hot/     # Hot memory files loaded every session (gitignored)
+channels/
+  artemis-webhook/  # MCP channel: scheduler notifications -> Claude session
 output/           # All generated artifacts (gitignored)
-api/              # FastAPI backend (task management, PDF generation)
-frontend/         # React dashboard (Pipeline, Networking, Engagement, Blog tabs)
-db/migrations/    # Supabase schema migrations (001-014)
+api/              # FastAPI backend (task management, scheduler, PDF generation)
+frontend/         # React dashboard (Pipeline, Networking, Engagement, Blog, Schedules tabs)
+db/migrations/    # Supabase schema migrations (001-016)
+docs/             # Documentation (automation guide, UI walkthrough)
 ```
 
 ## Skills & Routing
@@ -82,6 +85,7 @@ db/migrations/    # Supabase schema migrations (001-014)
 | `applications` | Generated materials: resume, cover letter, primer, form fills, PDF path |
 | `engagement_log` | LinkedIn/blog engagement actions with approval workflow |
 | `blog_posts` | Content lifecycle: idea, draft, review, published |
+| `scheduled_jobs` | Recurring automation: skill, cron, enabled, run history |
 
 ### Job Statuses
 

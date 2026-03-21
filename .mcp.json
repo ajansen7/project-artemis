@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "artemis-webhook": {
+      "command": "bun",
+      "args": ["./channels/artemis-webhook/index.ts"]
+    }
+  }
+}

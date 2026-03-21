@@ -9,9 +9,10 @@ import { CompanySidebar } from './components/CompanySidebar';
 import { NetworkingPanel } from './components/NetworkingPanel';
 import { EngagementPanel } from './components/EngagementPanel';
 import { BlogPanel } from './components/BlogPanel';
+import { SchedulePanel } from './components/SchedulePanel';
 import { TasksPanel } from './components/TasksPanel';
 
-type View = 'pipeline' | 'networking' | 'engagement' | 'blog';
+type View = 'pipeline' | 'networking' | 'engagement' | 'blog' | 'schedules';
 
 function App() {
   const [view, setView] = useState<View>('pipeline');
@@ -61,6 +62,12 @@ function App() {
             >
               Blog
             </button>
+            <button
+              className={`view-tab ${view === 'schedules' ? 'active' : ''}`}
+              onClick={() => setView('schedules')}
+            >
+              Schedules
+            </button>
           </div>
 
           {view === 'pipeline' ? (
@@ -82,8 +89,10 @@ function App() {
             <NetworkingPanel />
           ) : view === 'engagement' ? (
             <EngagementPanel />
-          ) : (
+          ) : view === 'blog' ? (
             <BlogPanel />
+          ) : (
+            <SchedulePanel />
           )}
         </div>
         <CompanySidebar

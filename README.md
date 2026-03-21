@@ -156,26 +156,24 @@ Turn job search insights into thought leadership content.
 4. "Publish to LinkedIn"              # Posts via Chrome (with your approval)
 ```
 
-### Workflow 7: Daily Routine (all integrations)
+### Workflow 7: Automated Daily Routine
 
-A power-user daily workflow that covers everything:
+Instead of running each skill manually, enable scheduled jobs and let Artemis work on autopilot:
 
 ```
-Morning:
-  "Check my inbox"                    # New recruiter emails, interview confirmations
-  "Any interviews today?"             # Calendar check
-  "Review engagement drafts"          # Approve yesterday's drafted comments
-
-Midday:
-  "Scout for new jobs"                # Fresh postings
-  "Review my pipeline"                # Triage new finds
-  "Who should I reach out to?"        # Networking actions
-
-Afternoon:
-  "Generate application for ..."      # Applications for top picks
-  "Prep me for tomorrow's interview"  # If you have one coming up
-  "Draft a post about ..."            # Content creation
+1. Open the Schedules tab in the dashboard
+2. Enable the schedules you want (inbox, scout, LinkedIn, etc.)
+3. Optionally set up Telegram/Discord for mobile notifications
 ```
+
+With the scheduler enabled, Artemis will:
+- Scout for new jobs each morning
+- Check your inbox for recruiter emails
+- Draft LinkedIn engagement for your approval
+- Remind you about upcoming interviews
+- Propose blog post ideas weekly
+
+See **[docs/automation.md](docs/automation.md)** for the full setup guide.
 
 ---
 
@@ -393,7 +391,7 @@ uv run uvicorn api.server:app --reload
 cd frontend && npm run dev
 ```
 
-Opens at `http://localhost:5173`. The dashboard has four tabs:
+Opens at `http://localhost:5173`. The dashboard has five tabs:
 
 | Tab | What it shows |
 |-----|---------------|
@@ -401,6 +399,7 @@ Opens at `http://localhost:5173`. The dashboard has four tabs:
 | **Networking** | Contacts grouped by company, outreach status, interaction history |
 | **Engagement** | LinkedIn/blog engagement queue with approve/post/skip workflow |
 | **Blog** | Blog post lifecycle from idea through published, with tags and platform |
+| **Schedules** | Recurring job configuration with enable/disable, cron, and run history |
 
 For a full visual walkthrough of every screen, see **[docs/UI_WALKTHROUGH.md](docs/UI_WALKTHROUGH.md)**.
 
@@ -454,6 +453,7 @@ uv run python .claude/tools/sync_contacts.py --check  # diff only
 | `applications` | Artifacts: `resume_md`, `cover_letter_md`, `form_fills_md`, `primer_md`, `resume_pdf_path`, `submitted_at` |
 | `engagement_log` | LinkedIn/blog engagement actions with approval workflow |
 | `blog_posts` | Content lifecycle: idea, draft, review, published |
+| `scheduled_jobs` | Recurring automation: skill, cron schedule, enabled, run history |
 
 ### Job Statuses
 
@@ -513,14 +513,18 @@ project-artemis/
         active_loops.md               # Current interview loops (gitignored)
         lessons.md                    # Operational best practices (gitignored)
         *.example.md                  # Templates for new users (committed)
+  channels/
+    artemis-webhook/                  # MCP channel: scheduler -> Claude Code notifications
+      index.ts                        # Bun server (HTTP + stdio MCP)
+      package.json
   output/                             # All generated artifacts (gitignored)
     applications/                     # Per-job: resume, cover letter, primer, form fills, PDF
     blog/drafts/                      # Blog post markdown drafts
     contacts_pipeline.md              # Generated contacts view
   api/
-    server.py                         # FastAPI -- task management + PDF generation
-  frontend/src/                       # React dashboard (Pipeline, Networking, Engagement, Blog)
-  db/migrations/                      # Supabase SQL migrations (001-014)
+    server.py                         # FastAPI -- task management, scheduler, PDF generation
+  frontend/src/                       # React dashboard (Pipeline, Networking, Engagement, Blog, Schedules)
+  db/migrations/                      # Supabase SQL migrations (001-016)
   CLAUDE.md                           # Python env + project layout instructions
   pyproject.toml                      # Python dependencies
   .env                                # Supabase credentials (not committed)

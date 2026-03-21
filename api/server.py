@@ -1,14 +1,20 @@
+import asyncio
+import logging
 import os
 import shlex
 import shutil
 import subprocess
 import threading
 import uuid
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
+import httpx
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -16,15 +22,9 @@ from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-app = FastAPI(title="Artemis Local Copilot API")
+logger = logging.getLogger("artemis.scheduler")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+WEBHOOK_URL = os.environ.get("ARTEMIS_WEBHOOK_URL", "http://localhost:8790/notify")
 
 PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
 TMUX_SESSION = "artemis"
@@ -32,6 +32,19 @@ TASK_LOG_DIR = "/tmp/artemis-tasks"
 TMUX_BIN = os.environ.get("TMUX_BIN", shutil.which("tmux") or "/opt/homebrew/bin/tmux")
 CLAUDE_BIN = os.environ.get("CLAUDE_BIN", shutil.which("claude") or "claude")
 UV_BIN = os.environ.get("UV_BIN", shutil.which("uv") or "uv")
+
+
+# ─── Supabase Helper ─────────────────────────────────────────────
+
+
+def _get_supabase():
+    from supabase import create_client
+    url = os.getenv("SUPABASE_URL", "")
+    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+    if not url or not key:
+        raise HTTPException(status_code=500, detail="Supabase credentials not configured.")
+    return create_client(url, key)
+
 
 # ─── Task Manager ────────────────────────────────────────────────
 
@@ -167,6 +180,153 @@ class TaskManager:
 
 
 task_manager = TaskManager()
+
+
+# ─── Scheduler ───────────────────────────────────────────────────
+
+scheduler = AsyncIOScheduler()
+_schedule_job_ids: dict[str, str] = {}  # DB id -> APScheduler job id
+
+
+def _build_skill_command(skill: str, skill_args: str | None = None) -> list[str]:
+    """Build the Claude CLI command for a skill invocation."""
+    skill_cmd = f"/{skill.lstrip('/')}"
+    if skill_args:
+        prompt = f"Follow the instructions for the `{skill_cmd}` command in SKILL.md for '{skill_args}'."
+    else:
+        prompt = f"Follow the instructions for the `{skill_cmd}` command in SKILL.md."
+
+    command = [
+        CLAUDE_BIN, "-p", prompt,
+        "--verbose",
+        "--dangerously-skip-permissions",
+        "--add-dir", os.path.join(PROJECT_ROOT, ".claude", "skills", "interview-coach"),
+    ]
+    portfolio_path = os.environ.get("PORTFOLIO_PATH")
+    if portfolio_path:
+        command.extend(["--add-dir", portfolio_path])
+    return command
+
+
+async def _notify_webhook(job_name: str, skill: str, status: str, error: str | None = None):
+    """POST job completion to the artemis-webhook channel (best-effort)."""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post(WEBHOOK_URL, json={
+                "job": job_name,
+                "skill": skill,
+                "status": status,
+                "error": error,
+            })
+    except Exception as exc:
+        logger.debug("Webhook notify failed (non-fatal): %s", exc)
+
+
+def _run_scheduled_job(schedule_id: str, name: str, skill: str, skill_args: str | None):
+    """
+    Synchronous callback for APScheduler. Launches the skill in tmux,
+    polls for completion, then updates DB and fires webhook.
+    """
+    import time
+
+    sb = _get_supabase()
+
+    # Mark running
+    sb.table("scheduled_jobs").update({
+        "last_status": "running",
+        "last_run_at": datetime.now(timezone.utc).isoformat(),
+        "last_error": None,
+    }).eq("id", schedule_id).execute()
+
+    command = _build_skill_command(skill, skill_args)
+    task_id = task_manager.start(f"Scheduled: {name}", command)
+
+    # Poll for completion (every 5s, timeout 30 min)
+    for _ in range(360):
+        time.sleep(5)
+        task = task_manager.get(task_id)
+        if task and task.status != "running":
+            break
+    else:
+        task = task_manager.get(task_id)
+
+    final_status = "success" if (task and task.status == "complete") else "failed"
+    error_msg = task.tail_output(10) if final_status == "failed" and task else None
+
+    sb.table("scheduled_jobs").update({
+        "last_status": final_status,
+        "last_error": error_msg,
+    }).eq("id", schedule_id).execute()
+
+    # Fire webhook (from thread, so create a new event loop)
+    try:
+        loop = asyncio.new_event_loop()
+        loop.run_until_complete(_notify_webhook(name, skill, final_status, error_msg))
+        loop.close()
+    except Exception:
+        pass
+
+
+def _register_schedule(row: dict):
+    """Register a single DB row with APScheduler."""
+    schedule_id = row["id"]
+    try:
+        trigger = CronTrigger.from_crontab(row["cron_expr"])
+    except ValueError as exc:
+        logger.warning("Invalid cron for schedule %s: %s", schedule_id, exc)
+        return
+
+    job = scheduler.add_job(
+        _run_scheduled_job,
+        trigger=trigger,
+        args=[schedule_id, row["name"], row["skill"], row.get("skill_args")],
+        id=f"schedule_{schedule_id}",
+        replace_existing=True,
+    )
+    _schedule_job_ids[schedule_id] = job.id
+
+
+def _unregister_schedule(schedule_id: str):
+    """Remove a schedule from APScheduler."""
+    job_id = _schedule_job_ids.pop(schedule_id, None)
+    if job_id:
+        try:
+            scheduler.remove_job(job_id)
+        except Exception:
+            pass
+
+
+def _load_all_schedules():
+    """Load all enabled schedules from Supabase into APScheduler."""
+    try:
+        sb = _get_supabase()
+        res = sb.table("scheduled_jobs").select("*").eq("enabled", True).execute()
+        for row in res.data or []:
+            _register_schedule(row)
+        logger.info("Loaded %d enabled schedules", len(res.data or []))
+    except Exception as exc:
+        logger.warning("Could not load schedules: %s", exc)
+
+
+@asynccontextmanager
+async def lifespan(app_instance: FastAPI):
+    _load_all_schedules()
+    scheduler.start()
+    logger.info("Scheduler started")
+    yield
+    scheduler.shutdown(wait=False)
+    logger.info("Scheduler stopped")
+
+
+app = FastAPI(title="Artemis Local Copilot API", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 def _task_to_dict(task: Task, include_output: bool = False) -> dict:
@@ -528,6 +688,124 @@ async def run_skill(req: RunSkillRequest):
     task_id = task_manager.start(name, command)
 
     return {"task_id": task_id, "status": "started", "name": name}
+
+
+# ─── Schedule CRUD ───────────────────────────────────────────────
+
+
+class ScheduleCreateRequest(BaseModel):
+    name: str
+    skill: str
+    skill_args: str | None = None
+    cron_expr: str
+    enabled: bool = False
+    notes: str | None = None
+
+
+class ScheduleUpdateRequest(BaseModel):
+    name: str | None = None
+    skill: str | None = None
+    skill_args: str | None = None
+    cron_expr: str | None = None
+    enabled: bool | None = None
+    notes: str | None = None
+
+
+@app.get("/api/schedules")
+async def list_schedules():
+    sb = _get_supabase()
+    res = sb.table("scheduled_jobs").select("*").order("created_at").execute()
+    return {"schedules": res.data or []}
+
+
+@app.post("/api/schedules")
+async def create_schedule(req: ScheduleCreateRequest):
+    # Validate cron expression
+    try:
+        CronTrigger.from_crontab(req.cron_expr)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid cron expression: {exc}")
+
+    sb = _get_supabase()
+    row = {
+        "name": req.name,
+        "skill": req.skill,
+        "skill_args": req.skill_args,
+        "cron_expr": req.cron_expr,
+        "enabled": req.enabled,
+        "notes": req.notes,
+    }
+    res = sb.table("scheduled_jobs").insert(row).execute()
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Failed to create schedule")
+
+    created = res.data[0]
+    if created["enabled"]:
+        _register_schedule(created)
+
+    return created
+
+
+@app.put("/api/schedules/{schedule_id}")
+async def update_schedule(schedule_id: str, req: ScheduleUpdateRequest):
+    updates = {k: v for k, v in req.model_dump().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    # Validate cron if changing
+    if "cron_expr" in updates:
+        try:
+            CronTrigger.from_crontab(updates["cron_expr"])
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=f"Invalid cron expression: {exc}")
+
+    sb = _get_supabase()
+    res = sb.table("scheduled_jobs").update(updates).eq("id", schedule_id).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+
+    updated = res.data[0]
+
+    # Sync APScheduler: unregister old, re-register if enabled
+    _unregister_schedule(schedule_id)
+    if updated["enabled"]:
+        _register_schedule(updated)
+
+    return updated
+
+
+@app.delete("/api/schedules/{schedule_id}")
+async def delete_schedule(schedule_id: str):
+    _unregister_schedule(schedule_id)
+
+    sb = _get_supabase()
+    res = sb.table("scheduled_jobs").delete().eq("id", schedule_id).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+
+    return {"status": "deleted"}
+
+
+@app.post("/api/schedules/{schedule_id}/run-now")
+async def run_schedule_now(schedule_id: str):
+    """Immediately trigger a scheduled job (regardless of enabled state)."""
+    sb = _get_supabase()
+    res = sb.table("scheduled_jobs").select("*").eq("id", schedule_id).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+
+    row = res.data[0]
+    command = _build_skill_command(row["skill"], row.get("skill_args"))
+    task_id = task_manager.start(f"Manual: {row['name']}", command)
+
+    # Update last_run_at + status in background
+    sb.table("scheduled_jobs").update({
+        "last_status": "running",
+        "last_run_at": datetime.now(timezone.utc).isoformat(),
+        "last_error": None,
+    }).eq("id", schedule_id).execute()
+
+    return {"task_id": task_id, "status": "started", "name": row["name"]}
 
 
 # To run: uv run uvicorn api.server:app --reload
