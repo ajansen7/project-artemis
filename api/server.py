@@ -449,6 +449,41 @@ async def mark_submitted(req: MarkSubmittedRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ─── Blog Post Content ────────────────────────────────────────────
+
+
+@app.get("/api/blog-post-content/{post_id}")
+async def get_blog_post_content(post_id: str):
+    """Returns the raw markdown content of a blog post by reading its draft_path file."""
+    supabase_url = os.getenv("SUPABASE_URL", "")
+    supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+    if not supabase_url or not supabase_key:
+        raise HTTPException(status_code=500, detail="Supabase credentials not configured.")
+
+    try:
+        from supabase import create_client
+        sb = create_client(supabase_url, supabase_key)
+        res = sb.table("blog_posts").select("title,draft_path").eq("id", post_id).execute()
+        if not res.data:
+            raise HTTPException(status_code=404, detail="Blog post not found.")
+        post = res.data[0]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    draft_path = post.get("draft_path")
+    if not draft_path:
+        raise HTTPException(status_code=404, detail="No draft file associated with this post.")
+
+    full_path = Path(PROJECT_ROOT) / draft_path
+    if not full_path.exists():
+        raise HTTPException(status_code=404, detail=f"Draft file not found: {draft_path}")
+
+    content = full_path.read_text(encoding="utf-8")
+    return {"title": post["title"], "content": content, "draft_path": draft_path}
+
+
 # ─── Generic Skill Runner ─────────────────────────────────────────
 
 
