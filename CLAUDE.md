@@ -66,7 +66,7 @@ db/migrations/    # Supabase schema migrations (001-014)
 | **interview-coach** | `/kickoff`, `/practice`, `/mock`, `/debrief` | Coaching, storybank, drills (git submodule) |
 | **inbox** | `/inbox` | Monitor Gmail + Calendar for job search activity |
 | **linkedin** | `/linkedin` | Browse LinkedIn for jobs, contacts, engagement (Chrome MCP) |
-| **blogger** | `/blogger` | Generate blog ideas, draft posts, publish content |
+| **blogger** | `/blog-audit`, `/blog-ideas`, `/blog-write`, `/blog-publish`, `/blog-status` | Import past blog archive, generate ideas, draft/publish posts |
 | **artemis-setup** | `/setup` | One-time setup wizard for new users |
 
 ## Supabase Schema

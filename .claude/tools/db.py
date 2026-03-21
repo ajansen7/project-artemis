@@ -804,6 +804,72 @@ def update_blog_post(args):
         print(f"❌ Blog post {args.id} not found")
 
 
+def batch_import_blog_posts(args):
+    """Batch import/upsert blog posts from JSON on stdin.
+
+    Expects a JSON array of objects, each with at minimum: title, slug.
+    Optional fields: status, platform, tags (array), summary, published_url,
+    published_at (ISO string), draft_path, notes.
+
+    Upserts by slug so re-running a Substack audit never creates duplicates.
+    """
+    raw = sys.stdin.read().strip()
+    if not raw:
+        print("ERROR: No JSON provided on stdin")
+        sys.exit(1)
+    try:
+        posts = json.loads(raw)
+    except json.JSONDecodeError as e:
+        print(f"ERROR: Invalid JSON: {e}")
+        sys.exit(1)
+
+    if not isinstance(posts, list):
+        print("ERROR: Expected a JSON array")
+        sys.exit(1)
+
+    imported = 0
+    skipped = 0
+    for post in posts:
+        slug = post.get("slug")
+        title = post.get("title")
+        if not slug or not title:
+            print(f"  ⚠️  Skipping entry missing title/slug: {post}")
+            skipped += 1
+            continue
+
+        data = {
+            "title": title,
+            "slug": slug,
+            "status": post.get("status", "published"),
+        }
+        if post.get("platform"):
+            data["platform"] = post["platform"]
+        if post.get("tags"):
+            data["tags"] = post["tags"] if isinstance(post["tags"], list) else [t.strip() for t in post["tags"].split(",")]
+        if post.get("summary"):
+            data["summary"] = post["summary"]
+        if post.get("published_url"):
+            data["published_url"] = post["published_url"]
+        if post.get("published_at"):
+            data["published_at"] = post["published_at"]
+        if post.get("draft_path"):
+            data["draft_path"] = post["draft_path"]
+        if post.get("notes"):
+            data["notes"] = post["notes"]
+
+        # Upsert by slug
+        existing = sb.table("blog_posts").select("id").eq("slug", slug).execute()
+        if existing.data:
+            sb.table("blog_posts").update(data).eq("slug", slug).execute()
+            print(f"  ↻  Updated: {title}")
+        else:
+            sb.table("blog_posts").insert(data).execute()
+            print(f"  ✅ Imported: {title}")
+        imported += 1
+
+    print(f"\nDone: {imported} imported/updated, {skipped} skipped.")
+
+
 def list_blog_posts(args):
     """List blog posts, optionally filtered by status."""
     query = sb.table("blog_posts").select("*")
@@ -991,6 +1057,10 @@ def main():
     p.add_argument("--draft-path", default=None)
     p.add_argument("--tags", default=None, help="Comma-separated tags")
     p.set_defaults(func=update_blog_post)
+
+    # batch-import-blog-posts
+    p = subparsers.add_parser("batch-import-blog-posts", help="Batch import/upsert blog posts from JSON on stdin")
+    p.set_defaults(func=batch_import_blog_posts)
 
     # list-blog-posts
     p = subparsers.add_parser("list-blog-posts", help="List blog posts")

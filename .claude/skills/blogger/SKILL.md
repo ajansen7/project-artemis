@@ -17,8 +17,10 @@ You help the candidate capture insights from their job search and professional e
 | Active loops | `.claude/memory/hot/active_loops.md` | Current interview context for timely content |
 | Candidate context | `.claude/skills/hunt/references/candidate_context.md` | Strengths, gaps, story index |
 | Preferences | `.claude/skills/hunt/references/preferences.md` | Target companies, industries |
+| Blog archive | `.claude/skills/blogger/references/blog_archive.md` | Analysis of imported past posts (themes, voice, cadence) |
 | Content backlog | `output/blog/content_backlog.md` | Ideas pipeline |
 | Drafts | `output/blog/drafts/<slug>.md` | Draft posts |
+| Published archive | `output/blog/published/<slug>.md` | Full text of imported past posts |
 
 ## Content Philosophy
 
@@ -32,6 +34,74 @@ Content should feel genuine, not calculated. The best posts come from real insig
 
 ## Commands
 
+### `/blog-audit <blog-url>` — Import & Analyze an Existing Blog
+
+Bootstrap the content system by importing past published posts from an existing blog (Substack, Medium, or personal site). Run this once when setting up for a new user who has prior writing history.
+
+**Steps:**
+1. Confirm the URL with the user and identify the platform (Substack, Medium, etc.)
+2. Use Chrome MCP to scrape the archive:
+   - **Substack:** Navigate to `<url>/archive?sort=new` — scroll to load all posts, collect post titles, dates, and URLs from the archive listing. Then visit each post URL to extract the full body text.
+   - **Medium:** Navigate to the user's profile page and collect published stories.
+   - For other platforms, use the site's archive or index page.
+3. For each post found:
+   - Generate a slug from the title (lowercase, hyphens, no special chars)
+   - Save full text to `output/blog/published/<slug>.md` with frontmatter:
+     ```markdown
+     ---
+     title: "..."
+     published_at: YYYY-MM-DD
+     platform: substack
+     source_url: "..."
+     status: published
+     ---
+
+     <body text>
+     ```
+   - Collect metadata into a JSON array: `[{"title": "...", "slug": "...", "status": "published", "platform": "substack", "published_url": "...", "published_at": "YYYY-MM-DDTHH:MM:SSZ", "draft_path": "output/blog/published/<slug>.md", "summary": "<one sentence>", "tags": ["tag1"]}, ...]`
+4. Batch import to DB: `echo '<json>' | uv run python .claude/tools/db.py batch-import-blog-posts`
+5. Analyze the full archive and write `.claude/skills/blogger/references/blog_archive.md`:
+
+   ```markdown
+   # Blog Archive Analysis
+   Last updated: YYYY-MM-DD
+   Source: <url> (platform)
+   Total posts imported: N
+
+   ## Recurring Themes
+   <bullet list of topics the user writes about most>
+
+   ## Voice Patterns
+   <observations about sentence length, tone, structure, use of personal narrative vs. tactical advice>
+
+   ## Post Formats That Appear Most
+   <e.g., listicles, narrative essays, how-tos, opinion pieces>
+
+   ## Average Length
+   <approximate word count range>
+
+   ## Posting Cadence
+   <frequency: weekly, monthly, sporadic — note any patterns>
+
+   ## High-Signal Posts
+   <3-5 posts that seem most distinctive or well-crafted, with one-line rationale>
+
+   ## Content Gaps
+   <topics from candidate_context.md expertise that haven't been covered>
+
+   ## Suggested Angles for New Posts
+   <3-5 specific ideas grounded in the archive patterns>
+   ```
+
+6. Report back: summary table of posts imported, key themes identified, and top 3 content gap suggestions.
+
+**Notes:**
+- If Chrome MCP is unavailable, ask the user to export their Substack (Settings → Exports) and provide the zip path — then parse the HTML files locally.
+- Scrape incrementally: if `blog_archive.md` already exists, only fetch posts newer than `Last updated` date (incremental sync).
+- Respect rate limits: add a short pause between post fetches if scraping many posts.
+
+---
+
 ### `/blog-ideas` — Generate Post Ideas
 
 Generate blog post ideas from the candidate's job search activity, expertise, and current context.
@@ -42,8 +112,9 @@ Generate blog post ideas from the candidate's job search activity, expertise, an
 3. Read `candidate_context.md` for strengths, story index, and known gaps
 4. Read `active_loops.md` for current interview context
 5. Read `preferences.md` for target companies and industries
-6. Scan recent pipeline activity: `uv run python .claude/tools/db.py list-jobs --limit 10`
-7. Generate 5-10 blog post ideas, each with:
+6. **If `.claude/skills/blogger/references/blog_archive.md` exists:** read it — use the themes, voice patterns, and content gaps to ground idea generation in the user's actual writing history. Avoid suggesting topics they've already covered well; prioritize gaps and natural extensions of their strongest posts.
+7. Scan recent pipeline activity: `uv run python .claude/tools/db.py list-jobs --limit 10`
+8. Generate 5-10 blog post ideas, each with:
    - **Title** — specific and compelling, not generic
    - **Angle** — personal narrative, industry insight, how-to, opinion, case study
    - **Hook** — the opening line or question that draws readers in
@@ -51,8 +122,8 @@ Generate blog post ideas from the candidate's job search activity, expertise, an
    - **Relevance** — how this connects to the candidate's positioning and target roles
    - **Effort** — quick take (30 min) or deep dive (2+ hours)
    - **Platform** — best fit: LinkedIn article, LinkedIn post (short), Medium, personal blog
-8. Save to `output/blog/content_backlog.md` (append to existing, don't overwrite)
-9. Also track in DB: `uv run python .claude/tools/db.py add-blog-post --title "..." --slug "..." --status "idea" --summary "..." --tags "..."`
+9. Save to `output/blog/content_backlog.md` (append to existing, don't overwrite)
+10. Also track in DB: `uv run python .claude/tools/db.py add-blog-post --title "..." --slug "..." --status "idea" --summary "..." --tags "..."`
 
 **Idea generation angles tied to positioning:**
 - Building agentic AI systems (Artemis itself as a real case study)
