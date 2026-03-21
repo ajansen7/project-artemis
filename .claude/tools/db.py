@@ -704,6 +704,8 @@ def update_engagement(args):
         data["content"] = args.content
     if args.status == "posted":
         data["posted_at"] = datetime.now(timezone.utc).isoformat()
+    if hasattr(args, "target_person") and args.target_person:
+        data["target_person"] = args.target_person
 
     if not data:
         print("Nothing to update. Provide --status or --content.")
@@ -1028,6 +1030,7 @@ def main():
     p.add_argument("--id", required=True)
     p.add_argument("--status", choices=["drafted", "approved", "posted", "skipped"])
     p.add_argument("--content", default=None)
+    p.add_argument("--target-person", default=None)
     p.set_defaults(func=update_engagement)
 
     # list-engagements
