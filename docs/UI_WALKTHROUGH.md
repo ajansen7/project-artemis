@@ -1,6 +1,12 @@
 # Artemis Dashboard — UI Walkthrough
 
-A visual tour of the Artemis dashboard at `http://localhost:5173`. Screenshots are in `docs/screenshots/`.
+A visual tour of the Artemis dashboard at `http://localhost:5173`.
+
+## Full Walkthrough
+
+![Artemis Dashboard Walkthrough](screenshots/walkthrough.gif)
+
+*Pipeline filtering, row expansion, application modal (Resume · Cover Letter · Form Fills · Primer), networking contacts, and engagement log.*
 
 ---
 

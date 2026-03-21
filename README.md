@@ -1,6 +1,12 @@
 # Project Artemis
 
+[![License: PolyForm Noncommercial](https://img.shields.io/badge/License-PolyForm%20Noncommercial-blue)](LICENSE)
+
 **An autonomous job hunting system powered by Claude Code.** Artemis scouts for jobs, manages your pipeline, generates tailored application materials, coaches you for interviews, manages your networking, monitors your inbox and calendar, browses LinkedIn, and helps you build a personal brand through blogging.
+
+![Artemis Walkthrough](docs/screenshots/walkthrough.gif)
+
+**[Full UI Walkthrough →](docs/UI_WALKTHROUGH.md)**
 
 ---
 
@@ -554,3 +560,13 @@ The original full-stack implementation is on `archive/full-stack-v1`:
 LangGraph orchestration, Next.js Kanban, ChromaDB embeddings, Gemini function-calling.
 
 `git checkout archive/full-stack-v1`
+
+---
+
+## License
+
+This project is licensed under the **[PolyForm Noncommercial License 1.0.0](LICENSE)**.
+
+You are free to use, modify, and share Artemis for personal and non-commercial purposes. Commercial use — including building products or services on top of this system, or using it in connection with a revenue-generating business — requires explicit written permission from the author.
+
+For commercial licensing inquiries, open an issue or reach out directly.
