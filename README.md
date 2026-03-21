@@ -375,6 +375,8 @@ output/
 
 The dashboard gives you a visual overview of your entire job search.
 
+![Artemis Pipeline Dashboard](docs/screenshots/01-pipeline-overview.png)
+
 **Terminal 1 -- API:**
 ```bash
 uv run uvicorn api.server:app --reload
@@ -393,6 +395,8 @@ Opens at `http://localhost:5173`. The dashboard has four tabs:
 | **Networking** | Contacts grouped by company, outreach status, interaction history |
 | **Engagement** | LinkedIn/blog engagement queue with approve/post/skip workflow |
 | **Blog** | Blog post lifecycle from idea through published, with tags and platform |
+
+For a full visual walkthrough of every screen, see **[docs/UI_WALKTHROUGH.md](docs/UI_WALKTHROUGH.md)**.
 
 Attach to tmux (`tmux attach -t artemis`) to watch Claude work.
 
