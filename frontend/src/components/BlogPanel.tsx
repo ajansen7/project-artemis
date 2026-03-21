@@ -27,26 +27,46 @@ function BlogCard({
   const [modalOpen, setModalOpen] = useState(false);
   const [modalContent, setModalContent] = useState('');
   const [loadingContent, setLoadingContent] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const currentIdx = BLOG_STATUS_ORDER.indexOf(post.status);
   const next = BLOG_STATUS_ORDER[currentIdx + 1] || null;
+
+  const fetchContent = async (): Promise<string> => {
+    if (modalContent) return modalContent;
+    const res = await fetch(`http://localhost:8000/api/blog-post-content/${post.id}`);
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Failed to load post');
+    }
+    const data = await res.json();
+    setModalContent(data.content);
+    return data.content;
+  };
 
   const openPost = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setLoadingContent(true);
     try {
-      const res = await fetch(`http://localhost:8000/api/blog-post-content/${post.id}`);
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || 'Failed to load post');
-      }
-      const data = await res.json();
-      setModalContent(data.content);
+      const content = await fetchContent();
+      setModalContent(content);
       setModalOpen(true);
     } catch (err: any) {
       alert(err.message);
     } finally {
       setLoadingContent(false);
+    }
+  };
+
+  const copyMarkdown = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const content = await fetchContent();
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err: any) {
+      alert(err.message);
     }
   };
 
@@ -92,14 +112,24 @@ function BlogCard({
               ))}
               <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
                 {(post.draft_path || post.content) && (
-                  <button
-                    className="action-btn"
-                    style={{ padding: '4px 10px', fontSize: '0.72rem' }}
-                    onClick={openPost}
-                    disabled={loadingContent}
-                  >
-                    {loadingContent ? 'Loading…' : 'Read Post'}
-                  </button>
+                  <>
+                    <button
+                      className="action-btn"
+                      style={{ padding: '4px 10px', fontSize: '0.72rem' }}
+                      onClick={openPost}
+                      disabled={loadingContent}
+                    >
+                      {loadingContent ? 'Loading…' : 'Read Post'}
+                    </button>
+                    <button
+                      className="action-btn"
+                      style={{ padding: '4px 10px', fontSize: '0.72rem' }}
+                      onClick={copyMarkdown}
+                      disabled={copied}
+                    >
+                      {copied ? '✓ Copied!' : 'Copy Markdown'}
+                    </button>
+                  </>
                 )}
                 {next && (
                   <button
