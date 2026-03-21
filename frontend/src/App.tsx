@@ -7,9 +7,11 @@ import { StatusFilter } from './components/StatusFilter';
 import { JobTable } from './components/JobTable';
 import { CompanySidebar } from './components/CompanySidebar';
 import { NetworkingPanel } from './components/NetworkingPanel';
+import { EngagementPanel } from './components/EngagementPanel';
+import { BlogPanel } from './components/BlogPanel';
 import { TasksPanel } from './components/TasksPanel';
 
-type View = 'pipeline' | 'networking';
+type View = 'pipeline' | 'networking' | 'engagement' | 'blog';
 
 function App() {
   const [view, setView] = useState<View>('pipeline');
@@ -18,8 +20,8 @@ function App() {
   const allCounts = useAllCounts();
   const { companies, loading: companiesLoading } = useCompanies();
 
-  const handleStatusChange = async (jobId: string, status: JobStatus) => {
-    const ok = await updateStatus(jobId, status);
+  const handleStatusChange = async (jobId: string, status: JobStatus, notes?: string) => {
+    const ok = await updateStatus(jobId, status, notes);
     if (ok) refetch();
   };
 
@@ -47,6 +49,18 @@ function App() {
             >
               Networking
             </button>
+            <button
+              className={`view-tab ${view === 'engagement' ? 'active' : ''}`}
+              onClick={() => setView('engagement')}
+            >
+              Engagement
+            </button>
+            <button
+              className={`view-tab ${view === 'blog' ? 'active' : ''}`}
+              onClick={() => setView('blog')}
+            >
+              Blog
+            </button>
           </div>
 
           {view === 'pipeline' ? (
@@ -64,8 +78,12 @@ function App() {
                 onUpdate={refetch}
               />
             </>
-          ) : (
+          ) : view === 'networking' ? (
             <NetworkingPanel />
+          ) : view === 'engagement' ? (
+            <EngagementPanel />
+          ) : (
+            <BlogPanel />
           )}
         </div>
         <CompanySidebar

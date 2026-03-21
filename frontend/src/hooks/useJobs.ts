@@ -28,10 +28,11 @@ export function useJobs(statusFilter: JobStatus | 'all' = 'all') {
           to_review: 0,
           scouted: 1,
           applied: 2,
-          interviewing: 3,
-          offer: 4,
-          not_interested: 5,
-          rejected: 6,
+          recruiter_engaged: 3,
+          interviewing: 4,
+          offer: 5,
+          not_interested: 6,
+          rejected: 7,
         };
         const aPri = statusPriority[a.status] ?? 99;
         const bPri = statusPriority[b.status] ?? 99;
@@ -58,9 +59,15 @@ export function useJobs(statusFilter: JobStatus | 'all' = 'all') {
     fetchJobs();
   }, [fetchJobs]);
 
-  const updateStatus = useCallback(async (jobId: string, status: JobStatus, reason?: string) => {
+  const updateStatus = useCallback(async (jobId: string, status: JobStatus, notes?: string) => {
     const updateData: Record<string, unknown> = { status };
-    if (reason) updateData.rejection_reason = reason;
+    if (notes) {
+      if (status === 'not_interested' || status === 'rejected') {
+        updateData.rejection_reason = notes;
+      } else {
+        updateData.notes = notes;
+      }
+    }
 
     const { error: err } = await supabase
       .from('jobs')
@@ -72,7 +79,7 @@ export function useJobs(statusFilter: JobStatus | 'all' = 'all') {
       return false;
     }
 
-    setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status, rejection_reason: reason || j.rejection_reason } : j));
+    setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status, ...(notes ? (status === 'not_interested' || status === 'rejected' ? { rejection_reason: notes } : { notes }) : {}) } : j));
     return true;
   }, []);
 

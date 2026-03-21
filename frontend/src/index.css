@@ -353,6 +353,10 @@ button {
   background: var(--purple-dim);
   color: var(--purple);
 }
+.status-badge.recruiter_engaged {
+  background: var(--orange-dim);
+  color: var(--orange);
+}
 .status-badge.interviewing {
   background: var(--green-dim);
   color: var(--green);
@@ -1074,6 +1078,227 @@ button {
 .outreach-badge--warm {
   background: var(--orange-dim);
   color: var(--orange);
+}
+
+/* ─── Status Picker ─── */
+.status-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--gap-md);
+  margin-top: var(--gap-md);
+  grid-column: 1 / -1;
+  animation: slideDown 200ms ease;
+}
+
+.status-picker-row {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+}
+
+.status-picker-row .interaction-select {
+  flex: 1;
+}
+
+/* ─── Engagement Panel ─── */
+.engagement-card,
+.blog-card {
+  border-bottom: 1px solid var(--border);
+  transition: background var(--transition);
+}
+
+.engagement-card:last-child,
+.blog-card:last-child {
+  border-bottom: none;
+}
+
+.engagement-card.expanded,
+.blog-card.expanded {
+  background: var(--bg-card);
+}
+
+.engagement-card-header,
+.blog-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--gap-md) var(--gap-lg);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.engagement-card-header:hover,
+.blog-card-header:hover {
+  background: var(--bg-card-hover);
+}
+
+.engagement-card-left,
+.blog-card-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.engagement-card-top {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+}
+
+.engagement-platform-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.engagement-action-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+}
+
+.engagement-target {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.engagement-card-right,
+.blog-card-right {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+}
+
+.engagement-date {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.engagement-card-body,
+.blog-card-body {
+  padding: 0 var(--gap-lg) var(--gap-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+  animation: slideDown 200ms ease;
+}
+
+.engagement-card-actions {
+  display: flex;
+  gap: var(--gap-sm);
+}
+
+.engagement-url {
+  font-size: 0.8rem;
+  word-break: break-all;
+}
+
+/* ─── Engagement Status Badges ─── */
+.engagement-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.engagement-status--drafted {
+  background: var(--yellow-dim);
+  color: var(--yellow);
+}
+
+.engagement-status--approved {
+  background: var(--blue-dim);
+  color: var(--blue);
+}
+
+.engagement-status--posted {
+  background: var(--green-dim);
+  color: var(--green);
+}
+
+.engagement-status--skipped {
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+}
+
+/* ─── Blog Panel ─── */
+.blog-card-title {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.blog-card-summary {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.blog-card-tags {
+  display: flex;
+  gap: var(--gap-xs);
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.blog-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: var(--radius-full);
+  font-size: 0.6rem;
+  font-weight: 500;
+  background: var(--purple-dim);
+  color: var(--purple);
+}
+
+/* ─── Blog Status Badges ─── */
+.blog-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.blog-status--idea {
+  background: var(--blue-dim);
+  color: var(--blue);
+}
+
+.blog-status--draft {
+  background: var(--yellow-dim);
+  color: var(--yellow);
+}
+
+.blog-status--review {
+  background: var(--orange-dim);
+  color: var(--orange);
+}
+
+.blog-status--published {
+  background: var(--green-dim);
+  color: var(--green);
 }
 
 @keyframes fadeIn {

@@ -44,6 +44,17 @@ export function ApplicationModal({ isOpen, onClose, job, onGenerationComplete, o
   const [mode, setMode] = useState<'preview' | 'edit'>('preview');
   const [editContent, setEditContent] = useState('');
   const [saving, setSaving] = useState(false);
+  const [regeneratingPdf, setRegeneratingPdf] = useState(false);
+  const [teachingFromEdit, setTeachingFromEdit] = useState(false);
+  const [templateMissing, setTemplateMissing] = useState<string | null>(null);
+
+  // Check for resume template on mount
+  useEffect(() => {
+    fetch('http://localhost:8000/api/check-template')
+      .then(r => r.json())
+      .then(data => setTemplateMissing(data.exists ? null : data.message))
+      .catch(() => {});
+  }, []);
 
   const app = job.applications?.[0] as any;
   const hasResume = !!app?.resume_md;
@@ -72,12 +83,36 @@ export function ApplicationModal({ isOpen, onClose, job, onGenerationComplete, o
     }
   };
 
+  const [preEditContent, setPreEditContent] = useState('');
+
   useEffect(() => {
     setMode('preview');
-    setEditContent(getContent(activeTab));
+    const c = getContent(activeTab);
+    setEditContent(c);
+    setPreEditContent(c);
   }, [activeTab, job.applications]);
 
   if (!isOpen) return null;
+
+  const handleRegeneratePdf = async () => {
+    setRegeneratingPdf(true);
+    setStatusMsg(null);
+    try {
+      const res = await fetch('http://localhost:8000/api/generate-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: job.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'PDF generation failed');
+      setStatusMsg('✅ PDF regenerated');
+      onGenerationComplete();
+    } catch (err: any) {
+      setStatusMsg(`❌ ${err.message}`);
+    } finally {
+      setRegeneratingPdf(false);
+    }
+  };
 
   const handleGenerate = async () => {
     setGenerating(true);
@@ -119,6 +154,7 @@ export function ApplicationModal({ isOpen, onClose, job, onGenerationComplete, o
 
   const handleSave = async () => {
     setSaving(true);
+    setStatusMsg(null);
     try {
       const res = await fetch('http://localhost:8000/api/save-document', {
         method: 'POST',
@@ -127,8 +163,51 @@ export function ApplicationModal({ isOpen, onClose, job, onGenerationComplete, o
       });
       if (!res.ok) throw new Error((await res.json()).detail || 'Save failed');
       setMode('preview');
-      setStatusMsg('✅ Saved');
       onGenerationComplete();
+
+      // Auto-extract lessons if content actually changed (resume/cover letter only)
+      const hasRealEdits = preEditContent.trim() !== editContent.trim();
+      if (hasRealEdits && (activeTab === 'resume' || activeTab === 'cover_letter')) {
+        setTeachingFromEdit(true);
+        setStatusMsg('💾 Saved. Extracting lessons from your edits...');
+        try {
+          await fetch('http://localhost:8000/api/learn-from-edit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              job_id: job.id,
+              doc_type: activeTab,
+              original_content: preEditContent,
+              edited_content: editContent,
+            }),
+          });
+        } catch { /* lesson extraction is best-effort */ }
+        setTeachingFromEdit(false);
+      }
+
+      // Auto-regenerate PDF if resume was edited
+      if (activeTab === 'resume') {
+        setRegeneratingPdf(true);
+        setStatusMsg(hasRealEdits ? '🧠 Lessons captured. Regenerating PDF...' : '💾 Saved. Regenerating PDF...');
+        try {
+          const pdfRes = await fetch('http://localhost:8000/api/generate-pdf', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ job_id: job.id }),
+          });
+          if (!pdfRes.ok) throw new Error((await pdfRes.json()).detail || 'PDF failed');
+          setStatusMsg('✅ Saved, lessons extracted, PDF regenerated');
+          onGenerationComplete();
+        } catch (err: any) {
+          setStatusMsg(`✅ Saved but PDF failed: ${err.message}`);
+        } finally {
+          setRegeneratingPdf(false);
+        }
+      } else {
+        setStatusMsg(hasRealEdits ? '✅ Saved and lessons extracted' : '✅ Saved');
+      }
+
+      setPreEditContent(editContent);
     } catch (err: any) {
       setStatusMsg(`❌ ${err.message}`);
     } finally {
@@ -194,6 +273,23 @@ export function ApplicationModal({ isOpen, onClose, job, onGenerationComplete, o
           )}
         </div>
 
+        {/* Template missing warning */}
+        {templateMissing && (
+          <div style={{
+            padding: '0.5rem 1.25rem',
+            fontSize: '0.8rem',
+            backgroundColor: 'rgba(255, 170, 0, 0.1)',
+            borderBottom: '1px solid var(--border)',
+            color: 'var(--warning, #ffaa00)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}>
+            <span>⚠️</span>
+            <span>{templateMissing}</span>
+          </div>
+        )}
+
         {/* Tab bar */}
         <div style={{
           display: 'flex',
@@ -243,9 +339,19 @@ export function ApplicationModal({ isOpen, onClose, job, onGenerationComplete, o
                   className="action-btn"
                   style={{ padding: '0.3rem 0.7rem', fontSize: '0.8rem', backgroundColor: 'var(--success, #4caf78)', color: 'white' }}
                   onClick={handleSave}
-                  disabled={saving}
+                  disabled={saving || regeneratingPdf || teachingFromEdit}
                 >
-                  {saving ? 'Saving…' : '💾 Save'}
+                  {saving ? 'Saving…' : teachingFromEdit ? 'Extracting lessons…' : regeneratingPdf ? 'Regenerating PDF…' : '💾 Save'}
+                </button>
+              )}
+              {activeTab === 'resume' && hasResume && mode === 'preview' && (
+                <button
+                  className="action-btn"
+                  style={{ padding: '0.3rem 0.7rem', fontSize: '0.8rem', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
+                  onClick={handleRegeneratePdf}
+                  disabled={regeneratingPdf}
+                >
+                  {regeneratingPdf ? 'Generating…' : '📄 Regen PDF'}
                 </button>
               )}
             </div>

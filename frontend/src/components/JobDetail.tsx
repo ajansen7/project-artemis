@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import type { Job } from '../types';
+import type { Job, JobStatus } from '../types';
+import { STATUS_LABELS } from '../types';
 import { MarkdownModal } from './MarkdownModal';
 import { ApplicationModal } from './ApplicationModal';
 import { useTaskPoller } from '../hooks/useTasks';
@@ -10,14 +11,22 @@ interface JobDetailProps {
   onSkip: () => void;
   onDelete: () => void;
   onUpdate: () => void;
+  onSetStatus?: (status: JobStatus, notes?: string) => void;
 }
 
-export function JobDetail({ job, onAdvance, onSkip, onDelete, onUpdate }: JobDetailProps) {
+const MOVABLE_STATUSES: JobStatus[] = [
+  'scouted', 'to_review', 'applied', 'recruiter_engaged', 'interviewing', 'offer', 'not_interested', 'rejected',
+];
+
+export function JobDetail({ job, onAdvance, onSkip, onDelete, onUpdate, onSetStatus }: JobDetailProps) {
   const nextStatus = getNextStatus(job.status);
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeTaskId, setAnalyzeTaskId] = useState<string | null>(null);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [applicationModalOpen, setApplicationModalOpen] = useState(false);
+  const [showStatusPicker, setShowStatusPicker] = useState(false);
+  const [pickerStatus, setPickerStatus] = useState<JobStatus>(job.status);
+  const [pickerNotes, setPickerNotes] = useState('');
 
   useTaskPoller(
     analyzeTaskId,
@@ -136,15 +145,65 @@ export function JobDetail({ job, onAdvance, onSkip, onDelete, onUpdate }: JobDet
             </button>
           )}
 
-          {/* Pipeline progression — skip to_review→applied since that's in the modal */}
+          {/* Quick advance */}
           {nextStatus && (
             <button className="action-btn review" onClick={onAdvance}>
-              → Move to {nextStatus.replace('_', ' ')}
+              Move to {nextStatus.replace('_', ' ')}
             </button>
           )}
+
+          {/* Manual status picker */}
+          <button
+            className="action-btn"
+            style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
+            onClick={() => setShowStatusPicker(s => !s)}
+          >
+            Set Status
+          </button>
           <button className="action-btn skip" onClick={onSkip}>Skip</button>
           <button className="action-btn delete" onClick={onDelete}>Delete</button>
         </div>
+
+        {showStatusPicker && (
+          <div className="status-picker">
+            <div className="status-picker-row">
+              <select
+                value={pickerStatus}
+                onChange={e => setPickerStatus(e.target.value as JobStatus)}
+                className="interaction-select"
+              >
+                {MOVABLE_STATUSES.filter(s => s !== job.status).map(s => (
+                  <option key={s} value={s}>{STATUS_LABELS[s]}</option>
+                ))}
+              </select>
+              <button
+                className="action-btn review"
+                onClick={() => {
+                  if (onSetStatus) {
+                    onSetStatus(pickerStatus, pickerNotes || undefined);
+                  }
+                  setShowStatusPicker(false);
+                  setPickerNotes('');
+                }}
+              >
+                Update
+              </button>
+              <button
+                className="action-btn skip"
+                onClick={() => { setShowStatusPicker(false); setPickerNotes(''); }}
+              >
+                Cancel
+              </button>
+            </div>
+            <textarea
+              value={pickerNotes}
+              onChange={e => setPickerNotes(e.target.value)}
+              placeholder="Notes (e.g. had a phone call, recruiter reached out)..."
+              className="interaction-notes"
+              rows={2}
+            />
+          </div>
+        )}
 
         {statusMsg && (
           <div style={{ marginTop: 12, fontSize: '0.85rem', color: statusMsg.startsWith('✅') ? 'var(--success)' : 'var(--danger)' }}>
@@ -176,7 +235,8 @@ function getNextStatus(current: string): string | null {
   const flow: Record<string, string> = {
     scouted: 'to_review',
     // to_review → applied is handled by the Start Application modal
-    applied: 'interviewing',
+    applied: 'recruiter_engaged',
+    recruiter_engaged: 'interviewing',
     interviewing: 'offer',
   };
   return flow[current] || null;

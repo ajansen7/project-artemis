@@ -7,7 +7,21 @@
       "Bash(uv sync *)",
       "Bash(open *)",
       "Bash(git *)",
-      "WebSearch"
+      "WebSearch",
+      "mcp__a8ac1e4b-0741-4c7b-9c7d-d54af39acf11__gmail_search_messages",
+      "mcp__a8ac1e4b-0741-4c7b-9c7d-d54af39acf11__gmail_read_message",
+      "mcp__a8ac1e4b-0741-4c7b-9c7d-d54af39acf11__gmail_read_thread",
+      "mcp__a8ac1e4b-0741-4c7b-9c7d-d54af39acf11__gmail_create_draft",
+      "mcp__a8ac1e4b-0741-4c7b-9c7d-d54af39acf11__gmail_get_profile",
+      "mcp__fcb415b2-613c-4cd1-abd0-528cb0084a8a__gcal_list_events",
+      "mcp__fcb415b2-613c-4cd1-abd0-528cb0084a8a__gcal_list_calendars",
+      "mcp__fcb415b2-613c-4cd1-abd0-528cb0084a8a__gcal_get_event",
+      "mcp__Claude_in_Chrome__navigate",
+      "mcp__Claude_in_Chrome__get_page_text",
+      "mcp__Claude_in_Chrome__read_page",
+      "mcp__Claude_in_Chrome__computer",
+      "mcp__Claude_in_Chrome__form_input",
+      "mcp__Claude_in_Chrome__find"
     ]
   },
   "hooks": {

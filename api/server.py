@@ -248,6 +248,23 @@ async def generate_application(req: GenerateRequest):
 
 # ─── PDF Generation ──────────────────────────────────────────────
 
+TEMPLATE_REL_PATH = ".claude/skills/apply/references/resume_template.docx"
+
+
+@app.get("/api/check-template")
+async def check_template():
+    """Check whether the resume template DOCX exists."""
+    template_path = os.path.join(PROJECT_ROOT, TEMPLATE_REL_PATH)
+    exists = os.path.isfile(template_path)
+    return {
+        "exists": exists,
+        "path": TEMPLATE_REL_PATH,
+        "message": None if exists else (
+            "Resume template not found. Place your styled .docx template at "
+            f"{TEMPLATE_REL_PATH} — see README for setup instructions."
+        ),
+    }
+
 
 class GeneratePdfRequest(BaseModel):
     job_id: str
@@ -276,7 +293,14 @@ async def generate_pdf(req: GeneratePdfRequest):
         stdout, stderr = process.communicate()
 
         if process.returncode != 0:
-            raise HTTPException(status_code=500, detail=f"PDF generation failed: {stderr}")
+            # Surface actionable messages from known errors
+            if "TEMPLATE_MISSING" in stderr:
+                raise HTTPException(status_code=422, detail=f"Resume template not found. Place your styled .docx at {TEMPLATE_REL_PATH}")
+            if "No resume_md found" in stderr:
+                raise HTTPException(status_code=400, detail="No resume found for this job. Generate application materials first.")
+            if "not found" in stderr.lower() and "job" in stderr.lower():
+                raise HTTPException(status_code=404, detail="Job not found in database.")
+            raise HTTPException(status_code=500, detail=f"PDF generation failed: {stderr.strip().splitlines()[-1] if stderr.strip() else 'unknown error'}")
 
         pdf_path = None
         for line in stdout.splitlines():

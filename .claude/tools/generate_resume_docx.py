@@ -549,7 +549,11 @@ def markdown_to_docx(md_text: str, output_path: str) -> None:
         sys.exit(1)
 
     if not TEMPLATE_PATH.exists():
-        print(f"❌ Template not found: {TEMPLATE_PATH}")
+        rel = TEMPLATE_PATH.relative_to(PROJECT_ROOT)
+        print(f"❌ TEMPLATE_MISSING: {rel}")
+        print(f"   Place your resume template DOCX at: {rel}")
+        print(f"   This is a styled Word document that controls fonts, layout, and header formatting.")
+        print(f"   See README.md for setup instructions.")
         sys.exit(1)
 
     doc = Document(str(TEMPLATE_PATH))
@@ -669,9 +673,15 @@ def fetch_resume_md_from_db(job_id: str) -> tuple[str, str, str]:
 
 
 def update_pdf_path_in_db(job_id: str, pdf_path: str) -> None:
+    # Store as relative path so the project is portable across machines
+    try:
+        relative_path = str(Path(pdf_path).relative_to(PROJECT_ROOT))
+    except ValueError:
+        relative_path = pdf_path  # fallback if already relative or outside project
+
     from supabase import create_client
     sb = create_client(SUPABASE_URL, SUPABASE_KEY)
-    res = sb.table("applications").update({"resume_pdf_path": pdf_path}).eq("job_id", job_id).execute()
+    res = sb.table("applications").update({"resume_pdf_path": relative_path}).eq("job_id", job_id).execute()
     if res.data:
         print(f"✅ Saved PDF path to DB for job {job_id}")
     else:

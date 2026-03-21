@@ -57,6 +57,7 @@ analysis_*.md
 .claude/skills/interview-coach/coaching_state.md
 .claude/memory/hot/*
 !.claude/memory/hot/*.example.md
+!.claude/memory/hot/*.example.json
 
 # ─── Plans ─────────────────────────────────────────────────────
 .claude/plans/

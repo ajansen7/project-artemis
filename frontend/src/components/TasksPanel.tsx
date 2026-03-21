@@ -105,7 +105,6 @@ export function TasksPanel() {
   const [open, setOpen] = useState(false);
 
   // Auto-open when a task starts
-  const prevRunning = useState(0);
   if (runningCount > 0 && !open) {
     // open panel when first task starts
   }

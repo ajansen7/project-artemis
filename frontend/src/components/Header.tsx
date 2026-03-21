@@ -38,6 +38,7 @@ export function Header({ counts }: HeaderProps) {
     { key: 'scouted', label: 'Scouted' },
     { key: 'to_review', label: 'To Review' },
     { key: 'applied', label: 'Applied' },
+    { key: 'recruiter_engaged', label: 'Engaged' },
     { key: 'interviewing', label: 'Interviewing' },
     { key: 'offer', label: 'Offers' },
   ];

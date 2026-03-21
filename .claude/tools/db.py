@@ -314,7 +314,7 @@ def status(args):
     print(f"{'═' * 40}")
     total = sum(counts.values())
     print(f"  Total jobs: {total}")
-    for s in ["scouted", "to_review", "applied", "interviewing", "offer", "not_interested", "rejected", "deleted"]:
+    for s in ["scouted", "to_review", "applied", "recruiter_engaged", "interviewing", "offer", "not_interested", "rejected", "deleted"]:
         if s in counts:
             print(f"    {s:20s} {counts[s]}")
     print(f"\n  Target companies: {target_count}")
@@ -671,6 +671,177 @@ def update_contact(args):
     print("  Run sync_contacts.py to regenerate the memory file.")
 
 
+# ─── Engagement Log ──────────────────────────────────────────────
+
+
+def add_engagement(args):
+    """Add an engagement action (LinkedIn like/comment, blog post, etc.)."""
+    data = {
+        "platform": args.platform or "linkedin",
+        "action_type": args.action_type,
+        "status": args.status or "drafted",
+    }
+    if args.target_url:
+        data["target_url"] = args.target_url
+    if args.target_person:
+        data["target_person"] = args.target_person
+    if args.content:
+        data["content"] = args.content
+
+    result = sb.table("engagement_log").insert(data).execute()
+    if result.data:
+        print(f"✅ Engagement logged: {args.action_type} on {args.platform} (id: {result.data[0]['id']}, status: {data['status']})")
+    else:
+        print("❌ Failed to log engagement")
+
+
+def update_engagement(args):
+    """Update an engagement's status or content."""
+    data = {}
+    if args.status:
+        data["status"] = args.status
+    if args.content:
+        data["content"] = args.content
+    if args.status == "posted":
+        data["posted_at"] = datetime.now(timezone.utc).isoformat()
+
+    if not data:
+        print("Nothing to update. Provide --status or --content.")
+        return
+
+    result = sb.table("engagement_log").update(data).eq("id", args.id).execute()
+    if result.data:
+        print(f"✅ Updated engagement {args.id}: {data}")
+    else:
+        print(f"❌ Engagement {args.id} not found")
+
+
+def list_engagements(args):
+    """List engagement actions, optionally filtered by platform or status."""
+    query = sb.table("engagement_log").select("*")
+    if args.platform:
+        query = query.eq("platform", args.platform)
+    if args.status:
+        query = query.eq("status", args.status)
+    query = query.order("created_at", desc=True)
+    if args.limit:
+        query = query.limit(args.limit)
+
+    result = query.execute()
+    entries = result.data or []
+
+    if not entries:
+        print("No engagements found.")
+        return
+
+    by_status = {}
+    for e in entries:
+        s = e.get("status", "unknown")
+        by_status.setdefault(s, []).append(e)
+
+    for eng_status, items in by_status.items():
+        print(f"\n{'─' * 50}")
+        print(f"  {eng_status.upper()} ({len(items)})")
+        print(f"{'─' * 50}")
+        for e in items:
+            print(f"  • [{e['platform']}] {e['action_type']}: {(e.get('content') or '')[:80]}")
+            print(f"    id: {e['id']}")
+            if e.get("target_url"):
+                print(f"    url: {e['target_url']}")
+            if e.get("target_person"):
+                print(f"    person: {e['target_person']}")
+
+
+# ─── Blog Posts ──────────────────────────────────────────────────
+
+
+def add_blog_post(args):
+    """Add a blog post idea or draft."""
+    data = {
+        "title": args.title,
+        "slug": args.slug,
+        "status": args.status or "idea",
+    }
+    if args.platform:
+        data["platform"] = args.platform
+    if args.tags:
+        data["tags"] = [t.strip() for t in args.tags.split(",")]
+    if args.summary:
+        data["summary"] = args.summary
+    if args.draft_path:
+        data["draft_path"] = args.draft_path
+
+    result = sb.table("blog_posts").insert(data).execute()
+    if result.data:
+        print(f"✅ Blog post added: {args.title} (id: {result.data[0]['id']}, status: {data['status']})")
+    else:
+        print("❌ Failed to add blog post")
+
+
+def update_blog_post(args):
+    """Update a blog post's status, platform, or published URL."""
+    data = {}
+    if args.status:
+        data["status"] = args.status
+    if args.platform:
+        data["platform"] = args.platform
+    if args.published_url:
+        data["published_url"] = args.published_url
+        data["published_at"] = datetime.now(timezone.utc).isoformat()
+    if args.draft_path:
+        data["draft_path"] = args.draft_path
+    if args.tags:
+        data["tags"] = [t.strip() for t in args.tags.split(",")]
+
+    if not data:
+        print("Nothing to update.")
+        return
+
+    result = sb.table("blog_posts").update(data).eq("id", args.id).execute()
+    if result.data:
+        print(f"✅ Updated blog post {args.id}: {data}")
+    else:
+        print(f"❌ Blog post {args.id} not found")
+
+
+def list_blog_posts(args):
+    """List blog posts, optionally filtered by status."""
+    query = sb.table("blog_posts").select("*")
+    if args.status:
+        query = query.eq("status", args.status)
+    query = query.order("created_at", desc=True)
+    if args.limit:
+        query = query.limit(args.limit)
+
+    result = query.execute()
+    posts = result.data or []
+
+    if not posts:
+        print("No blog posts found.")
+        return
+
+    by_status = {}
+    for p in posts:
+        s = p.get("status", "unknown")
+        by_status.setdefault(s, []).append(p)
+
+    for post_status, items in by_status.items():
+        print(f"\n{'─' * 50}")
+        print(f"  {post_status.upper()} ({len(items)})")
+        print(f"{'─' * 50}")
+        for p in items:
+            tags = ", ".join(p.get("tags", []))
+            platform = p.get("platform", "unset")
+            print(f"  • {p['title']} [{platform}]")
+            print(f"    slug: {p['slug']}  |  id: {p['id']}")
+            if tags:
+                print(f"    tags: {tags}")
+            if p.get("summary"):
+                print(f"    {p['summary'][:100]}")
+            if p.get("published_url"):
+                print(f"    published: {p['published_url']}")
+
+
 # ─── CLI ─────────────────────────────────────────────────────────
 
 
@@ -774,6 +945,58 @@ def main():
     # status
     p = subparsers.add_parser("status", help="Show pipeline dashboard")
     p.set_defaults(func=status)
+
+    # add-engagement
+    p = subparsers.add_parser("add-engagement", help="Log an engagement action")
+    p.add_argument("--action-type", required=True,
+                   help="like, comment, share, connection_request, blog_post")
+    p.add_argument("--platform", default="linkedin", help="linkedin, medium, personal_blog")
+    p.add_argument("--target-url", default=None)
+    p.add_argument("--target-person", default=None)
+    p.add_argument("--content", default=None, help="Comment text or share note")
+    p.add_argument("--status", default="drafted", choices=["drafted", "approved", "posted", "skipped"])
+    p.set_defaults(func=add_engagement)
+
+    # update-engagement
+    p = subparsers.add_parser("update-engagement", help="Update an engagement's status")
+    p.add_argument("--id", required=True)
+    p.add_argument("--status", choices=["drafted", "approved", "posted", "skipped"])
+    p.add_argument("--content", default=None)
+    p.set_defaults(func=update_engagement)
+
+    # list-engagements
+    p = subparsers.add_parser("list-engagements", help="List engagement actions")
+    p.add_argument("--platform", default=None)
+    p.add_argument("--status", default=None)
+    p.add_argument("--limit", type=int, default=25)
+    p.set_defaults(func=list_engagements)
+
+    # add-blog-post
+    p = subparsers.add_parser("add-blog-post", help="Add a blog post idea or draft")
+    p.add_argument("--title", required=True)
+    p.add_argument("--slug", required=True, help="URL-friendly slug")
+    p.add_argument("--status", default="idea", choices=["idea", "draft", "review", "published"])
+    p.add_argument("--platform", default=None, help="linkedin, medium, personal")
+    p.add_argument("--tags", default=None, help="Comma-separated tags")
+    p.add_argument("--summary", default=None, help="Brief description of the post angle")
+    p.add_argument("--draft-path", default=None, help="Path to local draft markdown")
+    p.set_defaults(func=add_blog_post)
+
+    # update-blog-post
+    p = subparsers.add_parser("update-blog-post", help="Update a blog post")
+    p.add_argument("--id", required=True)
+    p.add_argument("--status", default=None, choices=["idea", "draft", "review", "published"])
+    p.add_argument("--platform", default=None)
+    p.add_argument("--published-url", default=None)
+    p.add_argument("--draft-path", default=None)
+    p.add_argument("--tags", default=None, help="Comma-separated tags")
+    p.set_defaults(func=update_blog_post)
+
+    # list-blog-posts
+    p = subparsers.add_parser("list-blog-posts", help="List blog posts")
+    p.add_argument("--status", default=None)
+    p.add_argument("--limit", type=int, default=25)
+    p.set_defaults(func=list_blog_posts)
 
     args = parser.parse_args()
     if not args.command:
