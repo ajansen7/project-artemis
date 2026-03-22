@@ -8,7 +8,7 @@
 # Services started (each in its own tmux window):
 #   api       — FastAPI backend (uvicorn, port 8000)
 #   frontend  — React dashboard (vite, port 5173)
-#   webhook   — Artemis webhook MCP channel (bun, port 8790)
+#   telegram  — Long-running Claude session for Telegram interaction
 #
 # The "artemis" tmux session is also used by the scheduler to spawn
 # skill-run windows, so this script avoids recreating it if it exists.
@@ -89,7 +89,7 @@ if [ "$SKIP_FRONTEND" = false ]; then
   start_window "frontend" "cd frontend && npm run dev"
 fi
 
-start_window "webhook" "cd channels/artemis-webhook && bun run index.ts"
+start_window "telegram" "claude --agent telegram-handler --dangerously-skip-permissions --settings '{\"enabledPlugins\":{\"telegram@claude-plugins-official\":true}}'"
 
 # ─── Summary ─────────────────────────────────────────────────────
 
@@ -97,7 +97,7 @@ echo ""
 echo "Artemis is running:"
 echo "  API:       http://localhost:8000"
 [ "$SKIP_FRONTEND" = false ] && echo "  Dashboard: http://localhost:5173"
-echo "  Webhook:   http://localhost:8790"
+echo "  Telegram:  handler session (plugin)"
 echo ""
 echo "Attach to tmux:  tmux attach -t $SESSION"
 echo "Stop everything: ./scripts/stop.sh"

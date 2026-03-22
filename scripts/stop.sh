@@ -6,8 +6,8 @@
 #   ./scripts/stop.sh --kill    # kill the entire tmux session
 #
 # This script:
-#   1. Kills the api, frontend, and webhook tmux windows
-#   2. Kills any stray processes on the service ports (8000, 5173, 8790)
+#   1. Kills the api, frontend, and telegram tmux windows
+#   2. Kills any stray processes on the service ports (8000, 5173)
 #   3. Cleans up sentinel files in /tmp/artemis-tasks/
 #   4. Optionally kills the entire tmux session (--kill)
 
@@ -48,7 +48,7 @@ if "$TMUX_BIN" has-session -t "$SESSION" 2>/dev/null; then
   echo "Stopping service windows..."
   kill_window "api"
   kill_window "frontend"
-  kill_window "webhook"
+  kill_window "telegram"
 else
   echo "No tmux session '$SESSION' found."
 fi
@@ -58,7 +58,6 @@ fi
 echo "Checking for stray processes on service ports..."
 kill_port 8000
 kill_port 5173
-kill_port 8790
 
 # ─── Clean up sentinel files ─────────────────────────────────────
 

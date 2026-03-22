@@ -29,7 +29,9 @@ Dependencies are declared in `pyproject.toml`. The `requirements.txt` file is a 
 
 ```
 .claude/
-  agents/         # Orchestrator agent (artemis-orchestrator.md)
+  agents/         # Agent definitions
+    artemis-orchestrator.md  # Job hunting orchestrator
+    telegram-handler.md      # Persistent Telegram interface
   skills/         # Workflow skills
     hunt/           # Job scouting, pipeline management
     apply/          # Application materials generation
@@ -45,13 +47,14 @@ Dependencies are declared in `pyproject.toml`. The `requirements.txt` file is a 
     generate_resume_docx.py  # Resume markdown -> DOCX/PDF via LibreOffice
     sync_contacts.py         # DB -> contacts markdown sync
     relay_ask.py             # Telegram relay: ask user a question mid-job, block until reply
+    push_to_telegram.py      # Send formatted messages to Telegram (direct Bot API)
   hooks/          # Session lifecycle hooks
     load-hot-memory.sh   # SessionStart: inject hot memory, detect fresh install
     check-context.sh     # PreToolUse: context freshness check
     sync-extended.sh     # Stop: sync contacts, cleanup
   memory/hot/     # Hot memory files loaded every session (gitignored)
 channels/
-  artemis-webhook/  # MCP channel: scheduler notifications -> Claude session
+  artemis-webhook/  # (retired) MCP channel — replaced by telegram-handler agent
 output/           # All generated artifacts (gitignored)
 api/              # FastAPI backend (task management, scheduler, PDF generation)
 frontend/         # React dashboard (Pipeline, Networking, Engagement, Blog, Schedules tabs)
@@ -127,14 +130,18 @@ These unlock additional skills but are not required for core functionality:
 - All engagement actions (likes, comments, posts) go through an approval queue. Nothing gets posted without user sign-off.
 - Resume bullets must come verbatim from `resume_master.md`. Never fabricate new ones.
 
-## Web Dashboard
+## Running Artemis
+
+Start all services (API, frontend, Telegram handler) in a single tmux session:
 
 ```bash
-# Terminal 1 -- API
-uv run uvicorn api.server:app --reload
-
-# Terminal 2 -- Frontend
-cd frontend && npm run dev
+./scripts/start.sh          # start everything
+./scripts/start.sh --no-frontend   # skip the React frontend
+./scripts/stop.sh            # stop services
+./scripts/stop.sh --kill     # kill entire tmux session
 ```
 
-Dashboard at `http://localhost:5173` with four tabs: Pipeline, Networking, Engagement, Blog.
+Services:
+- **API:** `http://localhost:8000` (FastAPI backend, scheduler)
+- **Dashboard:** `http://localhost:5173` (React frontend)
+- **Telegram:** Long-running Claude session with Telegram plugin (handles inbound messages, dispatches skills, routes relay replies)

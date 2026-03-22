@@ -9,42 +9,38 @@ Artemis can run scheduled jobs automatically — scouting for jobs, checking you
 The automation system has two parts:
 
 1. **Scheduler** — APScheduler runs inside the FastAPI server, triggering skills on a cron schedule
-2. **Claude Channel** (optional) — pushes job summaries to your phone via Telegram or Discord, so you can approve engagement actions on the go
+2. **Telegram handler** (optional) — a persistent Claude session that pushes results to your phone and lets you interact with running jobs
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  FastAPI Server (api/server.py)                             │
-│                                                             │
-│  APScheduler                                                │
-│    ├─ Daily Inbox Check ──────┐                             │
-│    ├─ Daily Job Scout ────────┤                             │
-│    ├─ Daily LinkedIn ─────────┤── tmux ── Claude CLI ──┐    │
-│    ├─ Networking Follow-ups ──┤                        │    │
-│    ├─ Interview Prep ─────────┤                        │    │
-│    ├─ Weekly Blog Ideas ──────┤                        │    │
-│    └─ Publish Reminder ───────┘                        │    │
-│                                                        │    │
-│  On completion: POST to webhook channel ──────────┐    │    │
-│                                                   │    │    │
-└───────────────────────────────────────────────────┼────┼────┘
-                                                    │    │
-┌───────────────────────────────────────────────────┼────┼────┐
-│  Claude Code Session (--channels)                 │    │    │
-│                                                   ▼    │    │
-│  artemis-webhook channel ◄─── HTTP POST ──────────┘    │    │
-│       │                                                │    │
-│       ▼                                                │    │
-│  Claude receives event, checks DB for pending items    │    │
-│       │                                                │    │
-│       ▼                                                │    │
-│  Telegram/Discord reply tool ──► Your Phone            │    │
-│       │                                                │    │
-│       ▼                                                │    │
-│  You reply: "approve 1 and 3, skip 2"                  │    │
-│       │                                                │    │
-│       ▼                                                │    │
-│  Claude updates engagement_log in Supabase             │    │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  FastAPI Server (api/server.py)                              │
+│                                                              │
+│  APScheduler                                                 │
+│    ├─ Daily Inbox Check ──────┐                              │
+│    ├─ Daily Job Scout ────────┤                              │
+│    ├─ Daily LinkedIn ─────────┤── tmux ── Claude CLI ──┐     │
+│    ├─ Networking Follow-ups ──┤                        │     │
+│    ├─ Interview Prep ─────────┤                        │     │
+│    ├─ Weekly Blog Ideas ──────┤                 push_to_tg   │
+│    └─ Publish Reminder ───────┘                   │    │     │
+│                                                   ▼    │     │
+│  Relay Queue ◄─────── relay_ask.py ◄─────────── Job    │     │
+│       │                                                │     │
+└───────┼────────────────────────────────────────────────┼─────┘
+        │                                                │
+        │              ┌─────────────────────────────┐   │
+        │              │  Telegram Handler Session    │   │
+        │              │  (.claude/agents/telegram-   │   │
+        │              │   handler.md)                │   │
+        ▼              │                              │   │
+  /api/relay/reply ◄───│  Receives user replies       │   │
+                       │  Dispatches new skills       │   │
+                       │  Answers quick queries       │   │
+                       └──────────┬──────────────────┘   │
+                                  │                      │
+                                  ▼                      │
+                           Your Phone ◄──────────────────┘
+                         (Telegram Bot)    (direct Bot API)
 ```
 
 ---
@@ -122,72 +118,33 @@ You can monitor running jobs via `tmux attach -t artemis` or the TasksPanel in t
 
 ---
 
-## Part 2: Mobile Notifications via Claude Channels
+## Part 2: Telegram Integration
 
-This is optional. It enables push notifications to your phone and interactive approval of engagement actions.
+This is optional. It enables push notifications to your phone, interactive mid-job questions, and the ability to kick off tasks from Telegram.
 
-### Step 1: Set up a Telegram bot
-
-1. Open Telegram and message [@BotFather](https://t.me/BotFather)
-2. Send `/newbot`, choose a name and username (must end in `bot`)
-3. Copy the bot token BotFather gives you
-
-### Step 2: Install the Telegram channel plugin
-
-In Claude Code:
-
-```
-/plugin install telegram@claude-plugins-official
-/reload-plugins
-/telegram:configure <your-bot-token>
-```
-
-### Step 3: Install the webhook channel dependencies
-
-```bash
-cd channels/artemis-webhook
-bun install
-```
-
-### Step 4: Start Claude Code with channels
-
-```bash
-claude --channels plugin:telegram@claude-plugins-official \
-       --dangerously-load-development-channels server:artemis-webhook
-```
-
-### Step 5: Pair your Telegram account
-
-1. Open Telegram and message your bot
-2. The bot replies with a pairing code
-3. In Claude Code, run:
-   ```
-   /telegram:access pair <code>
-   /telegram:access policy allowlist
-   ```
-
-### Step 6: Keep the session running
-
-Claude Channels only push events while the session is running. Keep it open in a persistent tmux window:
-
-```bash
-tmux new-session -d -s artemis-channels \
-  'claude --channels plugin:telegram@claude-plugins-official --dangerously-load-development-channels server:artemis-webhook'
-```
+For full Telegram setup instructions, see [getting-started.md](getting-started.md#optional-telegram-setup).
 
 ### How it works
 
-1. A scheduled job completes (e.g., Daily LinkedIn Engagement)
-2. The FastAPI server POSTs a summary to `http://localhost:8790/notify`
-3. The artemis-webhook channel pushes the event into the Claude Code session
-4. Claude checks Supabase for pending engagement items, upcoming interviews, blog drafts
-5. Claude sends a summary to your Telegram via the reply tool
-6. You respond: "approve 1 and 3", "skip 2", or ask follow-up questions
-7. Claude updates the database accordingly
+Artemis uses two paths for Telegram communication:
 
-### Using Discord instead
+**Outbound (job to phone):** Scheduled jobs call `push_to_telegram.py` directly to send curated, mobile-formatted messages via the Telegram Bot API. The API server also sends a fallback notification on job completion.
 
-Replace `telegram` with `discord` in all commands above. See the [Discord channel setup](https://code.claude.com/docs/en/channels) for bot creation and permission details.
+**Inbound (phone to Artemis):** A persistent Claude session (the "Telegram handler") runs with the Telegram plugin and receives all incoming messages. It can:
+- Dispatch skills (`/scout`, `/inbox`, etc.) via the API
+- Answer quick queries (pipeline status, running tasks)
+- Route relay replies back to jobs waiting for user input
+
+### Relay questions
+
+When a scheduled job needs user input mid-run, it calls `relay_ask.py` which:
+1. Posts the question to the API's relay queue
+2. The API sends the question to Telegram via Bot API
+3. The user replies on Telegram
+4. The handler session routes the reply back via `/api/relay/reply`
+5. `relay_ask.py` (still polling) picks up the answer and the job continues
+
+Questions time out after 5 minutes. On timeout, the job proceeds with the safest default.
 
 ---
 
@@ -208,14 +165,15 @@ Replace `telegram` with `discord` in all commands above. See the [Discord channe
 
 ### No Telegram notifications
 
-- Confirm the Claude Code session with `--channels` is running
-- Confirm the webhook server is listening: `curl -X POST http://localhost:8790/notify -d '{"job":"test","status":"complete"}'`
-- Check that the webhook event appeared in the Claude Code terminal
-- Verify your Telegram bot is paired: `/telegram:access list`
+- Test direct send: `uv run python .claude/tools/push_to_telegram.py send --text "test"`
+- If that works but scheduled jobs don't send: check that `_RELAY_INSTRUCTIONS` are being injected (the job prompt should mention `push_to_telegram.py`)
+- Check the handler session is running: look for the `telegram` window in tmux
+- Verify bot is paired: `/telegram:access list`
 
-### Channel blocked by org policy
+### Telegram handler not responding to messages
 
-If you see "blocked by org policy" when starting with `--channels`, your Team or Enterprise admin needs to enable channels in [admin settings](https://claude.ai/admin-settings/claude-code).
+- Make sure `.claude/settings.json` has `"enabledPlugins": {}` (empty). The handler session passes the plugin via `--settings` flag so only it polls `getUpdates`.
+- Restart the handler: `./scripts/stop.sh && ./scripts/start.sh`
 
 ---
 
@@ -231,9 +189,19 @@ If you see "blocked by org policy" when starting with `--channels`, your Team or
 | `DELETE` | `/api/schedules/{id}` | Delete a schedule |
 | `POST` | `/api/schedules/{id}/run-now` | Trigger immediately |
 
-### Environment variables
+### Relay endpoints
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ARTEMIS_WEBHOOK_URL` | `http://localhost:8790/notify` | Where to POST job completion events |
-| `ARTEMIS_WEBHOOK_PORT` | `8790` | Port for the webhook channel server |
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/relay/ask` | Subprocess posts a question, gets a token |
+| `GET` | `/api/relay/answer/{token}` | Subprocess polls for the user's reply |
+| `GET` | `/api/relay/pending` | Handler checks for pending questions |
+| `POST` | `/api/relay/reply` | Handler posts the user's answer back |
+
+### Skill execution
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/run-skill` | Start a skill (body: `{"skill": "scout", "target": "..."}`) |
+| `GET` | `/api/tasks` | List running tasks |
+| `GET` | `/api/tasks/{id}` | Get task status + output |

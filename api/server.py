@@ -31,7 +31,6 @@ _tg_access = Path.home() / ".claude" / "channels" / "telegram" / "access.json"
 
 logger = logging.getLogger("artemis.scheduler")
 
-WEBHOOK_URL = os.environ.get("ARTEMIS_WEBHOOK_URL", "http://localhost:8790/notify")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = ""
 if _tg_access.exists():
@@ -315,6 +314,19 @@ INTERACTIVE_SKILLS = frozenset({"inbox", "schedule", "draft", "inbox-linkedin"})
 
 _RELAY_INSTRUCTIONS = """
 
+## Telegram Output
+
+Send curated results to the user's phone using the push tool:
+
+    uv run python .claude/tools/push_to_telegram.py summary --job-name "{job_name}" --status success --body "Your summary here"
+
+For longer output, pipe via stdin:
+
+    echo "detailed findings..." | uv run python .claude/tools/push_to_telegram.py send --stdin
+
+Format for mobile: short lines, numbered lists for actions, bold for titles. Keep under 4000 chars.
+At the end of your run, always send a summary of what you did and any pending actions.
+
 ## Relay (Ask the User)
 
 If you need user input during this job (e.g., to confirm an action, choose between options,
@@ -368,39 +380,10 @@ def _build_skill_command(skill: str, skill_args: str | None = None, job_name: st
     return [CLAUDE_BIN, "-p", prompt, "--verbose", *extra_flags]
 
 
-async def _notify_webhook(job_name: str, skill: str, status: str, error: str | None = None, output: str | None = None):
-    """POST job completion to the artemis-webhook channel (best-effort)."""
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            await client.post(WEBHOOK_URL, json={
-                "job": job_name,
-                "skill": skill,
-                "status": status,
-                "error": error,
-                "output": output,
-            })
-    except Exception as exc:
-        logger.debug("Webhook notify failed (non-fatal): %s", exc)
-
-
-async def _notify_webhook_relay(job_name: str, skill: str, question: str, token: str):
-    """Send a relay question to Telegram directly and also push to the webhook channel."""
-    # Direct Telegram send (reliable — doesn't depend on main session)
-    tg_msg = f"{job_name} needs your input:\n\n{question}\n\nReply here and I will relay your answer back."
+async def _notify_relay_telegram(job_name: str, skill: str, question: str, token: str):
+    """Send a relay question directly to Telegram via Bot API."""
+    tg_msg = f"\u2753 {job_name} needs your input:\n\n{question}\n\nReply here and I'll relay your answer back."
     await _send_telegram(tg_msg)
-
-    # Also fire webhook for the main session (backup path)
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            await client.post(WEBHOOK_URL, json={
-                "type": "relay_question",
-                "job": job_name,
-                "skill": skill,
-                "question": question,
-                "token": token,
-            })
-    except Exception as exc:
-        logger.debug("Relay webhook notify failed: %s", exc)
 
 
 def _poll_and_notify(task_id: str, job_name: str, skill: str, schedule_id: str | None = None):
@@ -464,19 +447,11 @@ def _poll_and_notify(task_id: str, job_name: str, skill: str, schedule_id: str |
         except Exception:
             pass
 
-    # Fire webhook (for the main session's MCP channel)
-    try:
-        loop = asyncio.new_event_loop()
-        loop.run_until_complete(_notify_webhook(job_name, skill, final_status, error_msg, output=tail))
-        loop.close()
-    except Exception:
-        pass
-
-    # Send directly to Telegram (doesn't depend on the main session being idle)
+    # Send fallback completion notification to Telegram (safety net in case
+    # the job didn't call push_to_telegram.py itself)
     if tail:
-        status_icon = "OK" if final_status == "success" else "FAILED"
-        tg_msg = f"[{status_icon}] {job_name}\n\n{tail}"
-        # Telegram has a 4096 char limit per message
+        status_icon = "\u2705" if final_status == "success" else "\u274c"
+        tg_msg = f"{status_icon} {job_name}\n\n{tail}"
         if len(tg_msg) > 4000:
             tg_msg = tg_msg[:4000] + "\n\n(truncated)"
         _send_telegram_sync(tg_msg)
@@ -485,7 +460,7 @@ def _poll_and_notify(task_id: str, job_name: str, skill: str, schedule_id: str |
 def _run_scheduled_job(schedule_id: str, name: str, skill: str, skill_args: str | None):
     """
     Synchronous callback for APScheduler. Launches the skill in tmux,
-    polls for completion, then updates DB and fires webhook.
+    polls for completion, then updates DB and sends Telegram notification.
     """
     sb = _get_supabase()
 
@@ -1063,7 +1038,7 @@ class RelayReplyRequest(BaseModel):
 async def relay_ask(req: RelayAskRequest):
     """Called by relay_ask.py from a subprocess to send a question to the user."""
     token = relay_queue.ask(req.job_name, req.skill, req.question)
-    await _notify_webhook_relay(req.job_name, req.skill, req.question, token)
+    await _notify_relay_telegram(req.job_name, req.skill, req.question, token)
     relay_queue.cleanup()  # housekeeping on each ask
     return {"token": token}
 
@@ -1079,6 +1054,17 @@ async def relay_answer(token: str):
     if entry.answer is not None:
         return {"status": "answered", "token": token, "answer": entry.answer}
     return {"status": "pending", "token": token}
+
+
+@app.get("/api/relay/pending")
+async def relay_pending():
+    """List pending (unanswered, unexpired) relay questions for the Telegram handler."""
+    entries = relay_queue.pending()
+    return {"pending": [
+        {"token": e.token, "job_name": e.job_name, "skill": e.skill,
+         "question": e.question, "created_at": e.created_at}
+        for e in entries
+    ]}
 
 
 @app.post("/api/relay/reply")

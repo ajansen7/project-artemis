@@ -1,54 +1,61 @@
-# Bidirectional Telegram Relay for Scheduled Jobs
+# Telegram Integration Architecture
 
-## Problem
+## Overview
 
-Scheduled jobs run as isolated `claude` subprocesses in tmux. When Claude needs
-user input mid-job (clarifying questions, approval requests), there's no way to
-route that interaction to Telegram and get a reply back into the running process.
+Artemis uses Telegram as its primary mobile interface. The architecture has two communication paths:
 
-## Architecture: Main Session as Relay Proxy
+**Outbound (Artemis to user):** Scheduled jobs call `push_to_telegram.py` directly via the Telegram Bot API to send curated, mobile-formatted messages. No proxy or webhook chain.
 
-The Telegram plugin (long-polling) already runs in the main Claude session. Only
-one process can poll a bot's updates, so the main session acts as the relay proxy.
+**Inbound (user to Artemis):** A persistent Claude CLI session (the "Telegram handler") runs with the Telegram plugin, receiving all incoming messages. It dispatches skills, answers queries, and routes relay replies.
+
+## Architecture Diagram
 
 ```
-Subprocess calls relay_ask.py
-  → POST /api/relay/ask {job_name, skill, question}
-    → FastAPI stores in RelayQueue, fires webhook notification
-      → artemis-webhook MCP pushes to main Claude session
-        → Main session sends question to Telegram
-
-User replies on Telegram
-  → Telegram plugin delivers reply to main Claude session
-    → Main session POSTs to /api/relay/reply {token, answer}
-      → FastAPI stores answer in RelayQueue
-
-relay_ask.py (still polling GET /api/relay/answer/{token})
-  → Gets answer → prints to stdout → subprocess continues
+Scheduled Job (Claude CLI in tmux)
+  │
+  ├─ push_to_telegram.py ──► Telegram Bot API ──► User's Phone
+  │
+  └─ relay_ask.py ──► POST /api/relay/ask
+                         │
+                         ├─ Stores question in RelayQueue
+                         └─ Sends to Telegram via Bot API
+                                     │
+                                     ▼
+                              User replies on Telegram
+                                     │
+                                     ▼
+                         Telegram Handler Session
+                         (receives via plugin getUpdates)
+                                     │
+                         GET /api/relay/pending → match token
+                         POST /api/relay/reply → deposit answer
+                                     │
+                                     ▼
+                         relay_ask.py polls /api/relay/answer/{token}
+                         Gets answer → prints to stdout → job continues
 ```
 
 ## Components
 
-### 1. RelayQueue (`api/server.py`)
+### 1. `push_to_telegram.py` (`.claude/tools/push_to_telegram.py`)
 
-In-memory store with 5-minute timeout. Thread-safe via `threading.Lock`.
+CLI tool for sending formatted messages directly via Bot API.
 
-- `ask(job_name, skill, question) → token` (12-char hex)
-- `get_answer(token) → RelayEntry` (checks expiry)
-- `reply(token, answer) → bool` (False if expired)
-- `cleanup()` prunes entries older than 2x timeout
+```bash
+uv run python .claude/tools/push_to_telegram.py summary \
+  --job-name "Morning Scout" --status success \
+  --body "Found 3 new roles..."
 
-### 2. API Endpoints (`api/server.py`)
+uv run python .claude/tools/push_to_telegram.py question \
+  --job-name "Morning Scout" --token abc123 \
+  --question "Save all 8 jobs or filter to top 5?"
 
-| Endpoint | Called by | Purpose |
-|----------|-----------|---------|
-| `POST /api/relay/ask` | `relay_ask.py` | Store question, fire webhook |
-| `GET /api/relay/answer/{token}` | `relay_ask.py` (polling) | Check for answer |
-| `POST /api/relay/reply` | Main session (curl) | Deposit user's answer |
+echo "long content" | uv run python .claude/tools/push_to_telegram.py send --stdin
+```
 
-### 3. `relay_ask.py` (`.claude/tools/relay_ask.py`)
+### 2. `relay_ask.py` (`.claude/tools/relay_ask.py`)
 
-Blocking CLI tool for subprocesses:
+Blocking CLI tool for subprocesses that need user input:
 
 ```bash
 uv run python .claude/tools/relay_ask.py \
@@ -57,43 +64,60 @@ uv run python .claude/tools/relay_ask.py \
   --timeout 300
 ```
 
-- Polls every 3 seconds
+- Polls `/api/relay/answer/{token}` every 3 seconds
 - Prints answer to stdout on success
 - Prints `RELAY_TIMEOUT` on expiry (exit 0, not 1)
-- Prints `RELAY_ERROR` to stderr on connection failure (exit 1)
 
-### 4. Webhook Handler (`channels/artemis-webhook/index.ts`)
+### 3. Telegram Handler Session (`.claude/agents/telegram-handler.md`)
 
-Discriminates on `type` field:
-- `type === "relay_question"` → builds relay notification with token/question
-- Default → existing completion handler
+A persistent Claude CLI session that owns the Telegram plugin (sole `getUpdates` consumer).
 
-### 5. MCP Instructions
+**Capabilities:**
+- Dispatch skills via `POST /api/run-skill`
+- Answer quick queries by running `db.py` directly
+- Route relay replies by checking `/api/relay/pending` and posting to `/api/relay/reply`
 
-The webhook instructions tell the main session to:
-1. Send relay questions to Telegram immediately
-2. When the user replies, POST to `/api/relay/reply` via curl
-3. Confirm relay completion to user
+**Launched by `scripts/start.sh`:**
+```bash
+claude --agent telegram-handler --dangerously-skip-permissions \
+  --settings '{"enabledPlugins":{"telegram@claude-plugins-official":true}}'
+```
 
-### 6. Skill Prompt Injection
+### 4. RelayQueue (`api/server.py`)
 
-`_build_skill_command(skill, skill_args, job_name)` appends relay instructions
-to the prompt when `job_name` is provided (scheduled/manual-trigger runs).
-Ad-hoc `/api/run-skill` calls from the frontend don't get relay instructions.
+In-memory store with 5-minute timeout. Thread-safe via `threading.Lock`.
+
+- `ask(job_name, skill, question) -> token` (12-char hex)
+- `get_answer(token) -> RelayEntry` (checks expiry)
+- `reply(token, answer) -> bool` (False if expired)
+- `pending() -> list[RelayEntry]` (unanswered, unexpired)
+- `cleanup()` prunes entries older than 2x timeout
+
+### 5. API Endpoints (`api/server.py`)
+
+| Endpoint | Called by | Purpose |
+|----------|-----------|---------|
+| `POST /api/relay/ask` | `relay_ask.py` | Store question, send to Telegram |
+| `GET /api/relay/answer/{token}` | `relay_ask.py` (polling) | Check for answer |
+| `GET /api/relay/pending` | Telegram handler | List unanswered questions |
+| `POST /api/relay/reply` | Telegram handler | Deposit user's answer |
+
+## Plugin Ownership
+
+The Telegram plugin uses long-polling (`getUpdates`). Only one consumer can poll at a time.
+
+- `.claude/settings.json` has `"enabledPlugins": {}` (empty) so the main interactive session does NOT load the plugin
+- The handler session enables it via `--settings '{"enabledPlugins":{"telegram@claude-plugins-official":true}}'`
+- This ensures the handler is the sole consumer
 
 ## Timeout Behavior
 
 - Default: 5 minutes
-- On timeout: `relay_ask.py` prints `RELAY_TIMEOUT`, subprocess proceeds with
-  safest default (skip action, save draft, note for later)
+- On timeout: `relay_ask.py` prints `RELAY_TIMEOUT`, subprocess proceeds with safest default
 - Expired tokens reject late replies with HTTP 410
 
 ## Limitations
 
-- **Main session must be running.** If it's not, the webhook fails silently and
-  `relay_ask.py` times out.
-- **Reply routing relies on conversational context.** The main session matches
-  Telegram replies to relay tokens by conversation flow. This works well for
-  sequential questions but could be fragile with many concurrent relays.
-- **In-memory queue.** Server restart loses pending questions. Acceptable for v1
-  since questions have short timeouts anyway.
+- **Handler session can hit context limits.** It's stateless (all state in API + Supabase), so restarting is safe. Long-term: add a watchdog.
+- **Reply routing is sequential.** The handler matches replies to the most recent pending question. Multiple concurrent relay questions could cause mismatches.
+- **In-memory queue.** Server restart loses pending questions. Acceptable since questions have short timeouts.

@@ -1,8 +1,3 @@
 {
-  "mcpServers": {
-    "artemis-webhook": {
-      "command": "bun",
-      "args": ["run", "/Users/alexjansen/Dev/project-artemis/channels/artemis-webhook/index.ts"]
-    }
-  }
+  "mcpServers": {}
 }
