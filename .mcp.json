@@ -2,7 +2,7 @@
   "mcpServers": {
     "artemis-webhook": {
       "command": "bun",
-      "args": ["./channels/artemis-webhook/index.ts"]
+      "args": ["run", "/Users/alexjansen/Dev/project-artemis/channels/artemis-webhook/index.ts"]
     }
   }
 }

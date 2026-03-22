@@ -188,27 +188,43 @@ scheduler = AsyncIOScheduler()
 _schedule_job_ids: dict[str, str] = {}  # DB id -> APScheduler job id
 
 
+# Skills that require Claude.ai OAuth MCPs (Gmail, Calendar, etc.) — must run
+# in interactive mode so the full MCP stack is available.
+INTERACTIVE_SKILLS = frozenset({"inbox", "schedule", "draft", "inbox-linkedin"})
+
+
 def _build_skill_command(skill: str, skill_args: str | None = None) -> list[str]:
-    """Build the Claude CLI command for a skill invocation."""
-    skill_cmd = f"/{skill.lstrip('/')}"
+    """Build the Claude CLI command for a skill invocation.
+
+    Interactive skills (inbox, schedule, etc.) run without -p so Claude starts
+    in interactive mode and inherits Claude.ai OAuth MCP connections. The prompt
+    is passed via a bash here-string (<<<) so the session is still non-blocking.
+    """
+    skill_name = skill.lstrip("/")
+    skill_cmd = f"/{skill_name}"
     if skill_args:
         prompt = f"Follow the instructions for the `{skill_cmd}` command in SKILL.md for '{skill_args}'."
     else:
         prompt = f"Follow the instructions for the `{skill_cmd}` command in SKILL.md."
 
-    command = [
-        CLAUDE_BIN, "-p", prompt,
-        "--verbose",
+    extra_flags = [
         "--dangerously-skip-permissions",
         "--add-dir", os.path.join(PROJECT_ROOT, ".claude", "skills", "interview-coach"),
     ]
     portfolio_path = os.environ.get("PORTFOLIO_PATH")
     if portfolio_path:
-        command.extend(["--add-dir", portfolio_path])
-    return command
+        extra_flags.extend(["--add-dir", portfolio_path])
+
+    if skill_name in INTERACTIVE_SKILLS:
+        # Pipe prompt via here-string so Claude runs interactively (no -p flag)
+        # and the Claude.ai OAuth MCP stack (Gmail, Calendar, etc.) is loaded.
+        claude_cmd = shlex.join([CLAUDE_BIN, *extra_flags])
+        return ["sh", "-c", f"{claude_cmd} <<< {shlex.quote(prompt)}"]
+
+    return [CLAUDE_BIN, "-p", prompt, "--verbose", *extra_flags]
 
 
-async def _notify_webhook(job_name: str, skill: str, status: str, error: str | None = None):
+async def _notify_webhook(job_name: str, skill: str, status: str, error: str | None = None, output: str | None = None):
     """POST job completion to the artemis-webhook channel (best-effort)."""
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
@@ -217,6 +233,7 @@ async def _notify_webhook(job_name: str, skill: str, status: str, error: str | N
                 "skill": skill,
                 "status": status,
                 "error": error,
+                "output": output,
             })
     except Exception as exc:
         logger.debug("Webhook notify failed (non-fatal): %s", exc)
@@ -251,7 +268,10 @@ def _run_scheduled_job(schedule_id: str, name: str, skill: str, skill_args: str 
         task = task_manager.get(task_id)
 
     final_status = "success" if (task and task.status == "complete") else "failed"
-    error_msg = task.tail_output(10) if final_status == "failed" and task else None
+    # Capture tail output for all completions — included in webhook so the main
+    # session can forward job summaries and questions to Telegram.
+    tail = task.tail_output(40) if task else None
+    error_msg = tail if final_status == "failed" else None
 
     sb.table("scheduled_jobs").update({
         "last_status": final_status,
@@ -261,7 +281,7 @@ def _run_scheduled_job(schedule_id: str, name: str, skill: str, skill_args: str 
     # Fire webhook (from thread, so create a new event loop)
     try:
         loop = asyncio.new_event_loop()
-        loop.run_until_complete(_notify_webhook(name, skill, final_status, error_msg))
+        loop.run_until_complete(_notify_webhook(name, skill, final_status, error_msg, output=tail))
         loop.close()
     except Exception:
         pass
@@ -662,28 +682,14 @@ class RunSkillRequest(BaseModel):
 @app.post("/api/run-skill")
 async def run_skill(req: RunSkillRequest):
     """
-    Starts a headless Claude CLI task in tmux for a generic skill command.
+    Starts a Claude CLI task in tmux for a generic skill command.
+    Interactive skills (inbox, schedule, etc.) run without -p to inherit OAuth MCPs.
     Returns a task_id immediately — poll /api/tasks/{task_id} for status + output.
     """
     if not req.skill:
         raise HTTPException(status_code=400, detail="skill is required")
 
-    skill_cmd = f"/{req.skill.lstrip('/')}"
-    if req.target:
-        prompt = f"Follow the instructions for the `{skill_cmd}` command in SKILL.md for '{req.target}'."
-    else:
-        prompt = f"Follow the instructions for the `{skill_cmd}` command in SKILL.md."
-
-    command = [
-        CLAUDE_BIN, "-p", prompt,
-        "--verbose",
-        "--dangerously-skip-permissions",
-        "--add-dir", os.path.join(PROJECT_ROOT, ".claude", "skills", "interview-coach"),
-    ]
-    portfolio_path = os.environ.get("PORTFOLIO_PATH")
-    if portfolio_path:
-        command.extend(["--add-dir", portfolio_path])
-
+    command = _build_skill_command(req.skill, req.target or None)
     name = f"{req.skill.capitalize()}{' — ' + req.target[:40] if req.target else ''}"
     task_id = task_manager.start(name, command)
 
