@@ -397,7 +397,7 @@ def _poll_and_notify(task_id: str, job_name: str, skill: str, schedule_id: str |
     """
     import time
 
-    IDLE_KILL = 60   # seconds of unchanged output before killing
+    IDLE_KILL = 300  # seconds of unchanged output before killing
     HARD_TIMEOUT = 1800  # 30 min absolute ceiling
 
     last_output = ""
