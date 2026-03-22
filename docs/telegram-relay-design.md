@@ -3,124 +3,97 @@
 ## Problem
 
 Scheduled jobs run as isolated `claude` subprocesses in tmux. When Claude needs
-user input mid-job (clarifying questions, approval requests, etc.), there's no
-way to route that interaction to Telegram and get a reply back into the running
-process.
+user input mid-job (clarifying questions, approval requests), there's no way to
+route that interaction to Telegram and get a reply back into the running process.
 
-The current solution (Option 1) captures job output at completion and forwards it
-to Telegram via the webhook. This covers end-of-job summaries and closing
-questions, but cannot support true mid-job interaction.
+## Architecture: Main Session as Relay Proxy
 
-## Option 2: Bidirectional Relay
-
-### Architecture
+The Telegram plugin (long-polling) already runs in the main Claude session. Only
+one process can poll a bot's updates, so the main session acts as the relay proxy.
 
 ```
-Scheduled Claude subprocess
-        |
-        | HTTP POST /api/relay/ask
-        v
-FastAPI relay endpoint
-        |
-        | Telegram Bot API (direct)
-        v
-User's phone (Telegram)
-        |
-        | User replies to bot
-        v
-Telegram webhook → POST /api/relay/reply
-        |
-        | Stored in reply queue (in-memory or DB)
-        v
-Subprocess polls GET /api/relay/answer?token=...
-        |
-        | Returns reply when available
-        v
-Subprocess continues
+Subprocess calls relay_ask.py
+  → POST /api/relay/ask {job_name, skill, question}
+    → FastAPI stores in RelayQueue, fires webhook notification
+      → artemis-webhook MCP pushes to main Claude session
+        → Main session sends question to Telegram
+
+User replies on Telegram
+  → Telegram plugin delivers reply to main Claude session
+    → Main session POSTs to /api/relay/reply {token, answer}
+      → FastAPI stores answer in RelayQueue
+
+relay_ask.py (still polling GET /api/relay/answer/{token})
+  → Gets answer → prints to stdout → subprocess continues
 ```
 
-### Components
+## Components
 
-#### 1. FastAPI relay endpoints (`api/server.py`)
+### 1. RelayQueue (`api/server.py`)
 
-```python
-# POST /api/relay/ask
-# Body: { "message": "...", "job_name": "...", "timeout": 300 }
-# Returns: { "token": "<uuid>", "status": "waiting" }
+In-memory store with 5-minute timeout. Thread-safe via `threading.Lock`.
 
-# GET /api/relay/answer?token=<uuid>
-# Returns: { "status": "waiting" | "answered", "reply": "..." }
+- `ask(job_name, skill, question) → token` (12-char hex)
+- `get_answer(token) → RelayEntry` (checks expiry)
+- `reply(token, answer) → bool` (False if expired)
+- `cleanup()` prunes entries older than 2x timeout
 
-# POST /api/relay/reply  (called by Telegram webhook)
-# Body: { "token": "<uuid>", "reply": "..." }
-```
+### 2. API Endpoints (`api/server.py`)
 
-The server maintains an in-memory dict `relay_queue: dict[str, str | None]` mapping
-tokens to replies (None = still waiting).
+| Endpoint | Called by | Purpose |
+|----------|-----------|---------|
+| `POST /api/relay/ask` | `relay_ask.py` | Store question, fire webhook |
+| `GET /api/relay/answer/{token}` | `relay_ask.py` (polling) | Check for answer |
+| `POST /api/relay/reply` | Main session (curl) | Deposit user's answer |
 
-#### 2. Telegram bot webhook
+### 3. `relay_ask.py` (`.claude/tools/relay_ask.py`)
 
-The Telegram bot needs to be configured to call `POST /api/relay/reply` when
-the user replies to a relay message. The bot token lives in the environment as
-`TELEGRAM_BOT_TOKEN`. The chat ID is stored in the existing access config.
-
-The relay messages sent to Telegram should include the token in a way the bot
-can route replies back (e.g., a hidden footer or by tracking the message_id).
-
-#### 3. Relay helper script (`.claude/tools/relay_ask.py`)
-
-A small Python script the scheduled Claude can call via bash:
+Blocking CLI tool for subprocesses:
 
 ```bash
-uv run python .claude/tools/relay_ask.py --message "Should I apply to this job?" --timeout 120
-# Blocks until reply or timeout. Prints reply to stdout.
+uv run python .claude/tools/relay_ask.py \
+  --job-name "Morning Scout" --skill "scout" \
+  --question "Found 8 jobs. Save all or filter?" \
+  --timeout 300
 ```
 
-The script:
-1. POSTs to `/api/relay/ask`
-2. Polls `/api/relay/answer?token=...` every 5s
-3. Prints the reply and exits 0, or prints "TIMEOUT" and exits 1 after timeout
+- Polls every 3 seconds
+- Prints answer to stdout on success
+- Prints `RELAY_TIMEOUT` on expiry (exit 0, not 1)
+- Prints `RELAY_ERROR` to stderr on connection failure (exit 1)
 
-#### 4. Skill instructions update
+### 4. Webhook Handler (`channels/artemis-webhook/index.ts`)
 
-Skills that may need user input would be taught to call the relay tool:
+Discriminates on `type` field:
+- `type === "relay_question"` → builds relay notification with token/question
+- Default → existing completion handler
 
-```
-If you need user input, call:
-  uv run python .claude/tools/relay_ask.py --message "your question here" --timeout 120
-The reply will be printed to stdout. If it returns TIMEOUT, proceed with your best judgment.
-```
+### 5. MCP Instructions
 
-### Telegram bot setup
+The webhook instructions tell the main session to:
+1. Send relay questions to Telegram immediately
+2. When the user replies, POST to `/api/relay/reply` via curl
+3. Confirm relay completion to user
 
-The Telegram plugin already handles inbound messages to the main session. For
-the relay, we need the bot to distinguish between:
-- Normal messages → handled by the main Claude session as usual
-- Replies to relay messages → routed to `/api/relay/reply`
+### 6. Skill Prompt Injection
 
-One approach: relay messages include a reply keyboard with structured options, or
-a unique prefix the bot can detect (`[RELAY:<token>]`). The Telegram webhook
-handler checks for this prefix and routes accordingly.
+`_build_skill_command(skill, skill_args, job_name)` appends relay instructions
+to the prompt when `job_name` is provided (scheduled/manual-trigger runs).
+Ad-hoc `/api/run-skill` calls from the frontend don't get relay instructions.
 
-### Timeout behavior
+## Timeout Behavior
 
-If no reply arrives within the timeout, `relay_ask.py` exits with "TIMEOUT". The
-skill should proceed with a sensible default. This prevents jobs from hanging
-indefinitely if the user is unavailable.
+- Default: 5 minutes
+- On timeout: `relay_ask.py` prints `RELAY_TIMEOUT`, subprocess proceeds with
+  safest default (skip action, save draft, note for later)
+- Expired tokens reject late replies with HTTP 410
 
-### Security
+## Limitations
 
-- Relay tokens are UUIDs, single-use, expire after timeout.
-- `/api/relay/reply` should verify the token exists before accepting a reply.
-- The Telegram webhook should validate the bot token to prevent spoofing.
-
-### When to implement
-
-This is worth building when:
-- Skills start needing mid-job decisions (e.g., apply skill asking "this job is
-  a 65/100 match — apply anyway?")
-- The job output → Telegram notification flow isn't sufficient for the use case
-- Latency of waiting for job completion is a problem
-
-The current Option 1 flow (completion → webhook → Telegram) handles the majority
-of use cases. Add this when interactive mid-job decisions become a real need.
+- **Main session must be running.** If it's not, the webhook fails silently and
+  `relay_ask.py` times out.
+- **Reply routing relies on conversational context.** The main session matches
+  Telegram replies to relay tokens by conversation flow. This works well for
+  sequential questions but could be fragile with many concurrent relays.
+- **In-memory queue.** Server restart loses pending questions. Acceptable for v1
+  since questions have short timeouts anyway.

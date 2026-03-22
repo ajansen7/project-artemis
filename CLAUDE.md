@@ -44,6 +44,7 @@ Dependencies are declared in `pyproject.toml`. The `requirements.txt` file is a 
     db.py             # Supabase CRUD (jobs, companies, contacts, applications, engagements, blog posts)
     generate_resume_docx.py  # Resume markdown -> DOCX/PDF via LibreOffice
     sync_contacts.py         # DB -> contacts markdown sync
+    relay_ask.py             # Telegram relay: ask user a question mid-job, block until reply
   hooks/          # Session lifecycle hooks
     load-hot-memory.sh   # SessionStart: inject hot memory, detect fresh install
     check-context.sh     # PreToolUse: context freshness check

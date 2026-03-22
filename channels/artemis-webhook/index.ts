@@ -3,8 +3,9 @@
  * Artemis Webhook Channel — receives HTTP POST notifications from the
  * FastAPI scheduler and pushes them into the active Claude Code session.
  *
- * One-way channel: events flow in only. Replies go through the Telegram
- * or Discord channel that the user has also enabled.
+ * Handles two event types:
+ *   1. Job completions — summarized and forwarded to Telegram
+ *   2. Relay questions — mid-job questions forwarded to Telegram for user reply
  *
  * Usage:
  *   bun ./channels/artemis-webhook/index.ts
@@ -23,11 +24,13 @@ const mcp = new Server(
       experimental: { "claude/channel": {} },
     },
     instructions: [
-      'Events from the artemis-webhook channel arrive as <channel source="artemis-webhook" job="..." skill="..." status="...">.',
+      "## Job Completion Events",
+      "",
+      'Events from the artemis-webhook channel arrive as <channel source="artemis-webhook" ...>.',
       "These are notifications from the Artemis scheduler about completed recurring jobs.",
       "The event payload may also include an 'output' field with the tail of the job's terminal output.",
       "",
-      "When you receive one of these events:",
+      "When you receive a job completion event:",
       "1. If 'output' is present, read it to understand what the job did and any questions it ended with.",
       '2. Check Supabase for any engagement_log entries with status "drafted" that need user approval.',
       "3. Check for upcoming interviews in the next 7 days (query jobs where status = 'interviewing').",
@@ -39,6 +42,28 @@ const mcp = new Server(
       "",
       "Keep the summary brief — the user is reading this on mobile. Use numbered lists for actionable items.",
       "If there are engagement drafts pending approval, include the content preview and ask the user to approve or skip.",
+      "",
+      "## Relay Questions (Bidirectional)",
+      "",
+      "When you receive an event with type 'relay_question', a scheduled job needs user input RIGHT NOW.",
+      "The subprocess is blocked waiting for a reply. Act immediately:",
+      "",
+      "1. The 'question' field contains what the job is asking. The 'token' field is the relay token.",
+      "2. Send the question to the user via Telegram reply tool. Format:",
+      "   [Job Name] needs your input:",
+      "",
+      "   {question}",
+      "",
+      "   Reply here and I will relay your answer back.",
+      "",
+      "3. IMPORTANT: When the user replies on Telegram, you MUST route their answer back by running:",
+      '   curl -s -X POST http://localhost:8000/api/relay/reply -H "Content-Type: application/json" -d \'{"token": "<TOKEN>", "answer": "<USER_REPLY>"}\'',
+      "   Replace <TOKEN> with the relay token from the event and <USER_REPLY> with the user's response.",
+      "   Make sure to properly escape the user's reply text for JSON.",
+      "4. After posting the reply, confirm to the user: 'Relayed your answer to the [job] job.'",
+      "5. If multiple relay questions arrive, handle them in order. Each has a unique token.",
+      "6. Relay questions time out after 5 minutes. If the user hasn't replied and you receive a",
+      "   new completion event for that job, the question has expired — no need to relay.",
     ].join("\n"),
   }
 );
@@ -57,33 +82,59 @@ Bun.serve({
 
     try {
       const body = await req.json();
-      const { job, skill, status, error, output } = body as {
+      const { type, job, skill, status, error, output, question, token } = body as {
+        type?: string;
         job?: string;
         skill?: string;
         status?: string;
         error?: string;
         output?: string;
+        question?: string;
+        token?: string;
       };
 
-      let content = `Scheduled job "${job || "unknown"}" completed with status: ${status || "unknown"}`;
-      if (error) {
-        content += `\nError: ${error}`;
-      }
-      if (output) {
-        content += `\n\nJob output (last 40 lines):\n${output}`;
-      }
+      if (type === "relay_question") {
+        // Mid-job question from a subprocess — needs immediate user attention
+        const content = [
+          `Relay question from scheduled job "${job || "unknown"}" (skill: ${skill || "unknown"})`,
+          `Token: ${token || "unknown"}`,
+          `Question: ${question || "(no question provided)"}`,
+        ].join("\n");
 
-      await mcp.notification({
-        method: "notifications/claude/channel",
-        params: {
-          content,
-          meta: {
-            job: job || "unknown",
-            skill: skill || "unknown",
-            status: status || "unknown",
+        await mcp.notification({
+          method: "notifications/claude/channel",
+          params: {
+            content,
+            meta: {
+              type: "relay_question",
+              job: job || "unknown",
+              skill: skill || "unknown",
+              token: token || "unknown",
+            },
           },
-        },
-      });
+        });
+      } else {
+        // Job completion notification
+        let content = `Scheduled job "${job || "unknown"}" completed with status: ${status || "unknown"}`;
+        if (error) {
+          content += `\nError: ${error}`;
+        }
+        if (output) {
+          content += `\n\nJob output (last 40 lines):\n${output}`;
+        }
+
+        await mcp.notification({
+          method: "notifications/claude/channel",
+          params: {
+            content,
+            meta: {
+              job: job || "unknown",
+              skill: skill || "unknown",
+              status: status || "unknown",
+            },
+          },
+        });
+      }
 
       return new Response("ok");
     } catch (err) {
