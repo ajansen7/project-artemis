@@ -1,14 +1,21 @@
+import asyncio
+import logging
 import os
 import shlex
 import shutil
 import subprocess
 import threading
 import uuid
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
+import time as _time
 
+import httpx
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -16,15 +23,24 @@ from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-app = FastAPI(title="Artemis Local Copilot API")
+# Load Telegram bot credentials (optional — enables direct messaging)
+_tg_env = Path.home() / ".claude" / "channels" / "telegram" / ".env"
+if _tg_env.exists():
+    load_dotenv(_tg_env)
+_tg_access = Path.home() / ".claude" / "channels" / "telegram" / "access.json"
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+logger = logging.getLogger("artemis.scheduler")
+
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = ""
+if _tg_access.exists():
+    import json as _json
+    try:
+        _access = _json.loads(_tg_access.read_text())
+        _allowed = _access.get("allowFrom", [])
+        TELEGRAM_CHAT_ID = _allowed[0] if _allowed else ""
+    except Exception:
+        pass
 
 PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
 TMUX_SESSION = "artemis"
@@ -32,6 +48,49 @@ TASK_LOG_DIR = "/tmp/artemis-tasks"
 TMUX_BIN = os.environ.get("TMUX_BIN", shutil.which("tmux") or "/opt/homebrew/bin/tmux")
 CLAUDE_BIN = os.environ.get("CLAUDE_BIN", shutil.which("claude") or "claude")
 UV_BIN = os.environ.get("UV_BIN", shutil.which("uv") or "uv")
+
+
+# ─── Supabase Helper ─────────────────────────────────────────────
+
+
+def _get_supabase():
+    from supabase import create_client
+    url = os.getenv("SUPABASE_URL", "")
+    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+    if not url or not key:
+        raise HTTPException(status_code=500, detail="Supabase credentials not configured.")
+    return create_client(url, key)
+
+
+# ─── Telegram Direct Send ────────────────────────────────────────
+
+
+async def _send_telegram(text: str, chat_id: str | None = None):
+    """Send a message directly via the Telegram Bot API (best-effort)."""
+    token = TELEGRAM_BOT_TOKEN
+    cid = chat_id or TELEGRAM_CHAT_ID
+    if not token or not cid:
+        logger.debug("Telegram not configured — skipping send")
+        return
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            await client.post(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                json={"chat_id": cid, "text": text},
+            )
+    except Exception as exc:
+        logger.debug("Telegram send failed (non-fatal): %s", exc)
+
+
+def _send_telegram_sync(text: str, chat_id: str | None = None):
+    """Synchronous wrapper for _send_telegram (for use from threads)."""
+    try:
+        loop = asyncio.new_event_loop()
+        loop.run_until_complete(_send_telegram(text, chat_id))
+        loop.close()
+    except Exception:
+        pass
+
 
 # ─── Task Manager ────────────────────────────────────────────────
 
@@ -61,11 +120,16 @@ class Task:
         try:
             result = subprocess.run(
                 [TMUX_BIN, "capture-pane", "-t", f"{TMUX_SESSION}:{self.id}",
-                 "-p", "-J", "-e"],
+                 "-p", "-J"],
                 capture_output=True, text=True,
             )
             pane_lines = result.stdout.splitlines()
             # Strip trailing blank lines
+            while pane_lines and not pane_lines[-1].strip():
+                pane_lines.pop()
+            # Strip the Claude CLI prompt/status bar lines at the end
+            while pane_lines and (pane_lines[-1].startswith("❯") or pane_lines[-1].startswith("─") or pane_lines[-1].lstrip().startswith("⏵")):
+                pane_lines.pop()
             while pane_lines and not pane_lines[-1].strip():
                 pane_lines.pop()
             return "\n".join(pane_lines[-lines:])
@@ -167,6 +231,312 @@ class TaskManager:
 
 
 task_manager = TaskManager()
+
+
+# ─── Relay Queue (Telegram bidirectional relay) ──────────────────
+
+
+@dataclass
+class RelayEntry:
+    token: str
+    job_name: str
+    skill: str
+    question: str
+    created_at: float
+    answer: str | None = None
+    expired: bool = False
+
+
+class RelayQueue:
+    """In-memory store for mid-job questions relayed to the user via Telegram."""
+
+    def __init__(self, timeout_seconds: int = 300):
+        self._entries: dict[str, RelayEntry] = {}
+        self._lock = threading.Lock()
+        self._timeout = timeout_seconds
+
+    def ask(self, job_name: str, skill: str, question: str) -> str:
+        token = uuid.uuid4().hex[:12]
+        with self._lock:
+            self._entries[token] = RelayEntry(
+                token=token, job_name=job_name, skill=skill,
+                question=question, created_at=_time.time(),
+            )
+        return token
+
+    def get_answer(self, token: str) -> RelayEntry | None:
+        with self._lock:
+            entry = self._entries.get(token)
+            if entry is None:
+                return None
+            if entry.answer is None and _time.time() - entry.created_at > self._timeout:
+                entry.expired = True
+            return entry
+
+    def reply(self, token: str, answer: str) -> bool:
+        with self._lock:
+            entry = self._entries.get(token)
+            if entry is None or entry.expired:
+                return False
+            if entry.answer is not None:
+                return False  # already answered
+            entry.answer = answer
+            return True
+
+    def pending(self) -> list[RelayEntry]:
+        """List unanswered, unexpired entries."""
+        now = _time.time()
+        with self._lock:
+            return [e for e in self._entries.values()
+                    if e.answer is None and not e.expired
+                    and now - e.created_at <= self._timeout]
+
+    def cleanup(self):
+        cutoff = _time.time() - (self._timeout * 2)
+        with self._lock:
+            self._entries = {k: v for k, v in self._entries.items()
+                            if v.created_at > cutoff}
+
+
+relay_queue = RelayQueue()
+
+
+# ─── Scheduler ───────────────────────────────────────────────────
+
+scheduler = AsyncIOScheduler()
+_schedule_job_ids: dict[str, str] = {}  # DB id -> APScheduler job id
+
+
+# Skills that require Claude.ai OAuth MCPs (Gmail, Calendar, etc.) — must run
+# in interactive mode so the full MCP stack is available.
+INTERACTIVE_SKILLS = frozenset({"inbox", "schedule", "draft", "inbox-linkedin"})
+
+
+_RELAY_INSTRUCTIONS = """
+
+## Telegram Output
+
+Send curated results to the user's phone using the push tool:
+
+    uv run python .claude/tools/push_to_telegram.py summary --job-name "{job_name}" --status success --body "Your summary here"
+
+For longer output, pipe via stdin:
+
+    echo "detailed findings..." | uv run python .claude/tools/push_to_telegram.py send --stdin
+
+Format for mobile: short lines, numbered lists for actions, bold for titles. Keep under 4000 chars.
+At the end of your run, always send a summary of what you did and any pending actions.
+
+## Relay (Ask the User)
+
+If you need user input during this job (e.g., to confirm an action, choose between options,
+or get approval before proceeding), use the relay tool:
+
+    uv run python .claude/tools/relay_ask.py --job-name "{job_name}" --skill "{skill}" --question "Your question here" --timeout 300
+
+The tool blocks until the user replies (via Telegram) or the timeout expires (default 5 min).
+- Normal reply text → use it as the user's answer and continue.
+- RELAY_TIMEOUT → the user did not respond. Proceed with the safest default: skip the
+  action, save a draft for later review, or note it for the next run. Do not halt the job.
+- Only ask questions that genuinely require a decision. Routine operations should not prompt.
+"""
+
+
+def _build_skill_command(skill: str, skill_args: str | None = None, job_name: str | None = None) -> list[str]:
+    """Build the Claude CLI command for a skill invocation.
+
+    Interactive skills (inbox, schedule, etc.) run without -p so Claude starts
+    in interactive mode and inherits Claude.ai OAuth MCP connections. The prompt
+    is passed via a bash here-string (<<<) so the session is still non-blocking.
+
+    When job_name is provided (scheduled jobs), relay instructions are appended
+    so the subprocess can ask the user questions via Telegram mid-job.
+    """
+    skill_name = skill.lstrip("/")
+    skill_cmd = f"/{skill_name}"
+    if skill_args:
+        prompt = f"Follow the instructions for the `{skill_cmd}` command in SKILL.md for '{skill_args}'."
+    else:
+        prompt = f"Follow the instructions for the `{skill_cmd}` command in SKILL.md."
+
+    if job_name:
+        prompt += _RELAY_INSTRUCTIONS.format(job_name=job_name, skill=skill_name)
+
+    extra_flags = [
+        "--dangerously-skip-permissions",
+        "--add-dir", os.path.join(PROJECT_ROOT, ".claude", "skills", "interview-coach"),
+    ]
+    portfolio_path = os.environ.get("PORTFOLIO_PATH")
+    if portfolio_path:
+        extra_flags.extend(["--add-dir", portfolio_path])
+
+    if skill_name in INTERACTIVE_SKILLS:
+        # Interactive mode (no -p) so Claude.ai OAuth MCPs (Gmail, Calendar) load.
+        # Uses <<< (here-string) for the prompt. Interactive Claude doesn't exit on
+        # stdin EOF, so _poll_and_notify handles idle detection and kills the process.
+        claude_cmd = shlex.join([CLAUDE_BIN, *extra_flags])
+        return ["sh", "-c", f"{claude_cmd} <<< {shlex.quote(prompt)}"]
+
+    return [CLAUDE_BIN, "-p", prompt, "--verbose", *extra_flags]
+
+
+async def _notify_relay_telegram(job_name: str, skill: str, question: str, token: str):
+    """Send a relay question directly to Telegram via Bot API."""
+    tg_msg = f"\u2753 {job_name} needs your input:\n\n{question}\n\nReply here and I'll relay your answer back."
+    await _send_telegram(tg_msg)
+
+
+def _poll_and_notify(task_id: str, job_name: str, skill: str, schedule_id: str | None = None):
+    """
+    Poll a task to completion, then fire the webhook and optionally update
+    the scheduled_jobs DB row.  Runs synchronously (call from a thread).
+
+    Interactive Claude sessions don't exit on stdin EOF, so we detect idle
+    output (no change for IDLE_KILL seconds) and kill the process.  Pending
+    relay questions suppress idle-kill so the user has time to respond.
+    """
+    import time
+
+    IDLE_KILL = 60   # seconds of unchanged output before killing
+    HARD_TIMEOUT = 1800  # 30 min absolute ceiling
+
+    last_output = ""
+    idle_seconds = 0
+
+    for tick in range(HARD_TIMEOUT // 5):
+        time.sleep(5)
+        task = task_manager.get(task_id)
+        if task and task.status != "running":
+            break
+
+        # Idle detection: if output hasn't changed and no relay is pending,
+        # assume Claude finished but didn't exit.
+        if task:
+            current_output = task.tail_output(40)
+            if current_output and current_output == last_output:
+                idle_seconds += 5
+                has_pending_relay = any(
+                    e.job_name == job_name for e in relay_queue.pending()
+                )
+                if idle_seconds >= IDLE_KILL and not has_pending_relay:
+                    logger.info("Task %s idle for %ds — killing", task_id, idle_seconds)
+                    # Capture output BEFORE killing the window
+                    task._idle_output = task.tail_output(40)
+                    task_manager.kill(task_id)
+                    task.status = "complete"  # treat as success — work was done
+                    break
+            else:
+                idle_seconds = 0
+                last_output = current_output
+    else:
+        task = task_manager.get(task_id)
+
+    final_status = "success" if (task and task.status == "complete") else "failed"
+    # Use pre-kill capture if available (idle-killed tasks), otherwise capture now
+    tail = getattr(task, "_idle_output", None) or (task.tail_output(40) if task else None)
+    error_msg = tail if final_status == "failed" else None
+
+    # Update schedule row if this was a scheduled/manual-trigger run
+    if schedule_id:
+        try:
+            sb = _get_supabase()
+            sb.table("scheduled_jobs").update({
+                "last_status": final_status,
+                "last_error": error_msg,
+            }).eq("id", schedule_id).execute()
+        except Exception:
+            pass
+
+    # Send fallback completion notification to Telegram (safety net in case
+    # the job didn't call push_to_telegram.py itself)
+    if tail:
+        status_icon = "\u2705" if final_status == "success" else "\u274c"
+        tg_msg = f"{status_icon} {job_name}\n\n{tail}"
+        if len(tg_msg) > 4000:
+            tg_msg = tg_msg[:4000] + "\n\n(truncated)"
+        _send_telegram_sync(tg_msg)
+
+
+def _run_scheduled_job(schedule_id: str, name: str, skill: str, skill_args: str | None):
+    """
+    Synchronous callback for APScheduler. Launches the skill in tmux,
+    polls for completion, then updates DB and sends Telegram notification.
+    """
+    sb = _get_supabase()
+
+    # Mark running
+    sb.table("scheduled_jobs").update({
+        "last_status": "running",
+        "last_run_at": datetime.now(timezone.utc).isoformat(),
+        "last_error": None,
+    }).eq("id", schedule_id).execute()
+
+    command = _build_skill_command(skill, skill_args, job_name=name)
+    task_id = task_manager.start(f"Scheduled: {name}", command)
+
+    _poll_and_notify(task_id, name, skill, schedule_id=schedule_id)
+
+
+def _register_schedule(row: dict):
+    """Register a single DB row with APScheduler."""
+    schedule_id = row["id"]
+    try:
+        trigger = CronTrigger.from_crontab(row["cron_expr"])
+    except ValueError as exc:
+        logger.warning("Invalid cron for schedule %s: %s", schedule_id, exc)
+        return
+
+    job = scheduler.add_job(
+        _run_scheduled_job,
+        trigger=trigger,
+        args=[schedule_id, row["name"], row["skill"], row.get("skill_args")],
+        id=f"schedule_{schedule_id}",
+        replace_existing=True,
+    )
+    _schedule_job_ids[schedule_id] = job.id
+
+
+def _unregister_schedule(schedule_id: str):
+    """Remove a schedule from APScheduler."""
+    job_id = _schedule_job_ids.pop(schedule_id, None)
+    if job_id:
+        try:
+            scheduler.remove_job(job_id)
+        except Exception:
+            pass
+
+
+def _load_all_schedules():
+    """Load all enabled schedules from Supabase into APScheduler."""
+    try:
+        sb = _get_supabase()
+        res = sb.table("scheduled_jobs").select("*").eq("enabled", True).execute()
+        for row in res.data or []:
+            _register_schedule(row)
+        logger.info("Loaded %d enabled schedules", len(res.data or []))
+    except Exception as exc:
+        logger.warning("Could not load schedules: %s", exc)
+
+
+@asynccontextmanager
+async def lifespan(app_instance: FastAPI):
+    _load_all_schedules()
+    scheduler.start()
+    logger.info("Scheduler started")
+    yield
+    scheduler.shutdown(wait=False)
+    logger.info("Scheduler stopped")
+
+
+app = FastAPI(title="Artemis Local Copilot API", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 def _task_to_dict(task: Task, include_output: bool = False) -> dict:
@@ -502,32 +872,208 @@ class RunSkillRequest(BaseModel):
 @app.post("/api/run-skill")
 async def run_skill(req: RunSkillRequest):
     """
-    Starts a headless Claude CLI task in tmux for a generic skill command.
+    Starts a Claude CLI task in tmux for a generic skill command.
+    Interactive skills (inbox, schedule, etc.) run without -p to inherit OAuth MCPs.
     Returns a task_id immediately — poll /api/tasks/{task_id} for status + output.
     """
     if not req.skill:
         raise HTTPException(status_code=400, detail="skill is required")
 
-    skill_cmd = f"/{req.skill.lstrip('/')}"
-    if req.target:
-        prompt = f"Follow the instructions for the `{skill_cmd}` command in SKILL.md for '{req.target}'."
-    else:
-        prompt = f"Follow the instructions for the `{skill_cmd}` command in SKILL.md."
-
-    command = [
-        CLAUDE_BIN, "-p", prompt,
-        "--verbose",
-        "--dangerously-skip-permissions",
-        "--add-dir", os.path.join(PROJECT_ROOT, ".claude", "skills", "interview-coach"),
-    ]
-    portfolio_path = os.environ.get("PORTFOLIO_PATH")
-    if portfolio_path:
-        command.extend(["--add-dir", portfolio_path])
-
+    command = _build_skill_command(req.skill, req.target or None)
+    skill_name = req.skill.lstrip("/")
     name = f"{req.skill.capitalize()}{' — ' + req.target[:40] if req.target else ''}"
     task_id = task_manager.start(name, command)
 
+    # Poll for completion and fire webhook in background thread
+    threading.Thread(
+        target=_poll_and_notify,
+        args=(task_id, name, skill_name),
+        daemon=True,
+    ).start()
+
     return {"task_id": task_id, "status": "started", "name": name}
+
+
+# ─── Schedule CRUD ───────────────────────────────────────────────
+
+
+class ScheduleCreateRequest(BaseModel):
+    name: str
+    skill: str
+    skill_args: str | None = None
+    cron_expr: str
+    enabled: bool = False
+    notes: str | None = None
+
+
+class ScheduleUpdateRequest(BaseModel):
+    name: str | None = None
+    skill: str | None = None
+    skill_args: str | None = None
+    cron_expr: str | None = None
+    enabled: bool | None = None
+    notes: str | None = None
+
+
+@app.get("/api/schedules")
+async def list_schedules():
+    sb = _get_supabase()
+    res = sb.table("scheduled_jobs").select("*").order("created_at").execute()
+    return {"schedules": res.data or []}
+
+
+@app.post("/api/schedules")
+async def create_schedule(req: ScheduleCreateRequest):
+    # Validate cron expression
+    try:
+        CronTrigger.from_crontab(req.cron_expr)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid cron expression: {exc}")
+
+    sb = _get_supabase()
+    row = {
+        "name": req.name,
+        "skill": req.skill,
+        "skill_args": req.skill_args,
+        "cron_expr": req.cron_expr,
+        "enabled": req.enabled,
+        "notes": req.notes,
+    }
+    res = sb.table("scheduled_jobs").insert(row).execute()
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Failed to create schedule")
+
+    created = res.data[0]
+    if created["enabled"]:
+        _register_schedule(created)
+
+    return created
+
+
+@app.put("/api/schedules/{schedule_id}")
+async def update_schedule(schedule_id: str, req: ScheduleUpdateRequest):
+    updates = {k: v for k, v in req.model_dump().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    # Validate cron if changing
+    if "cron_expr" in updates:
+        try:
+            CronTrigger.from_crontab(updates["cron_expr"])
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=f"Invalid cron expression: {exc}")
+
+    sb = _get_supabase()
+    res = sb.table("scheduled_jobs").update(updates).eq("id", schedule_id).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+
+    updated = res.data[0]
+
+    # Sync APScheduler: unregister old, re-register if enabled
+    _unregister_schedule(schedule_id)
+    if updated["enabled"]:
+        _register_schedule(updated)
+
+    return updated
+
+
+@app.delete("/api/schedules/{schedule_id}")
+async def delete_schedule(schedule_id: str):
+    _unregister_schedule(schedule_id)
+
+    sb = _get_supabase()
+    res = sb.table("scheduled_jobs").delete().eq("id", schedule_id).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+
+    return {"status": "deleted"}
+
+
+@app.post("/api/schedules/{schedule_id}/run-now")
+async def run_schedule_now(schedule_id: str):
+    """Immediately trigger a scheduled job (regardless of enabled state)."""
+    sb = _get_supabase()
+    res = sb.table("scheduled_jobs").select("*").eq("id", schedule_id).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+
+    row = res.data[0]
+    command = _build_skill_command(row["skill"], row.get("skill_args"), job_name=row["name"])
+    task_id = task_manager.start(f"Manual: {row['name']}", command)
+
+    # Update last_run_at + status
+    sb.table("scheduled_jobs").update({
+        "last_status": "running",
+        "last_run_at": datetime.now(timezone.utc).isoformat(),
+        "last_error": None,
+    }).eq("id", schedule_id).execute()
+
+    # Poll for completion and fire webhook in background thread
+    threading.Thread(
+        target=_poll_and_notify,
+        args=(task_id, row["name"], row["skill"]),
+        kwargs={"schedule_id": schedule_id},
+        daemon=True,
+    ).start()
+
+    return {"task_id": task_id, "status": "started", "name": row["name"]}
+
+
+# ─── Relay Endpoints (Telegram bidirectional relay) ──────────────
+
+
+class RelayAskRequest(BaseModel):
+    job_name: str
+    skill: str
+    question: str
+
+
+class RelayReplyRequest(BaseModel):
+    token: str
+    answer: str
+
+
+@app.post("/api/relay/ask")
+async def relay_ask(req: RelayAskRequest):
+    """Called by relay_ask.py from a subprocess to send a question to the user."""
+    token = relay_queue.ask(req.job_name, req.skill, req.question)
+    await _notify_relay_telegram(req.job_name, req.skill, req.question, token)
+    relay_queue.cleanup()  # housekeeping on each ask
+    return {"token": token}
+
+
+@app.get("/api/relay/answer/{token}")
+async def relay_answer(token: str):
+    """Polled by relay_ask.py waiting for the user's reply."""
+    entry = relay_queue.get_answer(token)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Token not found")
+    if entry.expired:
+        return {"status": "expired", "token": token}
+    if entry.answer is not None:
+        return {"status": "answered", "token": token, "answer": entry.answer}
+    return {"status": "pending", "token": token}
+
+
+@app.get("/api/relay/pending")
+async def relay_pending():
+    """List pending (unanswered, unexpired) relay questions for the Telegram handler."""
+    entries = relay_queue.pending()
+    return {"pending": [
+        {"token": e.token, "job_name": e.job_name, "skill": e.skill,
+         "question": e.question, "created_at": e.created_at}
+        for e in entries
+    ]}
+
+
+@app.post("/api/relay/reply")
+async def relay_reply(req: RelayReplyRequest):
+    """Called by the main session after receiving the user's Telegram reply."""
+    success = relay_queue.reply(req.token, req.answer)
+    if not success:
+        raise HTTPException(status_code=410, detail="Token expired or not found")
+    return {"status": "ok"}
 
 
 # To run: uv run uvicorn api.server:app --reload

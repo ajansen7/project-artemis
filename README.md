@@ -20,14 +20,7 @@
 - **LibreOffice** for PDF generation: `brew install --cask libreoffice`
 - **tmux** for parallel task execution: `brew install tmux`
 
-### Optional MCP Integrations
-
-These unlock additional capabilities but are not required to get started:
-
-- **Gmail MCP** — enables the `/inbox` skill to scan for recruiter emails and interview scheduling
-- **Google Calendar MCP** — enables interview loop tracking and scheduling awareness
-- **Claude in Chrome** — enables the `/linkedin` and `/blogger` skills for LinkedIn browsing and content publishing
-- **Supabase MCP** — lets Claude apply migrations and query your database directly
+For the full setup walkthrough (Supabase, MCP integrations, Telegram, scheduled automation), see **[docs/getting-started.md](docs/getting-started.md)**.
 
 ### 1. Clone and install
 
@@ -39,21 +32,11 @@ uv sync
 cd frontend && npm install && cd ..
 ```
 
-### 2. Configure Supabase
-
-1. Create a project at [supabase.com](https://supabase.com)
-2. Run the SQL migrations in order via the Supabase SQL Editor (`db/migrations/001_*.sql` through `014_*.sql`)
-3. Copy and fill in your credentials:
+### 2. Configure environment
 
 ```bash
 cp .env.example .env
 # edit .env with your SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
-```
-
-Verify the connection:
-
-```bash
-uv run python .claude/tools/db.py status
 ```
 
 ### 3. Launch
@@ -65,17 +48,17 @@ claude
 
 Artemis is a **project-level agent** -- all skills, memory, and hooks are self-contained in this directory. Just opening Claude Code here is all you need. The `artemis-orchestrator` agent is auto-discovered from `.claude/agents/` and the session hooks fire automatically.
 
-To invoke the orchestrator explicitly, say **"Start Artemis"** or **"Act as Artemis"** at the start of your session. You can also select it from Claude Code's agent picker with `/agents`.
-
 ### 4. First run -- profile setup
 
-On a fresh clone, the session hook detects that no candidate profile exists and prompts you immediately. Artemis will:
+On a fresh clone, the session hook detects that no candidate profile exists and prompts you immediately. Run `/setup` to walk through the setup wizard, or just say **"Set me up"**.
 
-1. Check whether the **interview-coach submodule** is cloned and offer to initialize it if not
-2. Ask whether you want to run the **interview-coach kickoff first** (recommended -- it does a deep background capture, resume analysis, and storybank initialization that Artemis can learn from)
-3. Walk you through the **Artemis setup wizard** to build your candidate profile, search preferences, resume master, and application form defaults
+### 5. Start all services
 
-You can also trigger this manually at any time: just say **"Set me up"** or **"Run setup"**.
+```bash
+./scripts/start.sh
+```
+
+This launches the API server, React dashboard, and Telegram handler in a single tmux session. See [docs/getting-started.md](docs/getting-started.md) for details.
 
 ---
 
@@ -156,26 +139,25 @@ Turn job search insights into thought leadership content.
 4. "Publish to LinkedIn"              # Posts via Chrome (with your approval)
 ```
 
-### Workflow 7: Daily Routine (all integrations)
+### Workflow 7: Automated Daily Routine + Telegram
 
-A power-user daily workflow that covers everything:
+Instead of running each skill manually, enable scheduled jobs and interact from your phone:
 
 ```
-Morning:
-  "Check my inbox"                    # New recruiter emails, interview confirmations
-  "Any interviews today?"             # Calendar check
-  "Review engagement drafts"          # Approve yesterday's drafted comments
-
-Midday:
-  "Scout for new jobs"                # Fresh postings
-  "Review my pipeline"                # Triage new finds
-  "Who should I reach out to?"        # Networking actions
-
-Afternoon:
-  "Generate application for ..."      # Applications for top picks
-  "Prep me for tomorrow's interview"  # If you have one coming up
-  "Draft a post about ..."            # Content creation
+1. Set up Telegram (see docs/getting-started.md)
+2. Start services: ./scripts/start.sh
+3. Enable schedules in the Dashboard's Schedules tab
+4. Interact from Telegram: /scout, /inbox, reply to job questions
 ```
+
+With the scheduler and Telegram handler running, Artemis will:
+- Scout for new jobs each morning and push results to your phone
+- Check your inbox for recruiter emails
+- Draft LinkedIn engagement for your approval
+- Ask you questions mid-job and wait for your reply
+- Let you kick off tasks directly from Telegram
+
+See **[docs/automation.md](docs/automation.md)** for scheduler details and **[docs/getting-started.md](docs/getting-started.md)** for Telegram setup.
 
 ---
 
@@ -383,17 +365,11 @@ The dashboard gives you a visual overview of your entire job search.
 
 ![Artemis Pipeline Dashboard](docs/screenshots/01-pipeline-overview.png)
 
-**Terminal 1 -- API:**
 ```bash
-uv run uvicorn api.server:app --reload
+./scripts/start.sh    # starts API, frontend, and Telegram handler
 ```
 
-**Terminal 2 -- Frontend:**
-```bash
-cd frontend && npm run dev
-```
-
-Opens at `http://localhost:5173`. The dashboard has four tabs:
+Opens at `http://localhost:5173`. The dashboard has five tabs:
 
 | Tab | What it shows |
 |-----|---------------|
@@ -401,6 +377,7 @@ Opens at `http://localhost:5173`. The dashboard has four tabs:
 | **Networking** | Contacts grouped by company, outreach status, interaction history |
 | **Engagement** | LinkedIn/blog engagement queue with approve/post/skip workflow |
 | **Blog** | Blog post lifecycle from idea through published, with tags and platform |
+| **Schedules** | Recurring job configuration with enable/disable, cron, and run history |
 
 For a full visual walkthrough of every screen, see **[docs/UI_WALKTHROUGH.md](docs/UI_WALKTHROUGH.md)**.
 
@@ -454,6 +431,7 @@ uv run python .claude/tools/sync_contacts.py --check  # diff only
 | `applications` | Artifacts: `resume_md`, `cover_letter_md`, `form_fills_md`, `primer_md`, `resume_pdf_path`, `submitted_at` |
 | `engagement_log` | LinkedIn/blog engagement actions with approval workflow |
 | `blog_posts` | Content lifecycle: idea, draft, review, published |
+| `scheduled_jobs` | Recurring automation: skill, cron schedule, enabled, run history |
 
 ### Job Statuses
 
@@ -470,6 +448,7 @@ project-artemis/
   .claude/
     agents/
       artemis-orchestrator.md         # Orchestrator -- routes to skills
+      telegram-handler.md             # Persistent Telegram session -- mobile interface
     skills/
       hunt/                           # Pipeline discovery + management
         SKILL.md
@@ -502,6 +481,8 @@ project-artemis/
       db.py                           # Supabase CRUD CLI
       generate_resume_docx.py         # Resume markdown to DOCX/PDF
       sync_contacts.py                # DB to contacts markdown
+      push_to_telegram.py             # Send formatted messages to Telegram (Bot API)
+      relay_ask.py                    # Block until user replies via Telegram
     hooks/
       load-hot-memory.sh              # SessionStart: inject hot memory + fresh-install check
       check-context.sh                # PreToolUse: context freshness check
@@ -513,14 +494,17 @@ project-artemis/
         active_loops.md               # Current interview loops (gitignored)
         lessons.md                    # Operational best practices (gitignored)
         *.example.md                  # Templates for new users (committed)
+  scripts/
+    start.sh                          # Start all services in tmux (API, frontend, Telegram)
+    stop.sh                           # Stop services and clean up
   output/                             # All generated artifacts (gitignored)
     applications/                     # Per-job: resume, cover letter, primer, form fills, PDF
     blog/drafts/                      # Blog post markdown drafts
     contacts_pipeline.md              # Generated contacts view
   api/
-    server.py                         # FastAPI -- task management + PDF generation
-  frontend/src/                       # React dashboard (Pipeline, Networking, Engagement, Blog)
-  db/migrations/                      # Supabase SQL migrations (001-014)
+    server.py                         # FastAPI -- task management, scheduler, PDF generation
+  frontend/src/                       # React dashboard (Pipeline, Networking, Engagement, Blog, Schedules)
+  db/migrations/                      # Supabase SQL migrations (001-016)
   CLAUDE.md                           # Python env + project layout instructions
   pyproject.toml                      # Python dependencies
   .env                                # Supabase credentials (not committed)

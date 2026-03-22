@@ -214,3 +214,52 @@ export const BLOG_STATUS_LABELS: Record<BlogPostStatus, string> = {
 };
 
 export const BLOG_STATUS_ORDER: BlogPostStatus[] = ['idea', 'draft', 'review', 'published'];
+
+// ─── Schedule Types ─────────────────────────────────────────────
+
+export type ScheduleStatus = 'success' | 'failed' | 'running' | null;
+
+export interface ScheduledJob {
+  id: string;
+  name: string;
+  skill: string;
+  skill_args: string | null;
+  cron_expr: string;
+  enabled: boolean;
+  last_run_at: string | null;
+  last_status: ScheduleStatus;
+  last_error: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export const SCHEDULE_STATUS_LABELS: Record<string, string> = {
+  success: 'Success',
+  failed: 'Failed',
+  running: 'Running',
+};
+
+export const AVAILABLE_SKILLS = [
+  { value: '/inbox', label: 'Inbox Check' },
+  { value: '/linkedin', label: 'LinkedIn Engagement' },
+  { value: '/scout', label: 'Job Scout' },
+  { value: '/network', label: 'Networking Follow-ups' },
+  { value: '/prep', label: 'Interview Prep' },
+  { value: '/blog-ideas', label: 'Blog Ideas' },
+  { value: '/blog-status', label: 'Blog Status' },
+  { value: '/blog-write', label: 'Blog Write' },
+  { value: '/review', label: 'Pipeline Review' },
+  { value: '/status', label: 'Pipeline Status' },
+];
+
+export const CRON_PRESETS = [
+  { label: 'Weekdays at 7am', value: '0 7 * * 1-5' },
+  { label: 'Weekdays at 8am', value: '0 8 * * 1-5' },
+  { label: 'Weekdays at 9am', value: '0 9 * * 1-5' },
+  { label: 'Daily at 6pm', value: '0 18 * * *' },
+  { label: 'Mon & Thu at 10am', value: '0 10 * * 1,4' },
+  { label: 'Weekly Monday at 10am', value: '0 10 * * 1' },
+  { label: 'Weekly Friday at 9am', value: '0 9 * * 5' },
+  { label: 'Custom', value: '' },
+];
