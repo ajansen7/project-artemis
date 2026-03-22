@@ -55,9 +55,16 @@ analysis_*.md
 .claude/skills/apply/references/resume_template.docx
 .claude/skills/apply/references/form_defaults.md
 .claude/skills/interview-coach/coaching_state.md
+.claude/skills/blogger/references/
 .claude/memory/hot/*
 !.claude/memory/hot/*.example.md
 !.claude/memory/hot/*.example.json
+.claude/memory/MEMORY.md
+.claude/memory/*.md
+!.claude/memory/hot/
+
+# ─── Channels (local settings) ───────────────────────────────
+channels/.claude/settings.local.json
 
 # ─── Plans ─────────────────────────────────────────────────────
 .claude/plans/

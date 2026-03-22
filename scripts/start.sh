@@ -89,7 +89,10 @@ if [ "$SKIP_FRONTEND" = false ]; then
   start_window "frontend" "cd frontend && npm run dev"
 fi
 
-start_window "telegram" "claude --agent telegram-handler --dangerously-skip-permissions --settings '{\"enabledPlugins\":{\"telegram@claude-plugins-official\":true}}'"
+# The handler runs from channels/ so it picks up the Telegram plugin from
+# channels/.claude/settings.json without competing with the main session.
+# --add-dir gives it access to the main project's tools and skills.
+start_window "telegram" "cd channels && claude --add-dir $PROJECT_ROOT --dangerously-skip-permissions --channels plugin:telegram@claude-plugins-official --append-system-prompt-file $PROJECT_ROOT/.claude/agents/telegram-handler.md"
 
 # ─── Summary ─────────────────────────────────────────────────────
 
