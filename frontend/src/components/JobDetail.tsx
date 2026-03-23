@@ -50,17 +50,16 @@ export function JobDetail({ job, onAdvance, onSkip, onDelete, onUpdate, onSetSta
   const [modalTitle, setModalTitle] = useState('');
 
   const handleAnalyze = async () => {
-    if (!job.url) {
-      setStatusMsg('❌ No URL to analyze.');
-      return;
-    }
     setAnalyzing(true);
     setStatusMsg('Analyzing in tmux… check the task panel or run: tmux attach -t artemis');
+    const target = job.url
+      ? `Job ID: ${job.id}, URL: ${job.url}`
+      : `Job ID: ${job.id}`;
     try {
       const response = await fetch('http://localhost:8000/api/run-skill', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ skill: 'analyze', target: `Job ID: ${job.id}, URL: ${job.url}` }),
+        body: JSON.stringify({ skill: 'analyze', target }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || 'Failed to start task');
@@ -129,7 +128,7 @@ export function JobDetail({ job, onAdvance, onSkip, onDelete, onUpdate, onSetSta
                 className="action-btn"
                 style={{ backgroundColor: 'var(--blue-dim)', color: 'var(--blue)' }}
                 onClick={handleAnalyze}
-                disabled={analyzing || !job.url}
+                disabled={analyzing}
               >
                 {analyzing ? '🔍 Analyzing...' : '🔄 Re-analyze'}
               </button>
@@ -139,7 +138,7 @@ export function JobDetail({ job, onAdvance, onSkip, onDelete, onUpdate, onSetSta
               className="action-btn"
               style={{ backgroundColor: 'var(--blue-dim)', color: 'var(--blue)' }}
               onClick={handleAnalyze}
-              disabled={analyzing || !job.url}
+              disabled={analyzing}
             >
               {analyzing ? '🔍 Analyzing...' : '🔍 Analyze'}
             </button>
