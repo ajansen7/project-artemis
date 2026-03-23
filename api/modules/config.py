@@ -29,7 +29,7 @@ if _tg_access.exists():
     except Exception:
         pass
 
-PROJECT_ROOT = str(Path(__file__).resolve().parents[3])
+PROJECT_ROOT = str(Path(__file__).resolve().parents[2])
 TMUX_SESSION = "artemis"
 TASK_LOG_DIR = "/tmp/artemis-tasks"
 TMUX_BIN = os.environ.get("TMUX_BIN", shutil.which("tmux") or "/opt/homebrew/bin/tmux")
@@ -38,7 +38,7 @@ UV_BIN = os.environ.get("UV_BIN", shutil.which("uv") or "uv")
 
 # Skills that require Claude.ai OAuth MCPs (Gmail, Calendar, etc.) — must run
 # in interactive mode so the full MCP stack is available.
-INTERACTIVE_SKILLS = frozenset({"inbox", "schedule", "draft", "inbox-linkedin"})
+INTERACTIVE_SKILLS = frozenset({"inbox", "schedule", "draft", "inbox-linkedin", "linkedin"})
 
 
 def _get_supabase():

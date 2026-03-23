@@ -16,6 +16,33 @@ from api.modules.telegram import _send_telegram, _send_telegram_sync
 scheduler = AsyncIOScheduler()
 _schedule_job_ids: dict[str, str] = {}  # DB id -> APScheduler job id
 
+# Maps skill command names to the skills/ subdirectory that contains their SKILL.md.
+# Used to add the correct --add-dir flag when building skill commands.
+_SKILL_DIR_MAP: dict[str, str] = {
+    # hunt skill
+    "scout": "hunt", "sync": "hunt", "review": "hunt", "status": "hunt",
+    # apply skill
+    "analyze": "apply", "generate": "apply", "submit": "apply",
+    # connect skill
+    "network": "connect",
+    # profile skill
+    "context": "profile", "prep": "profile",
+    # inbox skill
+    "inbox": "inbox", "inbox-linkedin": "inbox", "schedule": "inbox", "draft": "inbox",
+    # linkedin skill
+    "linkedin": "linkedin",
+    # blogger skill
+    "blog-audit": "blogger", "blog-ideas": "blogger", "blog-write": "blogger",
+    "blog-publish": "blogger", "blog-status": "blogger",
+    # maintain skill
+    "dedupe": "maintain", "cull": "maintain",
+    # setup skill
+    "setup": "artemis-setup",
+    # interview-coach (already always added)
+    "kickoff": "interview-coach", "practice": "interview-coach",
+    "mock": "interview-coach", "debrief": "interview-coach",
+}
+
 
 _RELAY_INSTRUCTIONS = """
 
@@ -44,9 +71,9 @@ Format for mobile: short lines, numbered lists for actions, bold for titles. Kee
 If you need user input during this job (e.g., to confirm an action, choose between options,
 or get approval before proceeding), use the relay tool:
 
-    uv run python .claude/tools/relay_ask.py --job-name "{job_name}" --skill "{skill}" --question "Your question here" --timeout 300
+    uv run python .claude/tools/relay_ask.py --job-name "{job_name}" --skill "{skill}" --question "Your question here" --timeout 1800
 
-The tool blocks until the user replies (via Telegram) or the timeout expires (default 5 min).
+The tool blocks until the user replies (via Telegram) or the timeout expires (default 30 min).
 - Normal reply text → use it as the user's answer and continue.
 - RELAY_TIMEOUT → the user did not respond. Proceed with the safest default: skip the
   action, save a draft for later review, or note it for the next run. Do not halt the job.
@@ -74,10 +101,13 @@ def _build_skill_command(skill: str, skill_args: str | None = None, job_name: st
     if job_name:
         prompt += _RELAY_INSTRUCTIONS.format(job_name=job_name, skill=skill_name)
 
-    extra_flags = [
-        "--dangerously-skip-permissions",
-        "--add-dir", os.path.join(PROJECT_ROOT, ".claude", "skills", "interview-coach"),
-    ]
+    skill_dir = _SKILL_DIR_MAP.get(skill_name)
+    extra_flags = ["--dangerously-skip-permissions"]
+    # Add the skill's own directory so Claude can find its SKILL.md
+    if skill_dir and skill_dir != "interview-coach":
+        extra_flags += ["--add-dir", os.path.join(PROJECT_ROOT, ".claude", "skills", skill_dir)]
+    # Always include interview-coach (referenced by apply skill and others)
+    extra_flags += ["--add-dir", os.path.join(PROJECT_ROOT, ".claude", "skills", "interview-coach")]
     portfolio_path = os.environ.get("PORTFOLIO_PATH")
     if portfolio_path:
         extra_flags.extend(["--add-dir", portfolio_path])
@@ -110,8 +140,8 @@ def _poll_and_notify(task_id: str, job_name: str, skill: str, schedule_id: str |
     import time
     from api.modules.config import _get_supabase
 
-    IDLE_KILL = 600  # seconds of unchanged output before killing
-    HARD_TIMEOUT = 1800  # 30 min absolute ceiling
+    IDLE_KILL = 1800  # seconds of unchanged output before killing (30 min)
+    HARD_TIMEOUT = 14400  # 4 hour absolute ceiling
 
     last_output = ""
     idle_seconds = 0
