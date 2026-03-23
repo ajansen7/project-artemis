@@ -17,7 +17,7 @@ type View = 'pipeline' | 'networking' | 'engagement' | 'blog' | 'schedules';
 function App() {
   const [view, setView] = useState<View>('pipeline');
   const [statusFilter, setStatusFilter] = useState<JobStatus | 'all'>('all');
-  const { jobs, loading, updateStatus, deleteJob, refetch } = useJobs(statusFilter);
+  const { jobs, loading, updateStatus, deleteJob, refetch, sortMode, setSortMode, groupByCompany, setGroupByCompany, companyGroups } = useJobs(statusFilter);
   const allCounts = useAllCounts();
   const { companies, loading: companiesLoading } = useCompanies();
 
@@ -83,6 +83,11 @@ function App() {
                 onUpdateStatus={handleStatusChange}
                 onDelete={handleDelete}
                 onUpdate={refetch}
+                sortMode={sortMode}
+                onSortChange={setSortMode}
+                groupByCompany={groupByCompany}
+                onGroupByCompanyChange={setGroupByCompany}
+                companyGroups={companyGroups}
               />
             </>
           ) : view === 'networking' ? (
