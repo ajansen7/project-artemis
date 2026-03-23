@@ -69,8 +69,9 @@ Bulk maintenance: re-score, prune dead links, update based on latest preferences
    - **Re-score** against current preferences
    - Update description if changed materially
 4. Batch update: `echo '<json>' | uv run python .claude/tools/db.py batch-update`
-5. Report sync summary: removed, moved, flagged, re-scored, observations
-6. Resync contacts: `uv run python .claude/tools/sync_contacts.py`
+5. **Staleness check**: note any jobs sitting in `scouted` or `to_review` for 30+ days. Include count and examples in the sync summary. If there are many stale jobs, suggest running `/cull` to clean up.
+6. Report sync summary: removed, moved, flagged, re-scored, stale count, observations
+7. Resync contacts: `uv run python .claude/tools/sync_contacts.py`
 
 ---
 

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import type { Job, JobStatus } from '../types';
+import type { Job, JobStatus, JobSortMode } from '../types';
+import { JOB_SORT_LABELS } from '../types';
 import { StatusBadge } from './StatusBadge';
 import { JobDetail } from './JobDetail';
 
@@ -9,10 +10,27 @@ interface JobTableProps {
   onUpdateStatus: (jobId: string, status: JobStatus, notes?: string) => void;
   onDelete: (jobId: string) => void;
   onUpdate: () => void;
+  sortMode: JobSortMode;
+  onSortChange: (mode: JobSortMode) => void;
+  groupByCompany: boolean;
+  onGroupByCompanyChange: (grouped: boolean) => void;
+  companyGroups: Map<string, Job[]> | null;
 }
 
-export function JobTable({ jobs, loading, onUpdateStatus, onDelete, onUpdate }: JobTableProps) {
+export function JobTable({
+  jobs,
+  loading,
+  onUpdateStatus,
+  onDelete,
+  onUpdate,
+  sortMode,
+  onSortChange,
+  groupByCompany,
+  onGroupByCompanyChange,
+  companyGroups,
+}: JobTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   if (loading) {
     return (
@@ -55,10 +73,89 @@ export function JobTable({ jobs, loading, onUpdateStatus, onDelete, onUpdate }: 
     return flow[current] || null;
   }
 
+  function toggleGroup(company: string) {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(company)) {
+        next.delete(company);
+      } else {
+        next.add(company);
+      }
+      return next;
+    });
+  }
+
+  function isStale(job: Job): boolean {
+    if (job.status !== 'scouted' && job.status !== 'to_review') return false;
+    const ageMs = Date.now() - new Date(job.created_at).getTime();
+    return ageMs > 30 * 24 * 60 * 60 * 1000;
+  }
+
+  function renderJobRow(job: Job) {
+    const isExpanded = expandedId === job.id;
+    const companyName = job.companies?.name || 'Unknown';
+    const nextStatus = getNextStatus(job.status);
+    const stale = isStale(job);
+
+    return (
+      <div key={job.id}>
+        <div
+          className={`job-row ${isExpanded ? 'expanded' : ''}`}
+          onClick={() => setExpandedId(isExpanded ? null : job.id)}
+        >
+          {!groupByCompany && <span className="job-company">{companyName}</span>}
+          <span className="job-title">{job.title}</span>
+          <StatusBadge status={job.status} />
+          <span className={`job-score-pill ${getScoreClass(job.match_score)}`}>
+            {job.match_score !== null ? job.match_score : 'N/A'}
+          </span>
+          <span className="job-source">{job.source || '—'}</span>
+          <span className="job-date">
+            {new Date(job.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            {stale && <span className="stale-badge">Stale</span>}
+          </span>
+        </div>
+
+        {isExpanded && (
+          <JobDetail
+            job={job}
+            onAdvance={() => nextStatus && onUpdateStatus(job.id, nextStatus)}
+            onSkip={() => onUpdateStatus(job.id, 'not_interested')}
+            onDelete={() => onDelete(job.id)}
+            onUpdate={onUpdate}
+            onSetStatus={(status, notes) => onUpdateStatus(job.id, status, notes)}
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="job-table">
+      <div className="job-table-toolbar">
+        <div className="sort-controls">
+          <label>Sort:</label>
+          <select
+            value={sortMode}
+            onChange={e => onSortChange(e.target.value as JobSortMode)}
+          >
+            {(Object.keys(JOB_SORT_LABELS) as JobSortMode[]).map(mode => (
+              <option key={mode} value={mode}>{JOB_SORT_LABELS[mode]}</option>
+            ))}
+          </select>
+        </div>
+        <label className="group-toggle">
+          <input
+            type="checkbox"
+            checked={groupByCompany}
+            onChange={e => onGroupByCompanyChange(e.target.checked)}
+          />
+          Group by company
+        </label>
+      </div>
+
       <div className="job-table-header">
-        <span>Company</span>
+        {!groupByCompany && <span>Company</span>}
         <span>Title</span>
         <span>Status</span>
         <span>Score</span>
@@ -66,42 +163,25 @@ export function JobTable({ jobs, loading, onUpdateStatus, onDelete, onUpdate }: 
         <span>Added</span>
       </div>
 
-      {jobs.map(job => {
-        const isExpanded = expandedId === job.id;
-        const companyName = job.companies?.name || 'Unknown';
-        const nextStatus = getNextStatus(job.status);
-
-        return (
-          <div key={job.id}>
+      {groupByCompany && companyGroups ? (
+        [...companyGroups.entries()].map(([company, groupJobs]) => (
+          <div key={company} className="company-group">
             <div
-              className={`job-row ${isExpanded ? 'expanded' : ''}`}
-              onClick={() => setExpandedId(isExpanded ? null : job.id)}
+              className="company-group-header"
+              onClick={() => toggleGroup(company)}
             >
-              <span className="job-company">{companyName}</span>
-              <span className="job-title">{job.title}</span>
-              <StatusBadge status={job.status} />
-              <span className={`job-score-pill ${getScoreClass(job.match_score)}`}>
-                {job.match_score !== null ? job.match_score : 'N/A'}
+              <span className="company-group-chevron">
+                {collapsedGroups.has(company) ? '▶' : '▼'}
               </span>
-              <span className="job-source">{job.source || '—'}</span>
-              <span className="job-date">
-                {new Date(job.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-              </span>
+              <span className="company-group-name">{company}</span>
+              <span className="company-group-count">{groupJobs.length}</span>
             </div>
-
-            {isExpanded && (
-              <JobDetail
-                job={job}
-                onAdvance={() => nextStatus && onUpdateStatus(job.id, nextStatus)}
-                onSkip={() => onUpdateStatus(job.id, 'not_interested')}
-                onDelete={() => onDelete(job.id)}
-                onUpdate={onUpdate}
-                onSetStatus={(status, notes) => onUpdateStatus(job.id, status, notes)}
-              />
-            )}
+            {!collapsedGroups.has(company) && groupJobs.map(renderJobRow)}
           </div>
-        );
-      })}
+        ))
+      ) : (
+        jobs.map(renderJobRow)
+      )}
     </div>
   );
 }

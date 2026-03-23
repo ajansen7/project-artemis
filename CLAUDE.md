@@ -43,7 +43,8 @@ Dependencies are declared in `pyproject.toml`. The `requirements.txt` file is a 
     artemis-setup/  # One-time setup wizard
     interview-coach/  # Coaching + drills (git submodule)
   tools/          # Shared Python CLI tools
-    db.py             # Supabase CRUD (jobs, companies, contacts, applications, engagements, blog posts)
+    db.py             # Thin CLI shim — forwards to db_modules/
+    db_modules/       # Modular Supabase CRUD (jobs, companies, contacts, applications, engagements, blog)
     generate_resume_docx.py  # Resume markdown -> DOCX/PDF via LibreOffice
     sync_contacts.py         # DB -> contacts markdown sync
     relay_ask.py             # Telegram relay: ask user a question mid-job, block until reply
@@ -74,6 +75,7 @@ docs/             # Documentation (automation guide, UI walkthrough)
 | **inbox** | `/inbox` | Monitor Gmail + Calendar for job search activity |
 | **linkedin** | `/linkedin` | Browse LinkedIn for jobs, contacts, engagement (Chrome MCP) |
 | **blogger** | `/blog-audit`, `/blog-ideas`, `/blog-write`, `/blog-publish`, `/blog-status` | Import past blog archive, generate ideas, draft/publish posts |
+| **maintain** | `/dedupe`, `/cull` | Deduplicate jobs, cull stale/low-value entries |
 | **artemis-setup** | `/setup` | One-time setup wizard for new users |
 
 ## Supabase Schema

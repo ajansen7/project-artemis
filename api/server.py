@@ -29,6 +29,7 @@ if _tg_env.exists():
     load_dotenv(_tg_env)
 _tg_access = Path.home() / ".claude" / "channels" / "telegram" / "access.json"
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s: %(message)s")
 logger = logging.getLogger("artemis.scheduler")
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
@@ -481,7 +482,7 @@ def _register_schedule(row: dict):
     """Register a single DB row with APScheduler."""
     schedule_id = row["id"]
     try:
-        trigger = CronTrigger.from_crontab(row["cron_expr"])
+        trigger = CronTrigger.from_crontab(row["cron_expr"], timezone="America/Denver")
     except ValueError as exc:
         logger.warning("Invalid cron for schedule %s: %s", schedule_id, exc)
         return
