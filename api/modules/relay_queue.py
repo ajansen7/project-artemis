@@ -18,7 +18,7 @@ class RelayEntry:
 class RelayQueue:
     """In-memory store for mid-job questions relayed to the user via Telegram."""
 
-    def __init__(self, timeout_seconds: int = 300):
+    def __init__(self, timeout_seconds: int = 1800):
         self._entries: dict[str, RelayEntry] = {}
         self._lock = threading.Lock()
         self._timeout = timeout_seconds

@@ -71,9 +71,9 @@ Format for mobile: short lines, numbered lists for actions, bold for titles. Kee
 If you need user input during this job (e.g., to confirm an action, choose between options,
 or get approval before proceeding), use the relay tool:
 
-    uv run python .claude/tools/relay_ask.py --job-name "{job_name}" --skill "{skill}" --question "Your question here" --timeout 300
+    uv run python .claude/tools/relay_ask.py --job-name "{job_name}" --skill "{skill}" --question "Your question here" --timeout 1800
 
-The tool blocks until the user replies (via Telegram) or the timeout expires (default 5 min).
+The tool blocks until the user replies (via Telegram) or the timeout expires (default 30 min).
 - Normal reply text → use it as the user's answer and continue.
 - RELAY_TIMEOUT → the user did not respond. Proceed with the safest default: skip the
   action, save a draft for later review, or note it for the next run. Do not halt the job.

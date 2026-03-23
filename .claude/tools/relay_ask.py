@@ -10,7 +10,7 @@ Usage:
     uv run python .claude/tools/relay_ask.py \
         --job-name "Morning Scout" --skill "scout" \
         --question "Found 8 jobs. Save all or filter?" \
-        --timeout 300
+        --timeout 1800
 
 Exit codes:
     0 — answer received (or timeout, printed as RELAY_TIMEOUT)
@@ -31,7 +31,7 @@ def main():
     parser.add_argument("--job-name", required=True, help="Name of the scheduled job")
     parser.add_argument("--skill", required=True, help="Skill that is asking")
     parser.add_argument("--question", required=True, help="Question for the user")
-    parser.add_argument("--timeout", type=int, default=300, help="Seconds to wait (default 300)")
+    parser.add_argument("--timeout", type=int, default=1800, help="Seconds to wait (default 1800)")
     parser.add_argument("--api-base", default=API_BASE, help="Artemis API base URL")
     args = parser.parse_args()
 
