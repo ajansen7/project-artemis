@@ -16,6 +16,33 @@ from api.modules.telegram import _send_telegram, _send_telegram_sync
 scheduler = AsyncIOScheduler()
 _schedule_job_ids: dict[str, str] = {}  # DB id -> APScheduler job id
 
+# Maps skill command names to the skills/ subdirectory that contains their SKILL.md.
+# Used to add the correct --add-dir flag when building skill commands.
+_SKILL_DIR_MAP: dict[str, str] = {
+    # hunt skill
+    "scout": "hunt", "sync": "hunt", "review": "hunt", "status": "hunt",
+    # apply skill
+    "analyze": "apply", "generate": "apply", "submit": "apply",
+    # connect skill
+    "network": "connect",
+    # profile skill
+    "context": "profile", "prep": "profile",
+    # inbox skill
+    "inbox": "inbox", "inbox-linkedin": "inbox", "schedule": "inbox", "draft": "inbox",
+    # linkedin skill
+    "linkedin": "linkedin",
+    # blogger skill
+    "blog-audit": "blogger", "blog-ideas": "blogger", "blog-write": "blogger",
+    "blog-publish": "blogger", "blog-status": "blogger",
+    # maintain skill
+    "dedupe": "maintain", "cull": "maintain",
+    # setup skill
+    "setup": "artemis-setup",
+    # interview-coach (already always added)
+    "kickoff": "interview-coach", "practice": "interview-coach",
+    "mock": "interview-coach", "debrief": "interview-coach",
+}
+
 
 _RELAY_INSTRUCTIONS = """
 
@@ -74,10 +101,13 @@ def _build_skill_command(skill: str, skill_args: str | None = None, job_name: st
     if job_name:
         prompt += _RELAY_INSTRUCTIONS.format(job_name=job_name, skill=skill_name)
 
-    extra_flags = [
-        "--dangerously-skip-permissions",
-        "--add-dir", os.path.join(PROJECT_ROOT, ".claude", "skills", "interview-coach"),
-    ]
+    skill_dir = _SKILL_DIR_MAP.get(skill_name)
+    extra_flags = ["--dangerously-skip-permissions"]
+    # Add the skill's own directory so Claude can find its SKILL.md
+    if skill_dir and skill_dir != "interview-coach":
+        extra_flags += ["--add-dir", os.path.join(PROJECT_ROOT, ".claude", "skills", skill_dir)]
+    # Always include interview-coach (referenced by apply skill and others)
+    extra_flags += ["--add-dir", os.path.join(PROJECT_ROOT, ".claude", "skills", "interview-coach")]
     portfolio_path = os.environ.get("PORTFOLIO_PATH")
     if portfolio_path:
         extra_flags.extend(["--add-dir", portfolio_path])
