@@ -37,8 +37,8 @@ ALLOWED_PREFIXES = (
 
 def is_safe(member_name: str) -> bool:
     """Return True if the archive member path is within an allowed prefix."""
-    # Normalise: strip leading ./
-    name = member_name.lstrip("./")
+    # Normalise: strip leading "./" literally (not individual chars)
+    name = member_name.removeprefix("./")
     return any(name == p.rstrip("/") or name.startswith(p) for p in ALLOWED_PREFIXES)
 
 
