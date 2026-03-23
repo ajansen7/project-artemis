@@ -140,8 +140,8 @@ def _poll_and_notify(task_id: str, job_name: str, skill: str, schedule_id: str |
     import time
     from api.modules.config import _get_supabase
 
-    IDLE_KILL = 600  # seconds of unchanged output before killing
-    HARD_TIMEOUT = 1800  # 30 min absolute ceiling
+    IDLE_KILL = 1800  # seconds of unchanged output before killing (30 min)
+    HARD_TIMEOUT = 14400  # 4 hour absolute ceiling
 
     last_output = ""
     idle_seconds = 0
