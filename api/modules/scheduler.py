@@ -19,6 +19,12 @@ _schedule_job_ids: dict[str, str] = {}  # DB id -> APScheduler job id
 
 _RELAY_INSTRUCTIONS = """
 
+## IMPORTANT: You Are Running as a Background Task
+
+You are running headless in a tmux window. The user CANNOT see your terminal output.
+The ONLY way to communicate with the user is via the tools below.
+Always send output to Telegram — never assume the user will check tmux.
+
 ## Telegram Output
 
 Send curated results to the user's phone using the push tool:
@@ -30,7 +36,8 @@ For longer output, pipe via stdin:
     echo "detailed findings..." | uv run python .claude/tools/push_to_telegram.py send --stdin
 
 Format for mobile: short lines, numbered lists for actions, bold for titles. Keep under 4000 chars.
-At the end of your run, always send a summary of what you did and any pending actions.
+- Send progress updates for long-running operations (not just the final summary).
+- At the end of your run, always send a summary of what you did and any pending actions.
 
 ## Relay (Ask the User)
 

@@ -44,6 +44,9 @@ Scan recent emails for job-relevant messages, classify them, and route actionabl
    - `from:(*recruiter* OR *talent* OR *hiring*) newer_than:7d`
    - Target company-specific: build queries from preferences.md target companies, e.g. `from:(*@anthropic.com OR *@cursor.com) newer_than:14d`
    - Networking: `subject:(accepted your invitation OR sent you a message) from:(*@linkedin.com) newer_than:7d`
+   - Rejections/status updates: `subject:("application status" OR "update on your application" OR "thank you for your interest" OR "not moving forward" OR "we've decided" OR unfortunately) newer_than:14d`
+   - ATS senders (cover confirmations, rejections, and scheduling from ATS platforms): `from:(*@greenhouse.io OR *@lever.co OR *@notifications.workday.com OR *@icims.com OR *@myworkday.com OR *@smartrecruiters.com OR *@jobvite.com) newer_than:14d`
+   **Note:** `gmail_search_messages` searches all mail regardless of Gmail tab/category (Primary, Updates, etc.), so emails routed to the Updates tab are included automatically.
 3. Read each message with `gmail_read_message`
 4. Classify and route:
 
@@ -54,6 +57,7 @@ Scan recent emails for job-relevant messages, classify them, and route actionabl
 | **Interview scheduling** | Update matching job to `interviewing`. Note: the actual calendar event stays in gcal — we don't track it separately |
 | **Networking response** (LinkedIn connection accepted, message reply) | `uv run python .claude/tools/db.py update-contact --linkedin-url "..." --status "responded"` or `"connected"` |
 | **Rejection** | `uv run python .claude/tools/db.py update-job --id "..." --status "rejected"` |
+| **ATS notification** | Read carefully — could be confirmation, status update, or rejection. Keywords like "unfortunately", "not moving forward", "other candidates", "decided not to" → rejection. "received your application", "application confirmed" → confirmation. "next steps", "schedule", "we'd like to" → interview scheduling |
 | **Follow-up needed** | Flag for user action |
 
 5. Report summary: what was found, what was routed, what needs user attention

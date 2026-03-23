@@ -24,9 +24,9 @@ async def run_skill(req: RunSkillRequest):
     if not req.skill:
         raise HTTPException(status_code=400, detail="skill is required")
 
-    command = _build_skill_command(req.skill, req.target or None)
     skill_name = req.skill.lstrip("/")
     name = f"{req.skill.capitalize()}{' — ' + req.target[:40] if req.target else ''}"
+    command = _build_skill_command(req.skill, req.target or None, job_name=name)
     task_id = task_manager.start(name, command)
 
     # Poll for completion and fire webhook in background thread
