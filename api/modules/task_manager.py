@@ -36,7 +36,7 @@ class Task:
         try:
             result = subprocess.run(
                 [TMUX_BIN, "capture-pane", "-t", f"{TMUX_SESSION}:{self.id}",
-                 "-p", "-J"],
+                 "-p", "-J", "-S", "-"],
                 capture_output=True, text=True,
             )
             pane_lines = result.stdout.splitlines()
