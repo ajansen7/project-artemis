@@ -240,6 +240,17 @@ export const SCHEDULE_STATUS_LABELS: Record<string, string> = {
   running: 'Running',
 };
 
+// ─── Job Sort/Group ─────────────────────────────────────────
+
+export type JobSortMode = 'default' | 'score' | 'date' | 'company';
+
+export const JOB_SORT_LABELS: Record<JobSortMode, string> = {
+  default: 'Pipeline Priority',
+  score: 'Match Score',
+  date: 'Date Added',
+  company: 'Company',
+};
+
 export const AVAILABLE_SKILLS = [
   { value: '/inbox', label: 'Inbox Check' },
   { value: '/linkedin', label: 'LinkedIn Engagement' },
@@ -251,6 +262,8 @@ export const AVAILABLE_SKILLS = [
   { value: '/blog-write', label: 'Blog Write' },
   { value: '/review', label: 'Pipeline Review' },
   { value: '/status', label: 'Pipeline Status' },
+  { value: '/dedupe', label: 'Deduplicate Jobs' },
+  { value: '/cull', label: 'Cull Stale Jobs' },
 ];
 
 export const CRON_PRESETS = [

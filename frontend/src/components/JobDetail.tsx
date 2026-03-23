@@ -161,6 +161,32 @@ export function JobDetail({ job, onAdvance, onSkip, onDelete, onUpdate, onSetSta
             Set Status
           </button>
           <button className="action-btn skip" onClick={onSkip}>Skip</button>
+          <button
+            className="action-btn"
+            style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
+            onClick={async () => {
+              const companyName = job.companies?.name || 'Unknown';
+              try {
+                const response = await fetch('http://localhost:8000/api/run-skill', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    skill: 'dedupe',
+                    target: `Flag duplicate: Job ID ${job.id}, "${job.title}" at ${companyName} (score: ${job.match_score ?? 'N/A'}, source: ${job.source || 'unknown'}). Find the most likely duplicate and merge.`,
+                  }),
+                });
+                if (response.ok) {
+                  setStatusMsg('Dedupe task started — check the task panel.');
+                } else {
+                  setStatusMsg('❌ Failed to start dedupe task.');
+                }
+              } catch {
+                setStatusMsg('❌ Could not reach API.');
+              }
+            }}
+          >
+            Flag Duplicate
+          </button>
           <button className="action-btn delete" onClick={onDelete}>Delete</button>
         </div>
 

@@ -173,6 +173,7 @@ See **[docs/automation.md](docs/automation.md)** for scheduler details and **[do
 | **inbox** | `/inbox` | Monitor Gmail + Calendar for job search activity |
 | **linkedin** | `/linkedin` | Browse LinkedIn for jobs, contacts, engagement |
 | **blogger** | `/blogger` | Generate blog ideas, draft posts, publish content |
+| **maintain** | `/dedupe`, `/cull` | Deduplicate jobs, cull stale/low-value pipeline entries |
 | **artemis-setup** | `/setup` | One-time setup wizard for new users |
 
 ### `/scout` -- Find Jobs
@@ -258,6 +259,18 @@ Quick pipeline counts by status and target companies.
 
 Re-evaluates all active jobs against current preferences, prunes dead postings, batch updates scores.
 
+### `/dedupe` -- Deduplicate Jobs
+
+> *"Dedupe my pipeline"* or *"Find duplicate jobs"*
+
+Scans the pipeline for duplicate postings (same role from different sources, reposted listings, similar titles at the same company). Auto-merges obvious duplicates, combining sources, notes, and contact links. Surfaces ambiguous cases for your review.
+
+### `/cull` -- Cull Stale Jobs
+
+> *"Cull stale jobs"* or *"Clean up my pipeline"*
+
+Identifies low-value and stale jobs: low match scores, sitting in scouted/to_review for 30+ days with no progress. Presents candidates grouped by reason and culls on your confirmation.
+
 ### `/setup` -- Initial Setup
 
 > *"Set me up"* (first time using Artemis)
@@ -283,6 +296,10 @@ A **two-tier memory system** keeps context compact: hot memory loads every sessi
      /sync       /generate             /prep           /practice
      /review     /submit                               /mock
      /status                                           /debrief
+         |
+      maintain
+     /dedupe
+     /cull
          |          |          |          |                  |
          ├──────────┴──────────┴──────────┤                  |
          |          Sync Layer            |                  |
@@ -373,7 +390,7 @@ Opens at `http://localhost:5173`. The dashboard has five tabs:
 
 | Tab | What it shows |
 |-----|---------------|
-| **Pipeline** | All jobs by status, match scores, gap analysis, application generation |
+| **Pipeline** | All jobs by status, match scores, gap analysis, application generation. Sort by score/date/company; group by company; flag duplicates; stale job indicators |
 | **Networking** | Contacts grouped by company, outreach status, interaction history |
 | **Engagement** | LinkedIn/blog engagement queue with approve/post/skip workflow |
 | **Blog** | Blog post lifecycle from idea through published, with tags and platform |
@@ -387,7 +404,7 @@ Attach to tmux (`tmux attach -t artemis`) to watch Claude work.
 
 ## DB Helper CLI
 
-All Supabase operations go through `.claude/tools/db.py`:
+All Supabase operations go through `.claude/tools/db.py` (a thin shim over the `db_modules/` package):
 
 ```bash
 # Jobs
@@ -396,6 +413,7 @@ uv run python .claude/tools/db.py list-jobs
 uv run python .claude/tools/db.py list-jobs --status scouted
 uv run python .claude/tools/db.py get-job --id "uuid"
 uv run python .claude/tools/db.py update-job --id "uuid" --status "to_review"
+uv run python .claude/tools/db.py merge-jobs --keep "keeper-uuid" --merge "duplicate-uuid"
 
 # Applications
 uv run python .claude/tools/db.py save-application --id "uuid" --resume "output/applications/.../resume.md" --cover-letter "..." --primer "..." --form-fills "..."
@@ -472,13 +490,16 @@ project-artemis/
         SKILL.md
       blogger/                        # Content creation + publishing
         SKILL.md
+      maintain/                       # Pipeline hygiene -- dedupe, cull stale jobs
+        SKILL.md
       artemis-setup/                  # One-time setup wizard
         SKILL.md
       interview-coach/                # Git submodule -- coaching, storybank, drills
         SKILL.md
         coaching_state.md
     tools/
-      db.py                           # Supabase CRUD CLI
+      db.py                           # Thin CLI shim (forwards to db_modules/)
+      db_modules/                     # Modular Supabase CRUD package
       generate_resume_docx.py         # Resume markdown to DOCX/PDF
       sync_contacts.py                # DB to contacts markdown
       push_to_telegram.py             # Send formatted messages to Telegram (Bot API)

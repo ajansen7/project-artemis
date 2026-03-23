@@ -106,7 +106,7 @@ tmux attach -t artemis          # see all windows
 Open `http://localhost:5173` in your browser.
 
 The dashboard has five tabs:
-- **Pipeline** -- all jobs by status, match scores, application generation
+- **Pipeline** -- all jobs by status, match scores, application generation, sort/group controls, stale indicators
 - **Networking** -- contacts, outreach status, interaction history
 - **Engagement** -- LinkedIn/blog approval queue
 - **Blog** -- content lifecycle from idea to published
