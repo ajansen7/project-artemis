@@ -6,10 +6,9 @@
 #   ./scripts/stop.sh --kill    # kill the entire tmux session
 #
 # This script:
-#   1. Kills the api, frontend, and telegram tmux windows
+#   1. Kills the api, frontend, and orchestrator tmux windows
 #   2. Kills any stray processes on the service ports (8000, 5173)
-#   3. Cleans up sentinel files in /tmp/artemis-tasks/
-#   4. Optionally kills the entire tmux session (--kill)
+#   3. Optionally kills the entire tmux session (--kill)
 
 set -euo pipefail
 
@@ -48,7 +47,7 @@ if "$TMUX_BIN" has-session -t "$SESSION" 2>/dev/null; then
   echo "Stopping service windows..."
   kill_window "api"
   kill_window "frontend"
-  kill_window "telegram"
+  kill_window "orchestrator"
 else
   echo "No tmux session '$SESSION' found."
 fi
@@ -59,13 +58,6 @@ echo "Checking for stray processes on service ports..."
 kill_port 8000
 kill_port 5173
 
-# ─── Clean up sentinel files ─────────────────────────────────────
-
-if [ -d /tmp/artemis-tasks ]; then
-  rm -f /tmp/artemis-tasks/*.exit
-  echo "  Cleaned /tmp/artemis-tasks/"
-fi
-
 # ─── Optionally kill the full session ─────────────────────────────
 
 if [ "$KILL_SESSION" = true ]; then
@@ -75,7 +67,6 @@ if [ "$KILL_SESSION" = true ]; then
   fi
 else
   echo ""
-  echo "Service windows stopped. The '$SESSION' tmux session is still alive"
-  echo "(scheduler task windows may still be running)."
+  echo "Service windows stopped. The '$SESSION' tmux session is still alive."
   echo "To kill everything: ./scripts/stop.sh --kill"
 fi

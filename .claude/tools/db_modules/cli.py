@@ -10,6 +10,7 @@ from db_modules.batch import batch_update, batch_add
 from db_modules.engagements import add_engagement, update_engagement, list_engagements
 from db_modules.blog import add_blog_post, update_blog_post, batch_import_blog_posts, list_blog_posts
 from db_modules.status import status
+from db_modules.tasks import next_task, update_task, list_tasks
 
 
 def main():
@@ -177,6 +178,24 @@ def main():
     p.add_argument("--status", default=None)
     p.add_argument("--limit", type=int, default=25)
     p.set_defaults(func=list_blog_posts)
+
+    # next-task
+    p = subparsers.add_parser("next-task", help="Claim and return oldest queued task as JSON")
+    p.set_defaults(func=next_task)
+
+    # update-task
+    p = subparsers.add_parser("update-task", help="Update a task's status/output/error")
+    p.add_argument("--id", required=True, help="Task UUID")
+    p.add_argument("--status", default=None, choices=["queued", "running", "complete", "failed"])
+    p.add_argument("--output-summary", default=None, help="Summary of task output")
+    p.add_argument("--error", default=None, help="Error message if failed")
+    p.set_defaults(func=update_task)
+
+    # list-tasks
+    p = subparsers.add_parser("list-tasks", help="List recent tasks from queue")
+    p.add_argument("--status", default=None, choices=["queued", "running", "complete", "failed"])
+    p.add_argument("--limit", type=int, default=25)
+    p.set_defaults(func=list_tasks)
 
     args = parser.parse_args()
     if not args.command:

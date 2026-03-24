@@ -1,16 +1,19 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { API_BASE as API } from '../lib/api';
 
 export interface Task {
   id: string;
   name: string;
-  status: 'running' | 'complete' | 'failed';
-  started_at: string;
+  skill: string;
+  skill_args: string | null;
+  source: string;
+  status: 'queued' | 'running' | 'complete' | 'failed';
+  output_summary: string | null;
+  error: string | null;
+  created_at: string;
+  started_at: string | null;
   ended_at: string | null;
-  tmux_window: string;
-  output?: string;
 }
-
-const API = 'http://localhost:8000';
 
 export function useTasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -27,12 +30,12 @@ export function useTasks() {
     }
   }, []);
 
-  // Poll whenever any task is running
+  // Poll whenever any task is active (queued or running)
   useEffect(() => {
-    const hasRunning = tasks.some(t => t.status === 'running');
-    if (hasRunning) {
+    const hasActive = tasks.some(t => t.status === 'queued' || t.status === 'running');
+    if (hasActive) {
       if (!intervalRef.current) {
-        intervalRef.current = setInterval(fetchTasks, 2000);
+        intervalRef.current = setInterval(fetchTasks, 3000);
       }
     } else {
       if (intervalRef.current) {
@@ -59,14 +62,14 @@ export function useTasks() {
     return res.json();
   }, []);
 
-  const killTask = useCallback(async (taskId: string) => {
+  const cancelTask = useCallback(async (taskId: string) => {
     await fetch(`${API}/api/tasks/${taskId}`, { method: 'DELETE' });
     fetchTasks();
   }, [fetchTasks]);
 
-  const runningCount = tasks.filter(t => t.status === 'running').length;
+  const activeCount = tasks.filter(t => t.status === 'queued' || t.status === 'running').length;
 
-  return { tasks, fetchTasks, pollTask, killTask, runningCount };
+  return { tasks, fetchTasks, pollTask, cancelTask, activeCount };
 }
 
 /** Polls a single task until it reaches a terminal state, then calls onComplete. */
@@ -93,7 +96,7 @@ export function useTaskPoller(
       } catch {
         clearInterval(interval);
       }
-    }, 2000);
+    }, 3000);
 
     return () => clearInterval(interval);
   }, [taskId]);

@@ -1,4 +1,3 @@
-import threading
 from datetime import datetime, timezone
 
 from apscheduler.triggers.cron import CronTrigger
@@ -6,11 +5,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from api.modules.config import _get_supabase
-from api.modules.scheduler import (
-    _build_skill_command, _poll_and_notify,
-    _register_schedule, _unregister_schedule,
-)
-from api.modules.task_manager import task_manager
+from api.modules.scheduler import _register_schedule, _unregister_schedule
 
 router = APIRouter()
 
@@ -110,29 +105,30 @@ async def delete_schedule(schedule_id: str):
 
 @router.post("/api/schedules/{schedule_id}/run-now")
 async def run_schedule_now(schedule_id: str):
-    """Immediately trigger a scheduled job (regardless of enabled state)."""
+    """Immediately queue a scheduled job for the orchestrator to execute."""
     sb = _get_supabase()
     res = sb.table("scheduled_jobs").select("*").eq("id", schedule_id).execute()
     if not res.data:
         raise HTTPException(status_code=404, detail="Schedule not found")
 
     row = res.data[0]
-    command = _build_skill_command(row["skill"], row.get("skill_args"), job_name=row["name"])
-    task_id = task_manager.start(f"Manual: {row['name']}", command)
 
-    # Update last_run_at + status
     sb.table("scheduled_jobs").update({
-        "last_status": "running",
+        "last_status": "queued",
         "last_run_at": datetime.now(timezone.utc).isoformat(),
         "last_error": None,
     }).eq("id", schedule_id).execute()
 
-    # Poll for completion and fire webhook in background thread
-    threading.Thread(
-        target=_poll_and_notify,
-        args=(task_id, row["name"], row["skill"]),
-        kwargs={"schedule_id": schedule_id},
-        daemon=True,
-    ).start()
+    task_res = sb.table("task_queue").insert({
+        "name": row["name"],
+        "skill": row["skill"].lstrip("/"),
+        "skill_args": row.get("skill_args"),
+        "source": "schedule",
+        "schedule_id": schedule_id,
+    }).execute()
 
-    return {"task_id": task_id, "status": "started", "name": row["name"]}
+    if not task_res.data:
+        raise HTTPException(status_code=500, detail="Failed to queue task")
+
+    task = task_res.data[0]
+    return {"task_id": task["id"], "status": "queued", "name": row["name"]}

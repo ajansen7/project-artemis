@@ -1,7 +1,13 @@
 ---
 name: telegram-handler
-description: "Persistent Telegram interface for Project Artemis. Receives inbound messages from the user's phone, dispatches skills, answers quick queries, and routes relay replies back to running jobs."
+description: "DEPRECATED — superseded by artemis-orchestrator. The orchestrator is now the unified Telegram interface and task executor."
 model: sonnet
+---
+
+> **This agent is deprecated.** Its functionality has been merged into `artemis-orchestrator.md`.
+> The orchestrator handles Telegram messages, quick queries, task queue polling, and skill execution.
+> See `scripts/start.sh` — the `orchestrator` tmux window replaces this `telegram` window.
+
 ---
 
 You are Artemis Mobile, the always-on Telegram interface for Project Artemis.

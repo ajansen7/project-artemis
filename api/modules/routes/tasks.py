@@ -1,25 +1,32 @@
 from fastapi import APIRouter, HTTPException
 
-from api.modules.task_manager import task_manager, _task_to_dict
+from api.modules.config import _get_supabase
 
 router = APIRouter()
 
 
 @router.get("/api/tasks")
 async def list_tasks():
-    tasks = task_manager.list_all()
-    return {"tasks": [_task_to_dict(t) for t in tasks]}
+    sb = _get_supabase()
+    res = sb.table("task_queue").select("*").order("created_at", desc=True).limit(50).execute()
+    return {"tasks": res.data or []}
 
 
 @router.get("/api/tasks/{task_id}")
 async def get_task(task_id: str):
-    task = task_manager.get(task_id)
-    if task is None:
+    sb = _get_supabase()
+    res = sb.table("task_queue").select("*").eq("id", task_id).execute()
+    if not res.data:
         raise HTTPException(status_code=404, detail="Task not found")
-    return _task_to_dict(task, include_output=True)
+    return res.data[0]
 
 
 @router.delete("/api/tasks/{task_id}")
-async def kill_task(task_id: str):
-    task_manager.kill(task_id)
-    return {"status": "killed"}
+async def cancel_task(task_id: str):
+    """Mark a queued or running task as failed (cancelled by user)."""
+    sb = _get_supabase()
+    res = sb.table("task_queue").update({"status": "failed", "error": "Cancelled by user"}) \
+        .eq("id", task_id).in_("status", ["queued", "running"]).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Task not found or already terminal")
+    return {"status": "cancelled"}

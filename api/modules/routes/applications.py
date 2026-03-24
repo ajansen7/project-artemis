@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -7,8 +8,10 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from api.modules.config import CLAUDE_BIN, PROJECT_ROOT, UV_BIN, _get_supabase
-from api.modules.task_manager import task_manager
+from api.modules.config import PROJECT_ROOT, _get_supabase
+
+_CLAUDE_BIN = os.environ.get("CLAUDE_BIN", shutil.which("claude") or "claude")
+_UV_BIN = os.environ.get("UV_BIN", shutil.which("uv") or "uv")
 
 router = APIRouter()
 
@@ -23,7 +26,7 @@ class GenerateRequest(BaseModel):
 @router.post("/api/generate-application")
 async def generate_application(req: GenerateRequest):
     """
-    Starts a headless Claude CLI task in tmux to run `/generate` for the given job.
+    Queues a generate task for the orchestrator to execute.
     Returns a task_id immediately — poll /api/tasks/{task_id} for status.
     """
     if not req.job_id:
@@ -33,25 +36,19 @@ async def generate_application(req: GenerateRequest):
     if req.company_name:
         target_str += f" at {req.company_name}"
 
-    prompt = (
-        f"Follow the instructions for the `/generate` command in the apply skill's SKILL.md "
-        f"to generate application materials for '{target_str}'."
-    )
+    name = f"generate — {req.company_name or req.job_id[:8]}"
+    sb = _get_supabase()
+    res = sb.table("task_queue").insert({
+        "name": name,
+        "skill": "generate",
+        "skill_args": target_str,
+        "source": "api",
+    }).execute()
 
-    command = [
-        CLAUDE_BIN, "-p", prompt,
-        "--verbose",
-        "--dangerously-skip-permissions",
-        "--add-dir", os.path.join(PROJECT_ROOT, ".claude", "skills", "interview-coach"),
-    ]
-    portfolio_path = os.environ.get("PORTFOLIO_PATH")
-    if portfolio_path:
-        command.extend(["--add-dir", portfolio_path])
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Failed to queue task")
 
-    name = f"Generate Application — {req.company_name or req.job_id[:8]}"
-    task_id = task_manager.start(name, command)
-
-    return {"task_id": task_id, "status": "started", "name": name}
+    return {"task_id": res.data[0]["id"], "status": "queued", "name": name}
 
 
 @router.get("/api/check-template")
@@ -84,7 +81,7 @@ async def generate_pdf(req: GeneratePdfRequest):
     try:
         process = subprocess.Popen(
             [
-                UV_BIN, "run", "python",
+                _UV_BIN, "run", "python",
                 ".claude/tools/generate_resume_docx.py",
                 "--job-id", req.job_id,
             ],
@@ -192,7 +189,7 @@ async def learn_from_edit(req: LearnFromEditRequest):
 
     try:
         process = subprocess.Popen(
-            [CLAUDE_BIN, "-p", prompt, "--dangerously-skip-permissions"],
+            [_CLAUDE_BIN, "-p", prompt, "--dangerously-skip-permissions"],
             cwd=PROJECT_ROOT,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

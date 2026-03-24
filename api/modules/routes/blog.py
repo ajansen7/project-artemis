@@ -1,4 +1,3 @@
-import threading
 from pathlib import Path
 from typing import Optional
 
@@ -6,8 +5,6 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from api.modules.config import PROJECT_ROOT, _get_supabase
-from api.modules.scheduler import _build_skill_command
-from api.modules.task_manager import task_manager
 
 router = APIRouter()
 
@@ -27,12 +24,10 @@ async def get_blog_post_content(post_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    # Prefer DB content column
     content = post.get("content")
     if content:
         return {"title": post["title"], "content": content, "draft_path": post.get("draft_path")}
 
-    # Fallback: read from disk via draft_path
     draft_path = post.get("draft_path")
     if not draft_path:
         raise HTTPException(status_code=404, detail="No content available for this post.")
@@ -53,8 +48,7 @@ class BlogPostUpdate(BaseModel):
 
 @router.put("/api/blog-posts/{post_id}")
 async def update_blog_post(post_id: str, body: BlogPostUpdate):
-    """Save edits to a blog post's content, notes, and/or status.
-    Published posts cannot have their status changed."""
+    """Save edits to a blog post's content, notes, and/or status."""
     try:
         sb = _get_supabase()
         res = sb.table("blog_posts").select("id,status,slug").eq("id", post_id).execute()
@@ -92,8 +86,7 @@ async def update_blog_post(post_id: str, body: BlogPostUpdate):
 
 @router.post("/api/blog-posts/{post_id}/generate")
 async def generate_blog_draft(post_id: str):
-    """Dispatch the blogger skill to write a draft for this post.
-    Returns a task_id to poll for completion."""
+    """Queue the blogger skill to write a draft for this post."""
     try:
         sb = _get_supabase()
         res = sb.table("blog_posts").select("id,slug,title,status").eq("id", post_id).execute()
@@ -108,24 +101,23 @@ async def generate_blog_draft(post_id: str):
     if post["status"] == "published":
         raise HTTPException(status_code=400, detail="Cannot regenerate a published post.")
 
-    slug = post["slug"]
     name = f"blog-write — {post['title'][:50]}"
-    command = _build_skill_command("blogger", f"/blog-write {slug}", job_name=name)
-    task_id = task_manager.start(name, command)
+    task_res = sb.table("task_queue").insert({
+        "name": name,
+        "skill": "blog-write",
+        "skill_args": post["slug"],
+        "source": "api",
+    }).execute()
 
-    threading.Thread(
-        target=_poll_task_silent,
-        args=(task_id,),
-        daemon=True,
-    ).start()
+    if not task_res.data:
+        raise HTTPException(status_code=500, detail="Failed to queue task")
 
-    return {"task_id": task_id, "status": "started", "name": name}
+    return {"task_id": task_res.data[0]["id"], "status": "queued", "name": name}
 
 
 @router.post("/api/blog-posts/{post_id}/process-feedback")
 async def process_blog_feedback(post_id: str):
-    """Dispatch the blogger skill to revise the draft using saved revision notes.
-    Extracts voice/tone lessons and flags potential new interview stories."""
+    """Queue the blogger skill to revise the draft using saved revision notes."""
     try:
         sb = _get_supabase()
         res = sb.table("blog_posts").select("id,slug,title,status,notes").eq("id", post_id).execute()
@@ -140,25 +132,15 @@ async def process_blog_feedback(post_id: str):
     if post["status"] == "published":
         raise HTTPException(status_code=400, detail="Cannot revise a published post.")
 
-    slug = post["slug"]
     name = f"blog-revise — {post['title'][:50]}"
-    command = _build_skill_command("blogger", f"/blog-revise {slug}", job_name=name)
-    task_id = task_manager.start(name, command)
+    task_res = sb.table("task_queue").insert({
+        "name": name,
+        "skill": "blog-revise",
+        "skill_args": post["slug"],
+        "source": "api",
+    }).execute()
 
-    threading.Thread(
-        target=_poll_task_silent,
-        args=(task_id,),
-        daemon=True,
-    ).start()
+    if not task_res.data:
+        raise HTTPException(status_code=500, detail="Failed to queue task")
 
-    return {"task_id": task_id, "status": "started", "name": name}
-
-
-def _poll_task_silent(task_id: str):
-    """Background poller — just waits for task completion with no notification."""
-    import time
-    for _ in range(360):  # max 30 min
-        task = task_manager.get(task_id)
-        if task and task.get("status") in ("completed", "failed"):
-            return
-        time.sleep(5)
+    return {"task_id": task_res.data[0]["id"], "status": "queued", "name": name}
