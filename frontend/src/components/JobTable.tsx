@@ -131,7 +131,7 @@ export function JobTable({
   }
 
   return (
-    <div className="job-table">
+    <div className={`job-table${groupByCompany ? ' grouped' : ''}`}>
       <div className="job-table-toolbar">
         <div className="sort-controls">
           <label>Sort:</label>

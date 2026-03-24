@@ -382,8 +382,8 @@ button {
 }
 
 /* Grouped view: hide company column, adjust grid */
-.company-group .job-row,
-.company-group .job-table-header {
+.job-table.grouped .job-row,
+.job-table.grouped .job-table-header {
   grid-template-columns: 3fr 120px 80px 100px 100px;
 }
 
@@ -653,15 +653,38 @@ button {
   .job-row {
     grid-template-columns: 1.5fr 1.5fr 100px 60px 90px;
   }
+  .job-table.grouped .job-table-header,
+  .job-table.grouped .job-row {
+    grid-template-columns: 2fr 100px 60px 90px;
+  }
   .job-date { display: none; }
 }
 
 @media (max-width: 640px) {
+  .view-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+    gap: 0;
+  }
+  .view-tab {
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
   .job-table-header,
   .job-row {
-    grid-template-columns: 1fr 100px 90px;
+    grid-template-columns: 1fr 110px 60px;
   }
-  .job-title, .job-score { display: none; }
+  .job-table.grouped .job-table-header,
+  .job-table.grouped .job-row {
+    grid-template-columns: 1fr 110px 60px;
+  }
+  /* Non-grouped: show company + status + score; hide title, source, date */
+  .job-table:not(.grouped) .job-title { display: none; }
+  /* Grouped: show title + status + score; hide source, date */
+  .job-source, .job-date { display: none; }
   .stats-bar { display: none; }
 }
 

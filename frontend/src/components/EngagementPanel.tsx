@@ -134,8 +134,14 @@ function EngagementSummary({ counts }: { counts: Record<string, number> }) {
 export function EngagementPanel() {
   const { entries, counts, loading, error, updateStatus } = useEngagement();
   const [filter, setFilter] = useState<EngagementStatus | 'all'>('all');
+  const [actionFilter, setActionFilter] = useState<string>('all');
 
-  const filtered = filter === 'all' ? entries : entries.filter(e => e.status === filter);
+  const actionTypes = Array.from(new Set(entries.map(e => e.action_type))).sort();
+
+  const filtered = entries.filter(e =>
+    (filter === 'all' || e.status === filter) &&
+    (actionFilter === 'all' || e.action_type === actionFilter)
+  );
 
   if (loading) return (
     <div className="loading">
@@ -170,7 +176,7 @@ export function EngagementPanel() {
 
       <EngagementSummary counts={counts} />
 
-      <div className="status-filter" style={{ marginBottom: 0 }}>
+      <div className="status-filter">
         {(['all', 'drafted', 'approved', 'posted', 'skipped'] as const).map(s => (
           <button
             key={s}
@@ -181,6 +187,25 @@ export function EngagementPanel() {
           </button>
         ))}
       </div>
+      {actionTypes.length > 0 && (
+        <div className="status-filter" style={{ marginBottom: 0 }}>
+          <button
+            className={`filter-pill ${actionFilter === 'all' ? 'active' : ''}`}
+            onClick={() => setActionFilter('all')}
+          >
+            All Types
+          </button>
+          {actionTypes.map(a => (
+            <button
+              key={a}
+              className={`filter-pill ${actionFilter === a ? 'active' : ''}`}
+              onClick={() => setActionFilter(a)}
+            >
+              {ENGAGEMENT_ACTION_LABELS[a as keyof typeof ENGAGEMENT_ACTION_LABELS] || a}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="company-contact-group">
         <div className="contact-cards">
