@@ -22,7 +22,7 @@ _SKILL_DIR_MAP: dict[str, str] = {
     # hunt skill
     "scout": "hunt", "sync": "hunt", "review": "hunt", "status": "hunt",
     # apply skill
-    "analyze": "apply", "generate": "apply", "submit": "apply",
+    "analyze": "apply", "generate": "apply", "generate-pending": "apply", "submit": "apply",
     # connect skill
     "network": "connect",
     # profile skill

@@ -97,6 +97,40 @@ uv run python .claude/tools/db.py save-application \
 
 ---
 
+### `/generate-pending` — Batch Generate Materials for All Unworked To-Review Jobs
+
+Nightly automation: find every job in `to_review` status that has no application materials yet, and generate a full set for each one.
+
+**Steps:**
+1. Fetch all `to_review` jobs:
+   ```bash
+   uv run python .claude/tools/db.py list-jobs --status to_review
+   ```
+2. For each job ID, check whether materials already exist:
+   ```bash
+   uv run python -c "
+   from api.modules.config import _get_supabase
+   sb = _get_supabase()
+   r = sb.table('applications').select('job_id,resume_md').eq('job_id', '<job_id>').execute()
+   print('exists' if r.data and r.data[0].get('resume_md') else 'missing')
+   "
+   ```
+3. Skip any job that already has a `resume_md`. Only process jobs where materials are missing.
+4. For each job that needs materials, follow the full `/generate <job_id>` steps above.
+5. Skip step 7 (open folder) — this is running headless.
+6. After all jobs are processed, send a Telegram summary:
+   - How many jobs were found in `to_review`
+   - How many already had materials (skipped)
+   - How many were newly generated (list company + role for each)
+   - Any failures, with job IDs
+
+**Notes:**
+- If there are no `to_review` jobs without materials, send a short Telegram message: "Nightly materials run: nothing to generate."
+- Do not ask for approval before generating — this is an automated run. Generate for all eligible jobs.
+- If a single job fails, log it and continue with the rest. Don't abort the whole batch.
+
+---
+
 ### `/submit <job_id>` — Mark Application Submitted
 
 Mark a job as submitted in the pipeline.
