@@ -29,6 +29,14 @@ export function useBlogPosts() {
     fetchPosts();
   }, [fetchPosts]);
 
+  useEffect(() => {
+    const channel = supabase
+      .channel('blog-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'blog_posts' }, () => { fetchPosts(); })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchPosts]);
+
   const updateStatus = useCallback(async (id: string, status: BlogPostStatus) => {
     const updateData: Record<string, unknown> = { status };
     if (status === 'published') {

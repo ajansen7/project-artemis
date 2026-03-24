@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { JobStatus } from './types';
 import { useJobs, useAllCounts } from './hooks/useJobs';
 import { useCompanies } from './hooks/useCompanies';
@@ -14,9 +14,25 @@ import { TasksPanel } from './components/TasksPanel';
 
 type View = 'pipeline' | 'networking' | 'engagement' | 'blog' | 'schedules';
 
+const VALID_VIEWS: View[] = ['pipeline', 'networking', 'engagement', 'blog', 'schedules'];
+
+function readLocalStorage<T>(key: string, fallback: T, valid?: T[]): T {
+  try {
+    const v = localStorage.getItem(key) as T;
+    if (v === null) return fallback;
+    if (valid && !valid.includes(v)) return fallback;
+    return v;
+  } catch {
+    return fallback;
+  }
+}
+
 function App() {
-  const [view, setView] = useState<View>('pipeline');
-  const [statusFilter, setStatusFilter] = useState<JobStatus | 'all'>('all');
+  const [view, setView] = useState<View>(() => readLocalStorage('artemis:view', 'pipeline', VALID_VIEWS));
+  const [statusFilter, setStatusFilter] = useState<JobStatus | 'all'>(() => readLocalStorage<JobStatus | 'all'>('artemis:statusFilter', 'all'));
+
+  useEffect(() => { localStorage.setItem('artemis:view', view); }, [view]);
+  useEffect(() => { localStorage.setItem('artemis:statusFilter', statusFilter); }, [statusFilter]);
   const { jobs, loading, updateStatus, deleteJob, refetch, sortMode, setSortMode, groupByCompany, setGroupByCompany, companyGroups } = useJobs(statusFilter);
   const allCounts = useAllCounts();
   const { companies, loading: companiesLoading } = useCompanies();

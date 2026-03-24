@@ -44,6 +44,15 @@ export function useContacts() {
     fetchContacts();
   }, [fetchContacts]);
 
+  useEffect(() => {
+    const channel = supabase
+      .channel('contacts-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, () => { fetchContacts(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'contact_interactions' }, () => { fetchContacts(); })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchContacts]);
+
   const updateOutreachStatus = useCallback(async (contactId: string, status: OutreachStatus) => {
     const updateData: Record<string, unknown> = { outreach_status: status };
     if (status === 'sent' || status === 'connected' || status === 'responded') {

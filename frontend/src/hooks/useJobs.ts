@@ -72,8 +72,15 @@ export function useJobs(statusFilter: JobStatus | 'all' = 'all') {
   const [rawJobs, setRawJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [sortMode, setSortMode] = useState<JobSortMode>('default');
-  const [groupByCompany, setGroupByCompany] = useState(false);
+  const [sortMode, setSortMode] = useState<JobSortMode>(() => {
+    try { return (localStorage.getItem('artemis:sortMode') as JobSortMode) || 'default'; } catch { return 'default'; }
+  });
+  const [groupByCompany, setGroupByCompany] = useState(() => {
+    try { return localStorage.getItem('artemis:groupByCompany') === 'true'; } catch { return true; }
+  });
+
+  useEffect(() => { try { localStorage.setItem('artemis:sortMode', sortMode); } catch {} }, [sortMode]);
+  useEffect(() => { try { localStorage.setItem('artemis:groupByCompany', String(groupByCompany)); } catch {} }, [groupByCompany]);
 
   const fetchJobs = useCallback(async () => {
     setLoading(true);
@@ -101,6 +108,14 @@ export function useJobs(statusFilter: JobStatus | 'all' = 'all') {
 
   useEffect(() => {
     fetchJobs();
+  }, [fetchJobs]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('jobs-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, () => { fetchJobs(); })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [fetchJobs]);
 
   const jobs = useMemo(() => sortJobs(rawJobs, sortMode), [rawJobs, sortMode]);
@@ -162,23 +177,30 @@ export function useJobs(statusFilter: JobStatus | 'all' = 'all') {
 export function useAllCounts() {
   const [counts, setCounts] = useState<Record<string, number>>({});
 
-  useEffect(() => {
-    async function fetch() {
-      const { data } = await supabase
-        .from('jobs')
-        .select('status')
-        .not('status', 'eq', 'deleted');
+  const fetchCounts = useCallback(async () => {
+    const { data } = await supabase
+      .from('jobs')
+      .select('status')
+      .not('status', 'eq', 'deleted');
 
-      if (data) {
-        const c: Record<string, number> = {};
-        data.forEach((j: { status: string }) => {
-          c[j.status] = (c[j.status] || 0) + 1;
-        });
-        setCounts(c);
-      }
+    if (data) {
+      const c: Record<string, number> = {};
+      data.forEach((j: { status: string }) => {
+        c[j.status] = (c[j.status] || 0) + 1;
+      });
+      setCounts(c);
     }
-    fetch();
   }, []);
+
+  useEffect(() => { fetchCounts(); }, [fetchCounts]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('jobs-counts-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, () => { fetchCounts(); })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchCounts]);
 
   return counts;
 }

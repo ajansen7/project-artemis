@@ -29,6 +29,14 @@ export function useEngagement() {
     fetchEntries();
   }, [fetchEntries]);
 
+  useEffect(() => {
+    const channel = supabase
+      .channel('engagement-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'engagement_log' }, () => { fetchEntries(); })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchEntries]);
+
   const updateStatus = useCallback(async (id: string, status: EngagementStatus) => {
     const updateData: Record<string, unknown> = { status };
     if (status === 'posted') {
