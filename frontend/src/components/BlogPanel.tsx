@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
 import type { BlogPost, BlogPostStatus } from '../types';
 import { BLOG_STATUS_LABELS, BLOG_STATUS_ORDER } from '../types';
 import { useBlogPosts } from '../hooks/useBlogPosts';
-import { MarkdownModal } from './MarkdownModal';
 
 // ─── Blog Status Badge ──────────────────────────────────────────
 
@@ -14,168 +14,434 @@ function BlogStatusBadge({ status }: { status: BlogPostStatus }) {
   );
 }
 
-// ─── Blog Card ───────────────────────────────────────────────────
+// ─── Status Picker ────────────────────────────────────────────────
 
-function BlogCard({
+function StatusPicker({
   post,
   onUpdateStatus,
 }: {
   post: BlogPost;
   onUpdateStatus: (id: string, status: BlogPostStatus) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalContent, setModalContent] = useState('');
-  const [loadingContent, setLoadingContent] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const isPublished = post.status === 'published';
 
-  const currentIdx = BLOG_STATUS_ORDER.indexOf(post.status);
-  const next = BLOG_STATUS_ORDER[currentIdx + 1] || null;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Status</span>
+      <select
+        disabled={isPublished}
+        value={post.status}
+        style={{
+          fontSize: '0.72rem',
+          padding: '3px 6px',
+          borderRadius: 4,
+          border: '1px solid var(--border)',
+          background: 'var(--bg-card)',
+          color: isPublished ? 'var(--text-muted)' : 'var(--text)',
+          cursor: isPublished ? 'not-allowed' : 'pointer',
+        }}
+        onChange={e => onUpdateStatus(post.id, e.target.value as BlogPostStatus)}
+        onClick={e => e.stopPropagation()}
+      >
+        {BLOG_STATUS_ORDER.filter(s => s !== 'published').map(s => (
+          <option key={s} value={s}>{BLOG_STATUS_LABELS[s]}</option>
+        ))}
+        <option value="published" disabled={!isPublished}>
+          {BLOG_STATUS_LABELS['published']}
+        </option>
+      </select>
+    </div>
+  );
+}
 
-  const fetchContent = async (): Promise<string> => {
-    if (modalContent) return modalContent;
-    const res = await fetch(`http://localhost:8000/api/blog-post-content/${post.id}`);
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.detail || 'Failed to load post');
+// ─── Draft Editor ────────────────────────────────────────────────
+
+function DraftEditor({
+  post,
+  onSave,
+  onGenerate,
+  onProcessFeedback,
+}: {
+  post: BlogPost;
+  onSave: (id: string, updates: { content?: string; notes?: string }) => Promise<boolean>;
+  onGenerate: (id: string) => Promise<void>;
+  onProcessFeedback: (id: string) => Promise<void>;
+}) {
+  const [tab, setTab] = useState<'edit' | 'preview'>('edit');
+  const [content, setContent] = useState(post.content ?? '');
+  const [notes, setNotes] = useState(post.notes ?? '');
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [processingFeedback, setProcessingFeedback] = useState(false);
+  const [saveMsg, setSaveMsg] = useState('');
+
+  // Sync if post updates externally (e.g. after generate completes)
+  useEffect(() => {
+    setContent(post.content ?? '');
+    setNotes(post.notes ?? '');
+    setDirty(false);
+  }, [post.content, post.notes]);
+
+  const handleSave = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSaving(true);
+    const ok = await onSave(post.id, { content, notes });
+    setSaving(false);
+    if (ok) {
+      setDirty(false);
+      setSaveMsg('Saved');
+      setTimeout(() => setSaveMsg(''), 2000);
     }
-    const data = await res.json();
-    setModalContent(data.content);
-    return data.content;
   };
 
-  const openPost = async (e: React.MouseEvent) => {
+  const handleGenerate = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    setLoadingContent(true);
-    try {
-      const content = await fetchContent();
-      setModalContent(content);
-      setModalOpen(true);
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setLoadingContent(false);
-    }
+    setGenerating(true);
+    await onGenerate(post.id);
+    setGenerating(false);
   };
 
-  const copyMarkdown = async (e: React.MouseEvent) => {
+  const handleProcessFeedback = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    try {
-      const content = await fetchContent();
-      await navigator.clipboard.writeText(content);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err: any) {
-      alert(err.message);
+    // Auto-save any unsaved changes before dispatching
+    if (dirty) {
+      setSaving(true);
+      await onSave(post.id, { content, notes });
+      setSaving(false);
+      setDirty(false);
     }
+    setProcessingFeedback(true);
+    await onProcessFeedback(post.id);
+    setProcessingFeedback(false);
+  };
+
+  const hasContent = !!content.trim();
+
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    await navigator.clipboard.writeText(content);
+    setSaveMsg('Copied!');
+    setTimeout(() => setSaveMsg(''), 2000);
   };
 
   return (
-    <>
-      <div className={`blog-card ${expanded ? 'expanded' : ''}`}>
-        <div className="blog-card-header" onClick={() => setExpanded(e => !e)}>
-          <div className="blog-card-left">
-            <span className="blog-card-title">{post.title}</span>
-            {post.summary && (
-              <span className="blog-card-summary">{post.summary}</span>
-            )}
-            {post.tags.length > 0 && (
-              <div className="blog-card-tags">
-                {post.tags.map(tag => (
-                  <span key={tag} className="blog-tag">{tag}</span>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="blog-card-right">
-            {post.platform && (
-              <span className="engagement-platform-label">{post.platform}</span>
-            )}
-            <BlogStatusBadge status={post.status} />
-            <span className="engagement-date">
-              {new Date(post.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-            </span>
-            <span className="expand-chevron">{expanded ? '\u25B2' : '\u25BC'}</span>
-          </div>
-        </div>
-
-        {expanded && (
-          <div className="blog-card-body">
-            {/* Status stepper */}
-            <div className="status-stepper">
-              {BLOG_STATUS_ORDER.map((s, i) => (
-                <div
-                  key={s}
-                  className={`stepper-dot ${i < currentIdx ? 'done' : ''} ${i === currentIdx ? 'active' : ''}`}
-                  title={BLOG_STATUS_LABELS[s]}
-                />
-              ))}
-              <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-                {(post.draft_path || post.content) && (
-                  <>
-                    <button
-                      className="action-btn"
-                      style={{ padding: '4px 10px', fontSize: '0.72rem' }}
-                      onClick={openPost}
-                      disabled={loadingContent}
-                    >
-                      {loadingContent ? 'Loading…' : 'Read Post'}
-                    </button>
-                    <button
-                      className="action-btn"
-                      style={{ padding: '4px 10px', fontSize: '0.72rem' }}
-                      onClick={copyMarkdown}
-                      disabled={copied}
-                    >
-                      {copied ? '✓ Copied!' : 'Copy Markdown'}
-                    </button>
-                  </>
-                )}
-                {next && (
-                  <button
-                    className="action-btn review"
-                    style={{ padding: '4px 10px', fontSize: '0.72rem' }}
-                    onClick={e => { e.stopPropagation(); onUpdateStatus(post.id, next); }}
-                  >
-                    Move to {BLOG_STATUS_LABELS[next]}
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {post.notes && (
-              <div className="contact-section">
-                <h4>Notes</h4>
-                <p>{post.notes}</p>
-              </div>
-            )}
-
-            {post.published_url && (
-              <div className="contact-section">
-                <h4>Published URL</h4>
-                <a href={post.published_url} target="_blank" rel="noreferrer">
-                  {post.published_url}
-                </a>
-              </div>
-            )}
-
-            {post.published_at && (
-              <div className="contact-section">
-                <h4>Published</h4>
-                <p>{new Date(post.published_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
-              </div>
-            )}
-          </div>
+    <div style={{ marginTop: 12 }} onClick={e => e.stopPropagation()}>
+      {/* Editor header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text)' }}>Draft</span>
+        {hasContent && (
+          <>
+            <button
+              className={`filter-pill ${tab === 'edit' ? 'active' : ''}`}
+              style={{ padding: '2px 10px', fontSize: '0.7rem' }}
+              onClick={() => setTab('edit')}
+            >
+              Edit
+            </button>
+            <button
+              className={`filter-pill ${tab === 'preview' ? 'active' : ''}`}
+              style={{ padding: '2px 10px', fontSize: '0.7rem' }}
+              onClick={() => setTab('preview')}
+            >
+              Preview
+            </button>
+          </>
         )}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
+          {saveMsg && (
+            <span style={{ fontSize: '0.7rem', color: 'var(--success, #4caf50)' }}>{saveMsg}</span>
+          )}
+          {hasContent && dirty && (
+            <button
+              className="action-btn review"
+              style={{ padding: '3px 10px', fontSize: '0.7rem' }}
+              onClick={handleSave}
+              disabled={saving}
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+          )}
+          {hasContent && (
+            <button
+              className="action-btn"
+              style={{ padding: '3px 10px', fontSize: '0.7rem' }}
+              onClick={handleCopy}
+              title="Copy markdown to clipboard"
+            >
+              Copy
+            </button>
+          )}
+          {hasContent && (
+            <button
+              className="action-btn"
+              style={{ padding: '3px 10px', fontSize: '0.7rem' }}
+              onClick={handleProcessFeedback}
+              disabled={processingFeedback}
+              title="Send draft + revision notes to AI — extracts voice lessons, updates storybank"
+            >
+              {processingFeedback ? 'Processing…' : 'Process Revisions'}
+            </button>
+          )}
+          {!hasContent && (
+            <button
+              className="action-btn"
+              style={{ padding: '3px 10px', fontSize: '0.7rem' }}
+              onClick={handleGenerate}
+              disabled={generating}
+            >
+              {generating ? 'Generating…' : 'Generate Draft'}
+            </button>
+          )}
+        </div>
       </div>
 
-      <MarkdownModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title={post.title}
-        content={modalContent}
-      />
-    </>
+      {/* Content area */}
+      {!hasContent ? (
+        <div style={{
+          padding: '20px',
+          textAlign: 'center',
+          fontSize: '0.78rem',
+          color: 'var(--text-muted)',
+          border: '1px dashed var(--border)',
+          borderRadius: 6,
+        }}>
+          No draft yet. Click "Generate Draft" to write one, or start typing below.
+          <textarea
+            style={{
+              display: 'block',
+              width: '100%',
+              marginTop: 12,
+              minHeight: 120,
+              padding: 8,
+              fontSize: '0.78rem',
+              fontFamily: 'monospace',
+              border: '1px solid var(--border)',
+              borderRadius: 4,
+              background: 'var(--bg)',
+              color: 'var(--text)',
+              resize: 'vertical',
+              boxSizing: 'border-box',
+            }}
+            placeholder="Or write your draft here…"
+            value={content}
+            onChange={e => { setContent(e.target.value); setDirty(true); }}
+          />
+          {content.trim() && (
+            <button
+              className="action-btn review"
+              style={{ marginTop: 8, padding: '3px 12px', fontSize: '0.7rem' }}
+              onClick={handleSave}
+              disabled={saving}
+            >
+              {saving ? 'Saving…' : 'Save Draft'}
+            </button>
+          )}
+        </div>
+      ) : tab === 'edit' ? (
+        <textarea
+          style={{
+            width: '100%',
+            minHeight: 280,
+            padding: 10,
+            fontSize: '0.78rem',
+            fontFamily: 'monospace',
+            border: '1px solid var(--border)',
+            borderRadius: 6,
+            background: 'var(--bg)',
+            color: 'var(--text)',
+            resize: 'vertical',
+            boxSizing: 'border-box',
+          }}
+          value={content}
+          onChange={e => { setContent(e.target.value); setDirty(true); }}
+        />
+      ) : (
+        <div
+          style={{
+            padding: '12px 16px',
+            border: '1px solid var(--border)',
+            borderRadius: 6,
+            background: 'var(--bg)',
+            fontSize: '0.82rem',
+            lineHeight: 1.7,
+            maxHeight: 480,
+            overflowY: 'auto',
+          }}
+          className="markdown-preview"
+        >
+          <ReactMarkdown>{content}</ReactMarkdown>
+        </div>
+      )}
+
+      {/* Revision Notes */}
+      <div style={{ marginTop: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text)' }}>
+            Revision Notes
+          </span>
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+            — annotate what you want changed and why
+          </span>
+        </div>
+        <textarea
+          style={{
+            width: '100%',
+            minHeight: 100,
+            padding: 10,
+            fontSize: '0.78rem',
+            fontFamily: 'inherit',
+            border: '1px solid var(--border)',
+            borderRadius: 6,
+            background: 'var(--bg)',
+            color: 'var(--text)',
+            resize: 'vertical',
+            boxSizing: 'border-box',
+          }}
+          placeholder={`Example:\n• Intro: too abstract, ground it in a specific moment\n• Para 3: the Artemis story is the right one but needs more detail on why it was hard\n• Tone overall: sounds a bit formal, loosen it up`}
+          value={notes}
+          onChange={e => { setNotes(e.target.value); setDirty(true); }}
+        />
+        {processingFeedback && (
+          <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4 }}>
+            Running /blog-revise in background — the draft will update when done.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Blog Card ───────────────────────────────────────────────────
+
+function BlogCard({
+  post,
+  onUpdateStatus,
+  onUpdatePost,
+}: {
+  post: BlogPost;
+  onUpdateStatus: (id: string, status: BlogPostStatus) => void;
+  onUpdatePost: (id: string, updates: { content?: string; notes?: string }) => Promise<boolean>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [generatingTask, setGeneratingTask] = useState<string | null>(null);
+  const [feedbackTask, setFeedbackTask] = useState<string | null>(null);
+
+  const isPublished = post.status === 'published';
+
+  const handleGenerate = async (id: string) => {
+    const res = await fetch(`http://localhost:8000/api/blog-posts/${id}/generate`, { method: 'POST' });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to start generation' }));
+      alert(err.detail);
+      return;
+    }
+    const data = await res.json();
+    setGeneratingTask(data.task_id);
+    alert(`Draft generation started (task: ${data.task_id}). The content will appear once the skill completes.`);
+  };
+
+  const handleProcessFeedback = async (id: string) => {
+    // Save current notes first, then dispatch
+    const res = await fetch(`http://localhost:8000/api/blog-posts/${id}/process-feedback`, { method: 'POST' });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to start feedback processing' }));
+      alert(err.detail);
+      return;
+    }
+    const data = await res.json();
+    setFeedbackTask(data.task_id);
+  };
+
+  return (
+    <div className={`blog-card ${expanded ? 'expanded' : ''}`}>
+      <div className="blog-card-header" onClick={() => setExpanded(e => !e)}>
+        <div className="blog-card-left">
+          <span className="blog-card-title">{post.title}</span>
+          {post.summary && (
+            <span className="blog-card-summary">{post.summary}</span>
+          )}
+          {post.tags.length > 0 && (
+            <div className="blog-card-tags">
+              {post.tags.map(tag => (
+                <span key={tag} className="blog-tag">{tag}</span>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="blog-card-right">
+          {post.platform && (
+            <span className="engagement-platform-label">{post.platform}</span>
+          )}
+          <BlogStatusBadge status={post.status} />
+          <span className="engagement-date">
+            {new Date(post.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          </span>
+          <span className="expand-chevron">{expanded ? '\u25B2' : '\u25BC'}</span>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="blog-card-body">
+          {/* Status picker */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <StatusPicker post={post} onUpdateStatus={onUpdateStatus} />
+            {(generatingTask || feedbackTask) && (
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                Task running in background…
+              </span>
+            )}
+          </div>
+
+          {/* Draft editor (hidden for published posts) */}
+          {!isPublished ? (
+            <DraftEditor
+              post={post}
+              onSave={onUpdatePost}
+              onGenerate={handleGenerate}
+              onProcessFeedback={handleProcessFeedback}
+            />
+          ) : (
+            <>
+              {post.published_url && (
+                <div className="contact-section">
+                  <h4>Published URL</h4>
+                  <a href={post.published_url} target="_blank" rel="noreferrer">
+                    {post.published_url}
+                  </a>
+                </div>
+              )}
+              {post.published_at && (
+                <div className="contact-section">
+                  <h4>Published</h4>
+                  <p>{new Date(post.published_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                </div>
+              )}
+              {post.content && (
+                <div className="contact-section">
+                  <h4>Content</h4>
+                  <div
+                    style={{
+                      padding: '10px 14px',
+                      border: '1px solid var(--border)',
+                      borderRadius: 6,
+                      background: 'var(--bg)',
+                      fontSize: '0.82rem',
+                      lineHeight: 1.7,
+                      maxHeight: 320,
+                      overflowY: 'auto',
+                    }}
+                    className="markdown-preview"
+                  >
+                    <ReactMarkdown>{post.content}</ReactMarkdown>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -206,7 +472,7 @@ function BlogSummary({ counts }: { counts: Record<string, number> }) {
 // ─── Blog Panel ──────────────────────────────────────────────────
 
 export function BlogPanel() {
-  const { posts, counts, loading, error, updateStatus } = useBlogPosts();
+  const { posts, counts, loading, error, updateStatus, updatePost } = useBlogPosts();
   const [filter, setFilter] = useState<BlogPostStatus | 'all'>('all');
 
   const filtered = filter === 'all' ? posts : posts.filter(p => p.status === filter);
@@ -263,6 +529,7 @@ export function BlogPanel() {
               key={post.id}
               post={post}
               onUpdateStatus={updateStatus}
+              onUpdatePost={updatePost}
             />
           ))}
         </div>

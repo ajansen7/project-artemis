@@ -38,14 +38,10 @@ export function useBlogPosts() {
   }, [fetchPosts]);
 
   const updateStatus = useCallback(async (id: string, status: BlogPostStatus) => {
-    const updateData: Record<string, unknown> = { status };
-    if (status === 'published') {
-      updateData.published_at = new Date().toISOString();
-    }
-
+    if (status === 'published') return false; // published is managed by the blogger skill only
     const { error: err } = await supabase
       .from('blog_posts')
-      .update(updateData)
+      .update({ status })
       .eq('id', id);
 
     if (err) {
@@ -53,9 +49,25 @@ export function useBlogPosts() {
       return false;
     }
 
-    setPosts(prev =>
-      prev.map(p => p.id === id ? { ...p, status, ...(status === 'published' ? { published_at: new Date().toISOString() } : {}) } : p)
-    );
+    setPosts(prev => prev.map(p => p.id === id ? { ...p, status } : p));
+    return true;
+  }, []);
+
+  const updatePost = useCallback(async (
+    id: string,
+    updates: { content?: string; notes?: string; status?: BlogPostStatus }
+  ) => {
+    const res = await fetch(`http://localhost:8000/api/blog-posts/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Save failed' }));
+      setError(err.detail || 'Save failed');
+      return false;
+    }
+    setPosts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
     return true;
   }, []);
 
@@ -67,5 +79,5 @@ export function useBlogPosts() {
     published: posts.filter(p => p.status === 'published').length,
   };
 
-  return { posts, counts, loading, error, updateStatus, refetch: fetchPosts };
+  return { posts, counts, loading, error, updateStatus, updatePost, refetch: fetchPosts };
 }

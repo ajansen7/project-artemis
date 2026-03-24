@@ -153,6 +153,11 @@ Write a full blog post draft aligned with identity and voice.
    - **Voice:** Follow `voice.md` strictly. Conversational, genuine, specific. No corporate speak.
    - **First person:** Write as the candidate, from their experience
    - **Specificity:** Reference real experiences, real tools, real outcomes. Vague = bad.
+   - **Images:** Place 1-3 image placeholders at natural visual breaks in the post (after the hook, mid-post at a key insight, and optionally at the close). Format each as a markdown blockquote:
+     ```
+     > 🎨 **Image placeholder** — [Nano Banana 2 prompt: <detailed generation prompt here>]
+     ```
+     The prompt should describe subject, composition, color palette, mood, and style. Match the tone of the post — use a clean, editorial style (not photorealistic, not corporate stock). Reference the specific concept or moment from the surrounding text so the image earns its placement. Example: `Nano Banana 2 prompt: A minimalist illustration of a person at a cluttered desk transforming into a clear whiteboard, soft blues and warm amber, flat design with subtle texture, editorial feel`
 6. Save draft to `output/blog/drafts/<slug>.md` with frontmatter:
    ```markdown
    ---
@@ -165,7 +170,11 @@ Write a full blog post draft aligned with identity and voice.
 
    Post content here...
    ```
-7. Update DB: `uv run python .claude/tools/db.py update-blog-post --id "..." --status "draft" --draft-path "output/blog/drafts/<slug>.md"`
+7. Update DB with content AND path (so the dashboard can display it without reading from disk):
+   ```bash
+   CONTENT=$(cat output/blog/drafts/<slug>.md)
+   uv run python .claude/tools/db.py update-blog-post --id "..." --status "draft" --draft-path "output/blog/drafts/<slug>.md" --content "$CONTENT"
+   ```
 8. Present the full draft for user review and editing
 
 **Quality bar:**
@@ -194,6 +203,35 @@ Publish a finalized draft via Chrome MCP.
    - Update DB: `uv run python .claude/tools/db.py update-blog-post --id "..." --status "published" --published-url "..."`
    - Log engagement: `uv run python .claude/tools/db.py add-engagement --action-type "blog_post" --platform "..." --target-url "..." --content "..." --status "posted"`
 6. Suggest follow-up engagement: "Consider sharing this in relevant LinkedIn groups or tagging people who might find it valuable."
+
+---
+
+### `/blog-revise <slug>` — Revise a Draft Using Saved Feedback
+
+Revise a draft using the revision notes the user has saved in the DB. Extracts voice/tone lessons and flags potential new interview stories for the anecdotes table.
+
+**Steps:**
+1. Look up the post in the DB: `uv run python .claude/tools/db.py list-blog-posts` — find by slug
+2. Fetch content and notes via the API: `GET http://localhost:8000/api/blog-post-content/<post_id>` for content; notes are in the DB record
+3. Read `voice.md` and `identity.md`
+4. Read `candidate_context.md` for cross-referencing personal stories
+5. **Revise the draft:** apply the notes as editorial directives
+   - Treat each note as a specific instruction — do not ignore any
+   - Maintain the author's voice throughout (voice.md rules)
+   - Never fabricate new experiences — only reorganize, reframe, or deepen existing ones
+6. **Extract voice lessons from the notes:** look for patterns that reveal tone or style preferences (e.g. "too formal", "too salesy", "needs more specificity"). For each lesson:
+   - Add a bullet to `voice.md` under a `## Revision Lessons` section (append, do not overwrite)
+   - Keep it short and actionable: "Avoid formal constructions like X — user prefers Y"
+7. **Flag potential new interview stories:** scan the revision notes for references to specific experiences, incidents, or decisions the user mentions that are NOT already in the anecdotes table
+   - Check anecdotes: `uv run python .claude/tools/db.py list-blog-posts` — actually query anecdotes via Supabase if accessible, otherwise note them for review
+   - If new stories are found, list them at the end of your response: "These notes mention experiences not in your storybank: [list]. Consider capturing them with `/practice add-story`."
+8. Save the revised draft: `uv run python .claude/tools/db.py update-blog-post --id "..." --content "..." --status "draft"`
+9. Present a summary of changes made and any voice lessons extracted
+
+**Quality bar:**
+- Every note must be addressed — if a note is ambiguous, make the most charitable interpretation
+- The revised draft must still pass the voice.md read-aloud test
+- Do not over-revise — honor the parts the user did not annotate
 
 ---
 
