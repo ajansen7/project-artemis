@@ -86,7 +86,7 @@ echo "Starting services..."
 start_window "api" "uv run uvicorn api.server:app --reload --host 0.0.0.0 --port 8000"
 
 if [ "$SKIP_FRONTEND" = false ]; then
-  start_window "frontend" "cd frontend && npm run dev"
+  start_window "frontend" "cd frontend && npm run dev -- --host 0.0.0.0"
 fi
 
 # The handler runs from channels/ so it picks up the Telegram plugin from
@@ -96,10 +96,19 @@ start_window "telegram" "cd channels && claude --add-dir $PROJECT_ROOT --dangero
 
 # ─── Summary ─────────────────────────────────────────────────────
 
+LOCAL_IP=$(ipconfig getifaddr en0 2>/dev/null || ip route get 1 2>/dev/null | awk '{print $7; exit}' || echo "")
+
 echo ""
 echo "Artemis is running:"
 echo "  API:       http://localhost:8000"
 [ "$SKIP_FRONTEND" = false ] && echo "  Dashboard: http://localhost:5173"
+if [ -n "$LOCAL_IP" ]; then
+  echo ""
+  echo "On your local network:"
+  echo "  API:       http://$LOCAL_IP:8000"
+  [ "$SKIP_FRONTEND" = false ] && echo "  Dashboard: http://$LOCAL_IP:5173"
+fi
+echo ""
 echo "  Telegram:  handler session (plugin)"
 echo ""
 echo "Attach to tmux:  tmux attach -t $SESSION"

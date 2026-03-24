@@ -7,14 +7,23 @@ This guide walks you through setting up Artemis from scratch, including all opti
 ## Prerequisites
 
 - **Python 3.11+** and **[uv](https://docs.astral.sh/uv/)**
+  ```bash
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  ```
 - **Node.js 18+** and **npm** (for the dashboard)
-- **[Claude Code](https://docs.anthropic.com/en/docs/claude-code)** (`npm install -g @anthropic-ai/claude-code`)
+- **[Bun](https://bun.sh)** runtime (used by the channels webhook layer)
+  ```bash
+  curl -fsSL https://bun.sh/install | bash
+  ```
+- **[Claude Code](https://docs.anthropic.com/en/docs/claude-code)**
+  ```bash
+  npm install -g @anthropic-ai/claude-code
+  ```
 - **tmux** (`brew install tmux`)
 - **Supabase** project ([supabase.com](https://supabase.com), free tier works)
 
 Optional:
 - **LibreOffice** for PDF resume generation: `brew install --cask libreoffice`
-- **[Bun](https://bun.sh)** runtime (only if working with the legacy webhook channel)
 
 ---
 
@@ -90,6 +99,19 @@ This creates a tmux session called `artemis` with three windows:
 | `api` | FastAPI (port 8000) | Backend: scheduler, task management, relay queue |
 | `frontend` | Vite (port 5173) | React dashboard |
 | `telegram` | Claude CLI session | Persistent Telegram handler (if configured) |
+
+The startup output shows both localhost and local-network URLs:
+```
+Artemis is running:
+  API:       http://localhost:8000
+  Dashboard: http://localhost:5173
+
+On your local network:
+  API:       http://192.168.1.x:8000
+  Dashboard: http://192.168.1.x:5173
+```
+
+Open the local-network URL on your phone or any device on the same Wi-Fi to access the dashboard without any extra configuration.
 
 Useful commands:
 ```bash
@@ -176,11 +198,23 @@ The Telegram plugin is configured to only load in the handler session (not your 
 
 These enable the `/inbox` skill (scanning for recruiter emails, interview scheduling, follow-up drafting).
 
-Gmail and Calendar are Claude.ai OAuth integrations. They are configured through Claude Code's settings, not in this project.
+Gmail and Calendar are Claude.ai OAuth integrations added directly through Claude Code.
 
-1. In Claude Code, go to Settings and enable Gmail and Google Calendar integrations
-2. Authorize with your Google account when prompted
-3. Verify: run `/inbox` and confirm it can search your email
+1. In a Claude Code session, run:
+   ```
+   /mcp
+   ```
+   This opens the MCP management panel.
+
+2. Search for **Gmail** and **Google Calendar** in the integrations list and click **Connect** on each.
+
+3. Complete the Google OAuth flow in the browser window that opens. You'll be asked to grant read/compose access to Gmail and read/write access to Calendar.
+
+4. Verify the connection — in Claude Code, ask:
+   ```
+   List my Gmail labels
+   ```
+   If it returns label names, the integration is live. Then run `/inbox` to confirm the skill works end-to-end.
 
 These integrations are only available in interactive Claude sessions (not headless `-p` mode). Scheduled jobs that need Gmail/Calendar run in interactive mode automatically.
 
@@ -190,19 +224,33 @@ These integrations are only available in interactive Claude sessions (not headle
 
 This enables the `/linkedin` and `/blogger` skills (LinkedIn browsing, engagement drafting, blog publishing).
 
-1. Install the [Claude in Chrome extension](https://chromewebstore.google.com/detail/claude-in-chrome)
-2. In Claude Code, enable it: Settings > Chrome integration
-3. Verify: run `/linkedin` and confirm it can navigate to LinkedIn
+### Install the extension
+
+1. Install [Claude in Chrome](https://chromewebstore.google.com/detail/claude-in-chrome) from the Chrome Web Store
+2. Click the extension icon in Chrome's toolbar and sign in with the same Anthropic account you use for Claude Code
+3. Make sure Chrome is open and the extension is active before starting a Claude Code session that needs it
+
+### Connect it to Claude Code
+
+4. In a Claude Code session, run `/mcp` and look for **Claude in Chrome** in the integrations list, then enable it
+
+   Alternatively, Claude Code auto-detects the extension when Chrome is open — you'll see `mcp__claude-in-chrome__*` tools available in sessions where the extension is running.
+
+5. Verify: in Claude Code, ask Claude to navigate to a URL. If it can control the browser tab, the connection is working.
+
+6. Run `/linkedin` to confirm the full skill works.
+
+**Note:** Chrome must be open with the extension active for browser tools to work. If you see "Extension not found" errors, reload the extension from `chrome://extensions` or restart Chrome.
 
 ---
 
 ## Optional: Supabase MCP
 
-Direct database access for running migrations, ad-hoc queries, and schema changes.
+Direct database access for running migrations, ad-hoc queries, and schema changes without leaving Claude Code.
 
-1. In Claude Code, go to Settings and enable the Supabase integration
-2. Connect it to your Supabase project
-3. Verify: ask Claude to list your tables
+1. In a Claude Code session, run `/mcp` and connect the **Supabase** integration
+2. When prompted, paste your Supabase project URL and service role key (same values from your `.env`)
+3. Verify: ask Claude to list your tables — it should return the Artemis schema (jobs, contacts, applications, etc.)
 
 ---
 
@@ -233,7 +281,7 @@ See [automation.md](automation.md) for advanced configuration.
 After setup, verify each layer is working:
 
 - [ ] `uv run python .claude/tools/db.py status` -- Supabase connection
-- [ ] `http://localhost:5173` -- Dashboard loads
+- [ ] `http://localhost:5173` -- Dashboard loads (also test on your phone via the LAN URL printed by start.sh)
 - [ ] `http://localhost:8000/api/schedules` -- API is running
 - [ ] `/scout` in Claude Code -- skill execution works
 - [ ] `uv run python .claude/tools/push_to_telegram.py send --text "test"` -- Telegram delivery (if configured)
