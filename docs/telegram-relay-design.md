@@ -1,123 +1,111 @@
-# Telegram Integration Architecture
+# Artemis Channel Architecture
+
+This document describes how the API, scheduler, and orchestrator communicate.
+
+> **Note:** This document supersedes the old relay-queue design. The relay queue (`relay_ask.py`, `/api/relay/*`) has been removed and replaced with the push-based channel architecture below.
+
+---
 
 ## Overview
 
-Artemis uses Telegram as its primary mobile interface. The architecture has two communication paths:
+The core problem: when the API or scheduler wants to run a skill, how does the orchestrator (a long-running Claude session) find out immediately?
 
-**Outbound (Artemis to user):** Scheduled jobs call `push_to_telegram.py` directly via the Telegram Bot API to send curated, mobile-formatted messages. No proxy or webhook chain.
+**Old approach (retired):** APScheduler spawned a new `claude` CLI subprocess in a tmux window per task. The "Telegram handler" was a separate session that polled the relay queue for mid-job questions.
 
-**Inbound (user to Artemis):** A persistent Claude CLI session (the "Telegram handler") runs with the Telegram plugin, receiving all incoming messages. It dispatches skills, answers queries, and routes relay replies.
+**Current approach:** A single long-running orchestrator session handles everything. Tasks arrive via a push channel — no polling, no spawning new processes.
 
-## Architecture Diagram
+---
+
+## Architecture
 
 ```
-Scheduled Job (Claude CLI in tmux)
-  │
-  ├─ push_to_telegram.py ──► Telegram Bot API ──► User's Phone
-  │
-  └─ relay_ask.py ──► POST /api/relay/ask
-                         │
-                         ├─ Stores question in RelayQueue
-                         └─ Sends to Telegram via Bot API
-                                     │
-                                     ▼
-                              User replies on Telegram
-                                     │
-                                     ▼
-                         Telegram Handler Session
-                         (receives via plugin getUpdates)
-                                     │
-                         GET /api/relay/pending → match token
-                         POST /api/relay/reply → deposit answer
-                                     │
-                                     ▼
-                         relay_ask.py polls /api/relay/answer/{token}
-                         Gets answer → prints to stdout → job continues
+UI / Scheduler
+      │
+      ▼
+ POST /api/run-skill   (or schedule fires, or blog/apply route queues a task)
+      │
+      ├── INSERT INTO task_queue (status = "queued")
+      │
+      └── POST http://127.0.0.1:8790/task
+                    │
+                    ▼
+         artemis-channel (Bun MCP server)
+         channels/artemis-channel/index.ts
+                    │
+                    │  notifications/claude/channel
+                    ▼
+         Orchestrator session (Claude Code, long-running)
+         .claude/agents/artemis-orchestrator.md
+                    │
+                    ├── Skill tool: executes the skill
+                    ├── db.py update-task --status complete
+                    └── push_to_telegram.py → User's Phone
 ```
+
+---
 
 ## Components
 
-### 1. `push_to_telegram.py` (`.claude/tools/push_to_telegram.py`)
+### task_queue (Supabase)
 
-CLI tool for sending formatted messages directly via Bot API.
+Every task — whether queued from the UI, a schedule, or an API route — gets inserted into `task_queue` first. This table is the durable execution bus. If the channel is down, tasks wait here and can be recovered.
 
-```bash
-uv run python .claude/tools/push_to_telegram.py summary \
-  --job-name "Morning Scout" --status success \
-  --body "Found 3 new roles..."
+Schema: `id, name, skill, skill_args, source, status, output_summary, error, created_at, started_at, ended_at, schedule_id`
 
-uv run python .claude/tools/push_to_telegram.py question \
-  --job-name "Morning Scout" --token abc123 \
-  --question "Save all 8 jobs or filter to top 5?"
+### artemis-channel (MCP server)
 
-echo "long content" | uv run python .claude/tools/push_to_telegram.py send --stdin
+A Bun/TypeScript MCP server running at `http://127.0.0.1:8790`. It:
+- Accepts `POST /task` — fires a `notifications/claude/channel` event into Claude
+- Accepts `POST /notify` — generic notification (schedule fired, etc.)
+- Connects to Claude via MCP stdio transport (started as a subprocess by Claude Code via `.mcp.json`)
+
+Claude Code loads it via `--dangerously-load-development-channels server:artemis-channel`. The `start.sh` script automatically confirms the one-time local-development prompt.
+
+### Orchestrator (Claude Code session)
+
+A single long-running Claude session with two channel sources:
+- `plugin:telegram@claude-plugins-official` — receives Telegram messages from the user
+- `server:artemis-channel` — receives task events from the API
+
+When a task event arrives, the orchestrator:
+1. Parses the task JSON (id, skill, skill_args, name, source)
+2. Executes the skill via the `Skill` tool
+3. Updates `task_queue` via `db.py update-task`
+4. Sends a summary to Telegram via `push_to_telegram.py`
+
+### API notify helper (api/modules/channel.py)
+
+Every route that inserts into `task_queue` calls this after the insert:
+
+```python
+async def notify_task(task: dict) -> None:
+    """Fire-and-forget POST to the orchestrator channel."""
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            await client.post("http://127.0.0.1:8790/task", json=task)
+    except Exception:
+        pass  # non-fatal — task remains in DB
 ```
 
-### 2. `relay_ask.py` (`.claude/tools/relay_ask.py`)
+The POST is fire-and-forget with a 2s timeout. If the channel is down, the task remains in Supabase.
 
-Blocking CLI tool for subprocesses that need user input:
+---
 
-```bash
-uv run python .claude/tools/relay_ask.py \
-  --job-name "Morning Scout" --skill "scout" \
-  --question "Found 8 jobs. Save all or filter?" \
-  --timeout 300
-```
+## Telegram Communication
 
-- Polls `/api/relay/answer/{token}` every 3 seconds
-- Prints answer to stdout on success
-- Prints `RELAY_TIMEOUT` on expiry (exit 0, not 1)
+**Outbound (Artemis to phone):** After each task completes (or at any point during execution), the orchestrator calls `push_to_telegram.py` to send a summary via the Telegram Bot API. This is a direct API call — no relay or proxy.
 
-### 3. Telegram Handler Session (`.claude/agents/telegram-handler.md`)
+**Inbound (phone to orchestrator):** The Telegram plugin delivers messages directly into the orchestrator's context as channel events. The orchestrator handles them inline — dispatching skills, answering queries, checking the pipeline.
 
-A persistent Claude CLI session that owns the Telegram plugin (sole `getUpdates` consumer).
+There is no relay queue. The orchestrator can ask follow-up questions directly via Telegram mid-task if needed.
 
-**Capabilities:**
-- Dispatch skills via `POST /api/run-skill`
-- Answer quick queries by running `db.py` directly
-- Route relay replies by checking `/api/relay/pending` and posting to `/api/relay/reply`
+---
 
-**Launched by `scripts/start.sh`:**
-```bash
-claude --agent telegram-handler --dangerously-skip-permissions \
-  --settings '{"enabledPlugins":{"telegram@claude-plugins-official":true}}'
-```
+## Resilience
 
-### 4. RelayQueue (`api/server.py`)
-
-In-memory store with 5-minute timeout. Thread-safe via `threading.Lock`.
-
-- `ask(job_name, skill, question) -> token` (12-char hex)
-- `get_answer(token) -> RelayEntry` (checks expiry)
-- `reply(token, answer) -> bool` (False if expired)
-- `pending() -> list[RelayEntry]` (unanswered, unexpired)
-- `cleanup()` prunes entries older than 2x timeout
-
-### 5. API Endpoints (`api/server.py`)
-
-| Endpoint | Called by | Purpose |
-|----------|-----------|---------|
-| `POST /api/relay/ask` | `relay_ask.py` | Store question, send to Telegram |
-| `GET /api/relay/answer/{token}` | `relay_ask.py` (polling) | Check for answer |
-| `GET /api/relay/pending` | Telegram handler | List unanswered questions |
-| `POST /api/relay/reply` | Telegram handler | Deposit user's answer |
-
-## Plugin Ownership
-
-The Telegram plugin uses long-polling (`getUpdates`). Only one consumer can poll at a time.
-
-- `.claude/settings.json` has `"enabledPlugins": {}` (empty) so the main interactive session does NOT load the plugin
-- The handler session enables it via `--settings '{"enabledPlugins":{"telegram@claude-plugins-official":true}}'`
-- This ensures the handler is the sole consumer
-
-## Timeout Behavior
-
-- Default: 5 minutes
-- On timeout: `relay_ask.py` prints `RELAY_TIMEOUT`, subprocess proceeds with safest default
-- Expired tokens reject late replies with HTTP 410
-
-## Limitations
-
-- **Handler session can hit context limits.** It's stateless (all state in API + Supabase), so restarting is safe. Long-term: add a watchdog.
-- **Reply routing is sequential.** The handler matches replies to the most recent pending question. Multiple concurrent relay questions could cause mismatches.
-- **In-memory queue.** Server restart loses pending questions. Acceptable since questions have short timeouts.
+| Scenario | Behavior |
+|----------|----------|
+| artemis-channel is down | Tasks queue in Supabase. Orchestrator picks them up on next Telegram interaction or manual `db.py next-task` |
+| Orchestrator restarts | Tasks remain in `task_queue` with `status = "queued"`. On restart, orchestrator can claim them |
+| API server down | Tasks can't be inserted. User sees error in UI |
+| Telegram down | Orchestrator still executes tasks; summaries fail silently |

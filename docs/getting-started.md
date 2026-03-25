@@ -42,7 +42,7 @@ cd frontend && npm install && cd ..
 ## Step 2: Supabase Setup
 
 1. Create a project at [supabase.com](https://supabase.com)
-2. Go to the SQL Editor and run migrations in order: `db/migrations/001_*.sql` through `db/migrations/016_*.sql`
+2. Go to the SQL Editor and run migrations in order: `db/migrations/001_*.sql` through `db/migrations/017_*.sql`
 3. Configure credentials:
 
 ```bash
@@ -96,9 +96,9 @@ This creates a tmux session called `artemis` with three windows:
 
 | Window | Service | What It Does |
 |--------|---------|-------------|
-| `api` | FastAPI (port 8000) | Backend: scheduler, task management, relay queue |
+| `api` | FastAPI (port 8000) | Backend: scheduler, task queue, PDF generation |
 | `frontend` | Vite (port 5173) | React dashboard |
-| `telegram` | Claude CLI session | Persistent Telegram handler (if configured) |
+| `orchestrator` | Claude CLI session | Unified Telegram interface + task executor |
 
 The startup output shows both localhost and local-network URLs:
 ```
@@ -180,17 +180,17 @@ uv run python .claude/tools/push_to_telegram.py send --text "Hello from Artemis!
 
 You should see the message on your phone.
 
-### 5e. Start the Telegram Handler
+### 5e. Start the Orchestrator
 
-The handler is started automatically by `./scripts/start.sh`. It runs as a persistent Claude session with the Telegram plugin enabled, listening for your messages.
+The orchestrator is started automatically by `./scripts/start.sh`. It runs as a single long-running Claude session that handles both Telegram messages and skill execution. There is no separate "Telegram handler" — the orchestrator does both.
 
 Once running, you can message your bot from Telegram:
 - `/scout` -- kicks off a job scouting run
 - `/inbox` -- scans Gmail for recruiter activity
 - `/status` -- shows your pipeline overview
-- Reply to any job question and it gets relayed back to the running task
+- `/prep <company>` -- generates interview prep for a company
 
-The Telegram plugin is configured to only load in the handler session (not your main interactive session) to avoid polling conflicts. This is controlled by `.claude/settings.json` -- the `enabledPlugins` section should be empty, and the handler's launch command passes the plugin via `--settings`.
+The Telegram plugin is enabled in `.claude/settings.json` so it loads automatically in the orchestrator session. Your main interactive Claude session does not use the Telegram plugin — only the orchestrator does.
 
 ---
 
@@ -284,8 +284,9 @@ After setup, verify each layer is working:
 - [ ] `http://localhost:5173` -- Dashboard loads (also test on your phone via the LAN URL printed by start.sh)
 - [ ] `http://localhost:8000/api/schedules` -- API is running
 - [ ] `/scout` in Claude Code -- skill execution works
+- [ ] `curl -X POST http://127.0.0.1:8790/notify -H "Content-Type: application/json" -d '{"message":"ping"}'` -- artemis-channel is up (if services running)
 - [ ] `uv run python .claude/tools/push_to_telegram.py send --text "test"` -- Telegram delivery (if configured)
-- [ ] Send `/status` from Telegram -- handler responds (if configured)
+- [ ] Send `/status` from Telegram -- orchestrator responds (if configured)
 
 ---
 
@@ -300,15 +301,18 @@ Check `.env` has the correct `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. The
 ### Scheduled jobs don't run
 - Verify the API server is running: `curl http://localhost:8000/api/schedules`
 - Check schedules are enabled in the Schedules tab
-- Check tmux: `tmux attach -t artemis`
+- Check that the orchestrator is running: `tmux attach -t artemis` and look for the `orchestrator` window
+- Check the task queue: `uv run python .claude/tools/db.py list-tasks --status queued`
 
 ### Telegram messages not arriving
 - Verify bot token: `uv run python .claude/tools/push_to_telegram.py send --text "test"`
-- Check the handler session is running: look for the `telegram` window in tmux
-- Make sure `enabledPlugins` in `.claude/settings.json` is empty (the handler manages the plugin)
+- Check the orchestrator is running: look for the `orchestrator` window in tmux
+- Confirm the Telegram plugin is listed: the orchestrator startup line should include `--channels plugin:telegram@claude-plugins-official`
+
+### Tasks stuck in "queued"
+- Check the artemis-channel is running: `curl -X POST http://127.0.0.1:8790/notify -H "Content-Type: application/json" -d '{"message":"test"}'` — should return "ok"
+- If the channel is down, restart with `./scripts/stop.sh && ./scripts/start.sh`
+- Tasks remain in Supabase even if the channel is down; the orchestrator will pick them up on next interaction
 
 ### Gmail/Calendar not available in scheduled jobs
-These skills require interactive Claude sessions. The scheduler handles this automatically by running inbox-related skills in interactive mode. If you see OAuth errors, verify the integrations are enabled in Claude Code settings.
-
-### Two sessions fighting for Telegram
-Only one process can poll Telegram's `getUpdates` at a time. If both your main Claude session and the handler are trying to use the Telegram plugin, you'll see missed messages. The fix: ensure `.claude/settings.json` has `"enabledPlugins": {}` (empty). Only the handler session should have the plugin, passed via its `--settings` flag.
+These skills require an interactive Claude session with the Gmail/Calendar MCP connected. Verify the integrations are enabled in Claude Code's `/mcp` settings for your main interactive session. Scheduled jobs run through the orchestrator, which inherits MCP settings from the project's `.mcp.json`.

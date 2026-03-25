@@ -3,7 +3,7 @@
 import argparse
 import sys
 
-from db_modules.jobs import add_job, list_jobs, update_job, get_job, save_application, mark_submitted, score_job, merge_jobs
+from db_modules.jobs import add_job, list_jobs, update_job, get_job, save_application, mark_submitted, score_job, merge_jobs, find_job
 from db_modules.companies import add_company, list_companies
 from db_modules.contacts import batch_add_contacts, update_contact
 from db_modules.batch import batch_update, batch_add
@@ -67,6 +67,13 @@ def main():
     p.add_argument("--id", required=True)
     p.add_argument("--score", type=int, required=True, help="Match score 0-100")
     p.set_defaults(func=lambda args: score_job(args))
+
+    # find-job
+    p = subparsers.add_parser("find-job",
+                               help="Search for jobs by company+title. Returns JSON. Use before add-job to check for duplicates and rejected entries.")
+    p.add_argument("--company", default=None, help="Company name (partial match, case-insensitive)")
+    p.add_argument("--title", default=None, help="Title fragment (partial match, case-insensitive)")
+    p.set_defaults(func=find_job)
 
     # merge-jobs
     p = subparsers.add_parser("merge-jobs", help="Merge two jobs: keep one, absorb the other")

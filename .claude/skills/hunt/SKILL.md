@@ -47,7 +47,7 @@ Search the web for job opportunities that match the candidate's profile.
 - Adjacent roles: titles the candidate might not think of
 - Career pages: target company careers pages
 
-**Important:** Cast a wide net. Downstream analysis filters.
+**Important:** Cast a wide net. Downstream analysis filters. Both `add-job` and `batch-add` automatically deduplicate by URL and by company+title — jobs already in the pipeline (including rejected ones) are never re-added. If a job appears on both LinkedIn and Greenhouse, the second source is silently skipped.
 
 **Batch add (preferred for multiple jobs):**
 ```bash

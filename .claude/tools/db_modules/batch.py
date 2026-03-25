@@ -89,6 +89,8 @@ def batch_add(args):
         print("ERROR: Expected a JSON array")
         sys.exit(1)
 
+    TERMINAL_STATUSES = {"rejected", "not_interested", "deleted"}
+
     ok, skipped, fail = 0, 0, 0
     for item in jobs_data:
         title = item.get("title")
@@ -100,8 +102,25 @@ def batch_add(args):
 
         url = item.get("url", "")
         if url:
-            existing = sb.table("jobs").select("id").eq("url", url).execute()
+            existing = sb.table("jobs").select("id, status").eq("url", url).execute()
             if existing.data:
+                existing_status = existing.data[0].get("status", "")
+                if existing_status in TERMINAL_STATUSES:
+                    print(f"⚠️  Skipping '{title}' at {company} — already exists with status '{existing_status}'")
+                skipped += 1
+                continue
+
+        # No URL or URL didn't match — check by company+title to avoid duplicates
+        companies_res = sb.table("companies").select("id").ilike("name", f"%{company}%").execute()
+        company_ids = [c["id"] for c in (companies_res.data or [])]
+        if company_ids:
+            existing_q = sb.table("jobs").select("id, status").in_("company_id", company_ids).ilike("title", f"%{title[:40]}%").execute()
+            if existing_q.data:
+                existing_status = existing_q.data[0].get("status", "")
+                if existing_status in TERMINAL_STATUSES:
+                    print(f"⚠️  Skipping '{title}' at {company} — already exists with status '{existing_status}'")
+                else:
+                    print(f"ℹ️  Skipping '{title}' at {company} — already in pipeline (status: {existing_status})")
                 skipped += 1
                 continue
 
