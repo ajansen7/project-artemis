@@ -37,6 +37,14 @@ export function StatusFilter({ active, counts, onChange }: StatusFilterProps) {
           Skipped<span className="pill-count">{counts['not_interested']}</span>
         </button>
       )}
+      {(counts['rejected'] || 0) > 0 && (
+        <button
+          className={`filter-pill ${active === 'rejected' ? 'active' : ''}`}
+          onClick={() => onChange('rejected')}
+        >
+          Rejected<span className="pill-count">{counts['rejected']}</span>
+        </button>
+      )}
     </div>
   );
 }
