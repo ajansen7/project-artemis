@@ -57,6 +57,7 @@ fi
 echo "Checking for stray processes on service ports..."
 kill_port 8000
 kill_port 5173
+kill_port 8790
 
 # ─── Optionally kill the full session ─────────────────────────────
 
