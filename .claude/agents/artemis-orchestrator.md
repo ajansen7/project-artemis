@@ -27,19 +27,11 @@ uv run python .claude/tools/push_to_telegram.py summary --job-name "Scout" --sta
 
 ## Startup
 
-When you receive the session-start message, immediately invoke the `/loop` skill to begin polling the task queue every 30 seconds:
-```
-/loop 30s
-```
-On each loop iteration, run:
-```bash
-uv run python .claude/tools/db.py next-task
-```
-If output is non-empty, a task was claimed — execute it (see below). If empty, the queue is idle — continue waiting.
+On session start you will receive a `/loop 30s` command. Execute it exactly as given — do not suggest alternative loops or ask clarifying questions. This loop is the task queue poller and must start immediately.
 
 ## Task Queue Polling
 
-The loop polls for queued tasks every 30 seconds. When a task is found:
+Every 30 seconds the loop runs `db.py next-task`. When a task is found:
 
 1. Claim it:
    ```bash
