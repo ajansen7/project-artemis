@@ -30,8 +30,7 @@ Dependencies are declared in `pyproject.toml`. The `requirements.txt` file is a 
 ```
 .claude/
   agents/         # Agent definitions
-    artemis-orchestrator.md  # Job hunting orchestrator
-    telegram-handler.md      # Persistent Telegram interface
+    artemis-orchestrator.md  # Unified orchestrator: Telegram interface + task executor
   skills/         # Workflow skills
     hunt/           # Job scouting, pipeline management
     apply/          # Application materials generation
@@ -44,10 +43,9 @@ Dependencies are declared in `pyproject.toml`. The `requirements.txt` file is a 
     interview-coach/  # Coaching + drills (git submodule)
   tools/          # Shared Python CLI tools
     db.py             # Thin CLI shim — forwards to db_modules/
-    db_modules/       # Modular Supabase CRUD (jobs, companies, contacts, applications, engagements, blog)
+    db_modules/       # Modular Supabase CRUD (jobs, companies, contacts, applications, engagements, blog, tasks)
     generate_resume_docx.py  # Resume markdown -> DOCX/PDF via LibreOffice
     sync_contacts.py         # DB -> contacts markdown sync
-    relay_ask.py             # Telegram relay: ask user a question mid-job, block until reply
     push_to_telegram.py      # Send formatted messages to Telegram (direct Bot API)
   hooks/          # Session lifecycle hooks
     load-hot-memory.sh   # SessionStart: inject hot memory, detect fresh install
@@ -55,11 +53,12 @@ Dependencies are declared in `pyproject.toml`. The `requirements.txt` file is a 
     sync-extended.sh     # Stop: sync contacts, cleanup
   memory/hot/     # Hot memory files loaded every session (gitignored)
 channels/
-  artemis-webhook/  # (retired) MCP channel — replaced by telegram-handler agent
+  artemis-channel/  # MCP channel: pushes task events into the orchestrator (port 8790)
+  artemis-webhook/  # (retired)
 output/           # All generated artifacts (gitignored)
-api/              # FastAPI backend (task management, scheduler, PDF generation)
+api/              # FastAPI backend (scheduler, task queue, PDF generation)
 frontend/         # React dashboard (Pipeline, Networking, Engagement, Blog, Schedules tabs)
-db/migrations/    # Supabase schema migrations (001-016)
+db/migrations/    # Supabase schema migrations (001-017)
 docs/             # Documentation (automation guide, UI walkthrough)
 ```
 

@@ -4,6 +4,7 @@ import { STATUS_LABELS } from '../types';
 import { MarkdownModal } from './MarkdownModal';
 import { ApplicationModal } from './ApplicationModal';
 import { useTaskPoller } from '../hooks/useTasks';
+import { API_BASE } from '../lib/api';
 
 interface JobDetailProps {
   job: Job;
@@ -56,7 +57,7 @@ export function JobDetail({ job, onAdvance, onSkip, onDelete, onUpdate, onSetSta
       ? `Job ID: ${job.id}, URL: ${job.url}`
       : `Job ID: ${job.id}`;
     try {
-      const response = await fetch('http://localhost:8000/api/run-skill', {
+      const response = await fetch(`${API_BASE}/api/run-skill`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ skill: 'analyze', target }),
@@ -166,7 +167,7 @@ export function JobDetail({ job, onAdvance, onSkip, onDelete, onUpdate, onSetSta
             onClick={async () => {
               const companyName = job.companies?.name || 'Unknown';
               try {
-                const response = await fetch('http://localhost:8000/api/run-skill', {
+                const response = await fetch(`${API_BASE}/api/run-skill`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({

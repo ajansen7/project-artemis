@@ -11,14 +11,14 @@ function elapsed(startedAt: string, endedAt: string | null): string {
 }
 
 function StatusDot({ status }: { status: Task['status'] }) {
-  if (status === 'running') {
+  if (status === 'running' || status === 'queued') {
     return (
       <span style={{
         display: 'inline-block',
         width: 8, height: 8,
         borderRadius: '50%',
-        backgroundColor: 'var(--primary)',
-        animation: 'pulse 1.2s ease-in-out infinite',
+        backgroundColor: status === 'running' ? 'var(--primary)' : 'var(--text-secondary, #888)',
+        animation: status === 'running' ? 'pulse 1.2s ease-in-out infinite' : undefined,
         flexShrink: 0,
       }} />
     );
@@ -101,7 +101,9 @@ function TaskRow({ task, onKill }: { task: Task; onKill: () => void }) {
 }
 
 export function TasksPanel() {
-  const { tasks, fetchTasks, killTask, runningCount } = useTasks();
+  const { tasks, fetchTasks, cancelTask, activeCount } = useTasks();
+  const killTask = cancelTask;
+  const runningCount = activeCount;
   const [open, setOpen] = useState(false);
 
   // Auto-open when a task starts

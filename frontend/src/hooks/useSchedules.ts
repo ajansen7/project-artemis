@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import type { ScheduledJob } from '../types';
 
-const API = 'http://localhost:8000';
+import { API_BASE as API } from '../lib/api';
 
 export function useSchedules() {
   const [schedules, setSchedules] = useState<ScheduledJob[]>([]);

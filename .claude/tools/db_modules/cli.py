@@ -3,13 +3,14 @@
 import argparse
 import sys
 
-from db_modules.jobs import add_job, list_jobs, update_job, get_job, save_application, mark_submitted, score_job, merge_jobs
+from db_modules.jobs import add_job, list_jobs, update_job, get_job, save_application, mark_submitted, score_job, merge_jobs, find_job
 from db_modules.companies import add_company, list_companies
 from db_modules.contacts import batch_add_contacts, update_contact
 from db_modules.batch import batch_update, batch_add
 from db_modules.engagements import add_engagement, update_engagement, list_engagements
 from db_modules.blog import add_blog_post, update_blog_post, batch_import_blog_posts, list_blog_posts
 from db_modules.status import status
+from db_modules.tasks import next_task, update_task, list_tasks
 
 
 def main():
@@ -66,6 +67,13 @@ def main():
     p.add_argument("--id", required=True)
     p.add_argument("--score", type=int, required=True, help="Match score 0-100")
     p.set_defaults(func=lambda args: score_job(args))
+
+    # find-job
+    p = subparsers.add_parser("find-job",
+                               help="Search for jobs by company+title. Returns JSON. Use before add-job to check for duplicates and rejected entries.")
+    p.add_argument("--company", default=None, help="Company name (partial match, case-insensitive)")
+    p.add_argument("--title", default=None, help="Title fragment (partial match, case-insensitive)")
+    p.set_defaults(func=find_job)
 
     # merge-jobs
     p = subparsers.add_parser("merge-jobs", help="Merge two jobs: keep one, absorb the other")
@@ -177,6 +185,24 @@ def main():
     p.add_argument("--status", default=None)
     p.add_argument("--limit", type=int, default=25)
     p.set_defaults(func=list_blog_posts)
+
+    # next-task
+    p = subparsers.add_parser("next-task", help="Claim and return oldest queued task as JSON")
+    p.set_defaults(func=next_task)
+
+    # update-task
+    p = subparsers.add_parser("update-task", help="Update a task's status/output/error")
+    p.add_argument("--id", required=True, help="Task UUID")
+    p.add_argument("--status", default=None, choices=["queued", "running", "complete", "failed"])
+    p.add_argument("--output-summary", default=None, help="Summary of task output")
+    p.add_argument("--error", default=None, help="Error message if failed")
+    p.set_defaults(func=update_task)
+
+    # list-tasks
+    p = subparsers.add_parser("list-tasks", help="List recent tasks from queue")
+    p.add_argument("--status", default=None, choices=["queued", "running", "complete", "failed"])
+    p.add_argument("--limit", type=int, default=25)
+    p.set_defaults(func=list_tasks)
 
     args = parser.parse_args()
     if not args.command:

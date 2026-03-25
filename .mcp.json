@@ -1,3 +1,9 @@
 {
-  "mcpServers": {}
+  "mcpServers": {
+    "artemis-channel": {
+      "command": "bun",
+      "args": ["run", "--cwd", "channels/artemis-channel", "--silent", "start"]
+    }
+  }
 }
+

@@ -58,7 +58,7 @@ On a fresh clone, the session hook detects that no candidate profile exists and 
 ./scripts/start.sh
 ```
 
-This launches the API server, React dashboard, and Telegram handler in a single tmux session. See [docs/getting-started.md](docs/getting-started.md) for details.
+This launches the API server, React dashboard, and orchestrator in a single tmux session. See [docs/getting-started.md](docs/getting-started.md) for details.
 
 ---
 
@@ -147,15 +147,16 @@ Instead of running each skill manually, enable scheduled jobs and interact from 
 1. Set up Telegram (see docs/getting-started.md)
 2. Start services: ./scripts/start.sh
 3. Enable schedules in the Dashboard's Schedules tab
-4. Interact from Telegram: /scout, /inbox, reply to job questions
+4. Interact from Telegram: /scout, /inbox, /status
 ```
 
-With the scheduler and Telegram handler running, Artemis will:
+With the scheduler and orchestrator running, Artemis will:
 - Scout for new jobs each morning and push results to your phone
 - Check your inbox for recruiter emails
 - Draft LinkedIn engagement for your approval
-- Ask you questions mid-job and wait for your reply
 - Let you kick off tasks directly from Telegram
+
+The orchestrator is a single long-running Claude session that handles both Telegram messages and scheduled task execution — tasks arrive instantly via a push channel rather than polling.
 
 See **[docs/automation.md](docs/automation.md)** for scheduler details and **[docs/getting-started.md](docs/getting-started.md)** for Telegram setup.
 
@@ -281,50 +282,52 @@ Interactive wizard that walks you through building your candidate profile, searc
 
 ## How It Works
 
-Artemis is built around an **orchestrator agent** that coordinates focused skills, each owning a distinct workflow. Skills invoke shared **tools** (Python CLI scripts) for database and file operations. A **sync layer** keeps data consistent across skills -- insights from coaching update your resume, new leads from email get added to the pipeline, and engagement actions flow through an approval queue.
+Artemis is built around a single **long-running orchestrator** that coordinates focused skills, each owning a distinct workflow. Skills invoke shared **tools** (Python CLI scripts) for database and file operations. A **sync layer** keeps data consistent across skills -- insights from coaching update your resume, new leads from email get added to the pipeline, and engagement actions flow through an approval queue.
 
 A **two-tier memory system** keeps context compact: hot memory loads every session, extended memory loads on demand.
 
 ```
-                        Artemis Orchestrator
-                   .claude/agents/artemis-orchestrator.md
-                    Routes intent to the right skill
-         ┌──────────┬──────────┬──────────┬──────────────────┐
-         |          |          |          |                  |
-       hunt       apply     connect    profile      interview-coach
-     /scout      /analyze   /network   /context        /kickoff
-     /sync       /generate             /prep           /practice
-     /review     /submit                               /mock
-     /status                                           /debrief
+  Telegram / Dashboard / Scheduler
+           │
+           ▼
+  task_queue (Supabase)
+           │
+           ▼ (push via artemis-channel MCP)
+  ┌─────────────────────────────────────────┐
+  │   Artemis Orchestrator (long-running)   │
+  │   .claude/agents/artemis-orchestrator.md│
+  │   Routes intent to the right skill      │
+  └──────┬──────┬──────┬──────┬─────────────┘
+         |      |      |      |
+       hunt  apply connect profile  interview-coach
+     /scout /analyze /network /context  /kickoff
+     /sync  /generate         /prep     /practice
+     /review /submit                    /mock
+     /status                            /debrief
          |
       maintain
-     /dedupe
-     /cull
-         |          |          |          |                  |
-         ├──────────┴──────────┴──────────┤                  |
-         |          Sync Layer            |                  |
-         |   shared context + hooks       |                  |
-         ├──────────┬──────────┬──────────┤                  |
-         |          |          |          |                  |
-       inbox     linkedin   blogger      |                  |
-     /inbox      /linkedin  /blogger     |                  |
-         |          |          |          |                  |
-         └──────────┴──────────┴──────────┴──────────────────┘
-                           Shared Tools
-                     .claude/tools/db.py
-                     .claude/tools/generate_resume_docx.py
-                     .claude/tools/sync_contacts.py
-                                |
-                            Supabase
-           jobs . companies . contacts . applications
-           engagement_log . blog_posts
+     /dedupe /cull
+         |      |      |
+       inbox linkedin blogger
+     /inbox  /linkedin /blogger
+         |
+         └──────────────────────────────────┐
+                   Shared Tools             │
+             .claude/tools/db.py            │
+             generate_resume_docx.py        │
+             sync_contacts.py               │
+             push_to_telegram.py            │
+                       │                   │
+                   Supabase ───────────────┘
+      jobs . companies . contacts . applications
+      engagement_log . blog_posts . task_queue
 ```
 
 ### Data Flow Between Skills
 
 Artemis skills are designed to share information through Supabase and shared context files:
 
-- **Inbox** scans Gmail and routes new job leads into `jobs`, recruiter replies update job status
+- **Inbox** scans Gmail incrementally (tracks last-check timestamp) and handles two paths: updating active pipeline jobs (rejections, interview scheduling, confirmations) and adding new leads. Always deduplicates — rejected jobs are never re-added regardless of source
 - **LinkedIn** saves discovered jobs and contacts to the database, drafts engagement to `engagement_log`
 - **Blogger** captures ideas from any skill interaction, manages lifecycle in `blog_posts`
 - **Interview Coach** insights feed back into the master resume and candidate profile
@@ -383,7 +386,7 @@ The dashboard gives you a visual overview of your entire job search.
 ![Artemis Pipeline Dashboard](docs/screenshots/01-pipeline-overview.png)
 
 ```bash
-./scripts/start.sh    # starts API, frontend, and Telegram handler
+./scripts/start.sh    # starts API, frontend, and orchestrator
 ```
 
 Opens at `http://localhost:5173`. The dashboard has five tabs:
@@ -413,6 +416,7 @@ uv run python .claude/tools/db.py list-jobs
 uv run python .claude/tools/db.py list-jobs --status scouted
 uv run python .claude/tools/db.py get-job --id "uuid"
 uv run python .claude/tools/db.py update-job --id "uuid" --status "to_review"
+uv run python .claude/tools/db.py find-job --company "Anthropic" --title "PM"  # dedup lookup — returns JSON, all statuses
 uv run python .claude/tools/db.py merge-jobs --keep "keeper-uuid" --merge "duplicate-uuid"
 
 # Applications
@@ -425,6 +429,12 @@ uv run python .claude/tools/db.py list-companies
 
 # Pipeline
 uv run python .claude/tools/db.py status
+
+# Task queue (orchestrator execution tracking)
+uv run python .claude/tools/db.py list-tasks             # recent tasks
+uv run python .claude/tools/db.py list-tasks --status running
+uv run python .claude/tools/db.py next-task              # claim oldest queued task
+uv run python .claude/tools/db.py update-task --id "uuid" --status complete --output-summary "..."
 
 # Resume PDF
 uv run python .claude/tools/generate_resume_docx.py --job-id "uuid"
@@ -450,6 +460,7 @@ uv run python .claude/tools/sync_contacts.py --check  # diff only
 | `engagement_log` | LinkedIn/blog engagement actions with approval workflow |
 | `blog_posts` | Content lifecycle: idea, draft, review, published |
 | `scheduled_jobs` | Recurring automation: skill, cron schedule, enabled, run history |
+| `task_queue` | Execution log: queued/running/complete tasks with skill, args, output, and timing |
 
 ### Job Statuses
 
@@ -465,8 +476,7 @@ Side statuses: `not_interested` (with reason), `rejected`, `deleted`
 project-artemis/
   .claude/
     agents/
-      artemis-orchestrator.md         # Orchestrator -- routes to skills
-      telegram-handler.md             # Persistent Telegram session -- mobile interface
+      artemis-orchestrator.md         # Unified orchestrator: Telegram + task execution
     skills/
       hunt/                           # Pipeline discovery + management
         SKILL.md
@@ -503,7 +513,6 @@ project-artemis/
       generate_resume_docx.py         # Resume markdown to DOCX/PDF
       sync_contacts.py                # DB to contacts markdown
       push_to_telegram.py             # Send formatted messages to Telegram (Bot API)
-      relay_ask.py                    # Block until user replies via Telegram
     hooks/
       load-hot-memory.sh              # SessionStart: inject hot memory + fresh-install check
       check-context.sh                # PreToolUse: context freshness check
@@ -515,17 +524,22 @@ project-artemis/
         active_loops.md               # Current interview loops (gitignored)
         lessons.md                    # Operational best practices (gitignored)
         *.example.md                  # Templates for new users (committed)
+  channels/
+    artemis-channel/                  # MCP channel server: push task events into the orchestrator
+      index.ts                        # HTTP server (port 8790) + MCP stdio transport
   scripts/
-    start.sh                          # Start all services in tmux (API, frontend, Telegram)
+    start.sh                          # Start all services in tmux (API, frontend, orchestrator)
     stop.sh                           # Stop services and clean up
   output/                             # All generated artifacts (gitignored)
     applications/                     # Per-job: resume, cover letter, primer, form fills, PDF
     blog/drafts/                      # Blog post markdown drafts
     contacts_pipeline.md              # Generated contacts view
   api/
-    server.py                         # FastAPI -- task management, scheduler, PDF generation
+    server.py                         # FastAPI -- scheduler, task queue, PDF generation
+    modules/
+      channel.py                      # Fire-and-forget notify after task_queue inserts
   frontend/src/                       # React dashboard (Pipeline, Networking, Engagement, Blog, Schedules)
-  db/migrations/                      # Supabase SQL migrations (001-016)
+  db/migrations/                      # Supabase SQL migrations (001-017)
   CLAUDE.md                           # Python env + project layout instructions
   pyproject.toml                      # Python dependencies
   .env                                # Supabase credentials (not committed)

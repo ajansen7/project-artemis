@@ -11,7 +11,6 @@ from api.modules.config import logger
 from api.modules.scheduler import _load_all_schedules, scheduler
 from api.modules.routes.applications import router as applications_router
 from api.modules.routes.blog import router as blog_router
-from api.modules.routes.relay import router as relay_router
 from api.modules.routes.schedules import router as schedules_router
 from api.modules.routes.skills import router as skills_router
 from api.modules.routes.tasks import router as tasks_router
@@ -50,4 +49,3 @@ app.include_router(applications_router)
 app.include_router(blog_router)
 app.include_router(skills_router)
 app.include_router(schedules_router)
-app.include_router(relay_router)

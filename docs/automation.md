@@ -6,41 +6,37 @@ Artemis can run scheduled jobs automatically — scouting for jobs, checking you
 
 ## Overview
 
-The automation system has two parts:
+The automation system has three parts:
 
-1. **Scheduler** — APScheduler runs inside the FastAPI server, triggering skills on a cron schedule
-2. **Telegram handler** (optional) — a persistent Claude session that pushes results to your phone and lets you interact with running jobs
+1. **Scheduler** — APScheduler runs inside the FastAPI server, triggering skills on a cron schedule by inserting into `task_queue`
+2. **artemis-channel** — a local MCP server that pushes `task_queue` inserts into the orchestrator session instantly (no polling)
+3. **Orchestrator** (optional for Telegram) — a persistent Claude session that executes skills and pushes results to your phone
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│  FastAPI Server (api/server.py)                              │
-│                                                              │
-│  APScheduler                                                 │
-│    ├─ Daily Inbox Check ──────┐                              │
-│    ├─ Daily Job Scout ────────┤                              │
-│    ├─ Daily LinkedIn ─────────┤── tmux ── Claude CLI ──┐     │
-│    ├─ Networking Follow-ups ──┤                        │     │
-│    ├─ Interview Prep ─────────┤                        │     │
-│    ├─ Weekly Blog Ideas ──────┤                 push_to_tg   │
-│    └─ Publish Reminder ───────┘                   │    │     │
-│                                                   ▼    │     │
-│  Relay Queue ◄─────── relay_ask.py ◄─────────── Job    │     │
-│       │                                                │     │
-└───────┼────────────────────────────────────────────────┼─────┘
-        │                                                │
-        │              ┌─────────────────────────────┐   │
-        │              │  Telegram Handler Session    │   │
-        │              │  (.claude/agents/telegram-   │   │
-        │              │   handler.md)                │   │
-        ▼              │                              │   │
-  /api/relay/reply ◄───│  Receives user replies       │   │
-                       │  Dispatches new skills       │   │
-                       │  Answers quick queries       │   │
-                       └──────────┬──────────────────┘   │
-                                  │                      │
-                                  ▼                      │
-                           Your Phone ◄──────────────────┘
-                         (Telegram Bot)    (direct Bot API)
+UI / Dashboard
+      │
+      ▼
+POST /api/run-skill
+      │
+      ▼
+ task_queue (Supabase)
+      │
+      ▼ POST http://127.0.0.1:8790/task
+ artemis-channel MCP
+      │ (notifications/claude/channel)
+      ▼
+ Orchestrator session (long-running Claude)
+      │
+      ├── executes skill via Skill tool
+      ├── updates task_queue status
+      └── push_to_telegram.py → Your Phone
+
+
+APScheduler (FastAPI)
+      │
+      ├── fires cron trigger
+      ├── inserts into task_queue
+      └── notifies artemis-channel (same path as above)
 ```
 
 ---
@@ -49,9 +45,8 @@ The automation system has two parts:
 
 - **Artemis** fully set up (profile, Supabase, skills working)
 - **tmux** installed (`brew install tmux`)
-- For mobile notifications:
-  - **[Bun](https://bun.sh)** runtime (`curl -fsSL https://bun.sh/install | bash`)
-  - **Telegram** or **Discord** account for the chat bridge
+- **Bun** runtime (`curl -fsSL https://bun.sh/install | bash`) — needed by the artemis-channel
+- For mobile notifications: Telegram bot configured (see [getting-started.md](getting-started.md#optional-telegram-setup))
 
 ---
 
@@ -104,47 +99,55 @@ Open `http://localhost:5173` and click the **Schedules** tab. You'll see the def
 | `0 10 * * 1` | Every Monday at 10:00 AM |
 | `*/30 * * * *` | Every 30 minutes |
 
-Times are in your local timezone.
+Times are in your local timezone (America/Denver by default — change in `api/modules/scheduler.py`).
 
 ### How jobs execute
 
 Each scheduled job:
-1. Launches a Claude CLI instance in a tmux window (same as manual skill runs)
-2. Runs the skill (e.g., `/scout`, `/inbox`)
-3. On completion, updates `last_run_at` and `last_status` in the `scheduled_jobs` table
-4. If the webhook channel is running, POSTs a summary to it
+1. Inserts a row into `task_queue` (Supabase) with `status = "queued"`
+2. POSTs the task to `http://127.0.0.1:8790/task` (the artemis-channel)
+3. The artemis-channel MCP pushes the event into the orchestrator's context
+4. The orchestrator executes the skill immediately
+5. On completion, updates `task_queue` with `status = "complete"` and an output summary
+6. Pushes a brief summary to Telegram (if configured)
 
-You can monitor running jobs via `tmux attach -t artemis` or the TasksPanel in the dashboard.
+Task pickup is sub-second. If the artemis-channel is temporarily down, tasks remain in Supabase with `status = "queued"` and can be recovered.
+
+You can monitor tasks via the floating TasksPanel in the dashboard or by running:
+
+```bash
+uv run python .claude/tools/db.py list-tasks
+uv run python .claude/tools/db.py list-tasks --status running
+```
 
 ---
 
 ## Part 2: Telegram Integration
 
-This is optional. It enables push notifications to your phone, interactive mid-job questions, and the ability to kick off tasks from Telegram.
+This is optional. It enables push notifications to your phone and the ability to kick off tasks from Telegram.
 
 For full Telegram setup instructions, see [getting-started.md](getting-started.md#optional-telegram-setup).
 
 ### How it works
 
-Artemis uses two paths for Telegram communication:
+The orchestrator is a single Claude session that handles both Telegram and task execution:
 
-**Outbound (job to phone):** Scheduled jobs call `push_to_telegram.py` directly to send curated, mobile-formatted messages via the Telegram Bot API. The API server also sends a fallback notification on job completion.
+**Outbound (Artemis to phone):** After each task completes, the orchestrator calls `push_to_telegram.py` to send a summary via the Telegram Bot API. Direct sends from skills also use `push_to_telegram.py`.
 
-**Inbound (phone to Artemis):** A persistent Claude session (the "Telegram handler") runs with the Telegram plugin and receives all incoming messages. It can:
-- Dispatch skills (`/scout`, `/inbox`, etc.) via the API
-- Answer quick queries (pipeline status, running tasks)
-- Route relay replies back to jobs waiting for user input
+**Inbound (phone to Artemis):** The orchestrator listens for Telegram messages via the Telegram plugin. It dispatches skills, answers quick queries (pipeline status, running tasks), and responds directly.
 
-### Relay questions
+### Commands from Telegram
 
-When a scheduled job needs user input mid-run, it calls `relay_ask.py` which:
-1. Posts the question to the API's relay queue
-2. The API sends the question to Telegram via Bot API
-3. The user replies on Telegram
-4. The handler session routes the reply back via `/api/relay/reply`
-5. `relay_ask.py` (still polling) picks up the answer and the job continues
-
-Questions time out after 5 minutes. On timeout, the job proceeds with the safest default.
+| Message | Action |
+|---------|--------|
+| `/scout` | Run the scout skill |
+| `/inbox` | Check Gmail for recruiter activity |
+| `/status` | Pipeline overview |
+| `/review` | Triage the pipeline |
+| `/network` | Networking pipeline |
+| `/prep <company>` | Interview prep for a company |
+| `/blog-ideas` | Generate blog ideas |
+| `/blog-status` | Check blog drafts |
 
 ---
 
@@ -156,24 +159,22 @@ Questions time out after 5 minutes. On timeout, the job proceeds with the safest
 - Check that schedules are enabled in the Schedules tab
 - Check server logs for scheduler errors
 
-### Job fails immediately
+### Tasks stuck in "queued"
 
-- Ensure `claude` CLI is on PATH: `which claude`
-- Ensure tmux is installed: `which tmux`
-- Check the tmux session: `tmux attach -t artemis`
-- Look at `last_error` in the schedule card (expand to see)
+- Check that the artemis-channel is up: `curl -X POST http://127.0.0.1:8790/notify -H "Content-Type: application/json" -d '{"message":"test"}'` — should return "ok"
+- Check the orchestrator is running and shows `server:artemis-channel` in its channel list: `tmux attach -t artemis` and look at the `orchestrator` window header
+- If the orchestrator is running but the channel isn't listed, restart with `./scripts/stop.sh && ./scripts/start.sh`
 
 ### No Telegram notifications
 
 - Test direct send: `uv run python .claude/tools/push_to_telegram.py send --text "test"`
-- If that works but scheduled jobs don't send: check that `_RELAY_INSTRUCTIONS` are being injected (the job prompt should mention `push_to_telegram.py`)
-- Check the handler session is running: look for the `telegram` window in tmux
-- Verify bot is paired: `/telegram:access list`
+- Check the orchestrator is running: `tmux attach -t artemis` → `orchestrator` window
+- Verify bot is paired: `/telegram:access list` in the orchestrator session
 
-### Telegram handler not responding to messages
+### Orchestrator not responding to Telegram messages
 
-- Make sure `.claude/settings.json` has `"enabledPlugins": {}` (empty). The handler session passes the plugin via `--settings` flag so only it polls `getUpdates`.
-- Restart the handler: `./scripts/stop.sh && ./scripts/start.sh`
+- Check the orchestrator shows Telegram in its channel list: header should read `Listening for channel messages from: plugin:telegram@claude-plugins-official, server:artemis-channel`
+- Restart the orchestrator: `./scripts/stop.sh && ./scripts/start.sh`
 
 ---
 
@@ -189,19 +190,10 @@ Questions time out after 5 minutes. On timeout, the job proceeds with the safest
 | `DELETE` | `/api/schedules/{id}` | Delete a schedule |
 | `POST` | `/api/schedules/{id}/run-now` | Trigger immediately |
 
-### Relay endpoints
+### Task endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/api/relay/ask` | Subprocess posts a question, gets a token |
-| `GET` | `/api/relay/answer/{token}` | Subprocess polls for the user's reply |
-| `GET` | `/api/relay/pending` | Handler checks for pending questions |
-| `POST` | `/api/relay/reply` | Handler posts the user's answer back |
-
-### Skill execution
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/run-skill` | Start a skill (body: `{"skill": "scout", "target": "..."}`) |
-| `GET` | `/api/tasks` | List running tasks |
-| `GET` | `/api/tasks/{id}` | Get task status + output |
+| `POST` | `/api/run-skill` | Queue a skill (body: `{"skill": "scout", "target": "..."}`) |
+| `GET` | `/api/tasks` | List recent tasks |
+| `GET` | `/api/tasks/{id}` | Get task status + output summary |

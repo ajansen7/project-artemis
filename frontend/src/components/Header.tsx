@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { MarkdownModal } from './MarkdownModal';
+import { API_BASE } from '../lib/api';
 
 interface HeaderProps {
   counts: Record<string, number>;
@@ -14,7 +15,7 @@ export function Header({ counts }: HeaderProps) {
   const handleRunSkill = async (skill: string) => {
     setRunningSkill(skill);
     try {
-      const response = await fetch('http://localhost:8000/api/run-skill', {
+      const response = await fetch(`${API_BASE}/api/run-skill`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ skill }),

@@ -56,6 +56,7 @@ analysis_*.md
 .claude/skills/apply/references/form_defaults.md
 .claude/skills/interview-coach/coaching_state.md
 .claude/skills/blogger/references/
+.claude/skills/inbox/references/inbox_state.json
 .claude/memory/hot/*
 !.claude/memory/hot/*.example.md
 !.claude/memory/hot/*.example.json

@@ -6,14 +6,42 @@ from db_modules.client import sb
 from db_modules.helpers import _ensure_company
 
 
+TERMINAL_STATUSES = {"rejected", "not_interested", "deleted"}
+
+
 def add_job(args):
     """Add a job to the pipeline."""
     # Check for duplicate URL
     if args.url:
-        existing = sb.table("jobs").select("id").eq("url", args.url).execute()
+        existing = sb.table("jobs").select("id, status").eq("url", args.url).execute()
         if existing.data:
-            print(f"⚠️  Job already exists with this URL (id: {existing.data[0]['id']})")
+            existing_status = existing.data[0].get("status", "")
+            if existing_status in TERMINAL_STATUSES:
+                print(f"⚠️  Job already exists with status '{existing_status}' (id: {existing.data[0]['id']}) — not re-adding")
+            else:
+                print(f"⚠️  Job already exists with this URL (id: {existing.data[0]['id']}, status: {existing_status})")
             return
+
+    # No URL — check by company+title to prevent duplicate entries
+    if args.company and args.title:
+        companies_res = sb.table("companies").select("id").ilike("name", f"%{args.company}%").execute()
+        company_ids = [c["id"] for c in (companies_res.data or [])]
+        if company_ids:
+            existing_q = (
+                sb.table("jobs")
+                .select("id, title, status")
+                .in_("company_id", company_ids)
+                .ilike("title", f"%{args.title[:40]}%")
+                .execute()
+            )
+            if existing_q.data:
+                match = existing_q.data[0]
+                if match["status"] in TERMINAL_STATUSES:
+                    print(f"⚠️  Job '{match['title']}' at {args.company} already exists with status '{match['status']}' — not re-adding")
+                    return
+                else:
+                    print(f"⚠️  Job '{match['title']}' at {args.company} already in pipeline (id: {match['id']}, status: {match['status']}) — not re-adding")
+                    return
 
     # Ensure company exists and auto-target if score is high
     company_id = None
@@ -196,6 +224,51 @@ def mark_submitted(args):
     job_res = sb.table("jobs").update({"status": "applied"}).eq("id", args.id).execute()
     if job_res.data:
         print(f"✅ Job {args.id} status → applied")
+
+
+def find_job(args):
+    """Search for existing jobs by company name and/or title fragment.
+
+    Returns a JSON array so callers can check before adding.
+    Includes all statuses — the caller must decide what to do with rejected/deleted matches.
+    """
+    import json
+
+    company_ids = []
+    if args.company:
+        companies = sb.table("companies").select("id, name").ilike("name", f"%{args.company}%").execute()
+        company_ids = [c["id"] for c in (companies.data or [])]
+        if not company_ids:
+            # Company not in DB at all → no matching jobs
+            print(json.dumps([]))
+            return
+
+    query = sb.table("jobs").select("id, title, status, source, url, company_id, companies(name)")
+
+    if company_ids:
+        if len(company_ids) == 1:
+            query = query.eq("company_id", company_ids[0])
+        else:
+            query = query.in_("company_id", company_ids)
+
+    if getattr(args, "title", None):
+        query = query.ilike("title", f"%{args.title}%")
+
+    result = query.order("created_at", desc=True).execute()
+    jobs = result.data or []
+
+    output = [
+        {
+            "id": j["id"],
+            "title": j["title"],
+            "company": (j.get("companies") or {}).get("name", "Unknown"),
+            "status": j["status"],
+            "source": j.get("source", ""),
+            "url": j.get("url", ""),
+        }
+        for j in jobs
+    ]
+    print(json.dumps(output, indent=2))
 
 
 def score_job(args):
