@@ -87,9 +87,10 @@ if [ "$SKIP_FRONTEND" = false ]; then
 fi
 
 # The orchestrator is the unified Telegram interface + task executor.
-# It runs from the project root with the Telegram plugin loaded and
-# all skill directories available via the skills/ path.
-start_window "orchestrator" "claude --dangerously-skip-permissions --channels plugin:telegram@claude-plugins-official --append-system-prompt-file $PROJECT_ROOT/.claude/agents/artemis-orchestrator.md"
+# Passes an initial startup message via here-string to kick off task queue
+# polling. The Telegram plugin keeps the session alive after stdin closes.
+ORCHESTRATOR_STARTUP="Session started. Start polling the task queue for new work: invoke the /loop skill now to check every 30 seconds (e.g. /loop 30s). Continue listening for Telegram messages between iterations."
+start_window "orchestrator" "sh -c 'claude --dangerously-skip-permissions --channels plugin:telegram@claude-plugins-official --append-system-prompt-file $PROJECT_ROOT/.claude/agents/artemis-orchestrator.md <<< \"$ORCHESTRATOR_STARTUP\"'"
 
 # ─── Summary ─────────────────────────────────────────────────────
 

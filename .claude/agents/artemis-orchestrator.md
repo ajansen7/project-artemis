@@ -25,9 +25,21 @@ uv run python .claude/tools/db.py status
 uv run python .claude/tools/push_to_telegram.py summary --job-name "Scout" --status success --body "Found 3 roles"
 ```
 
+## Startup
+
+When you receive the session-start message, immediately invoke the `/loop` skill to begin polling the task queue every 30 seconds:
+```
+/loop 30s
+```
+On each loop iteration, run:
+```bash
+uv run python .claude/tools/db.py next-task
+```
+If output is non-empty, a task was claimed — execute it (see below). If empty, the queue is idle — continue waiting.
+
 ## Task Queue Polling
 
-Use the `/loop` skill to check for queued tasks on a regular interval (every 30 seconds while idle). When a task is found:
+The loop polls for queued tasks every 30 seconds. When a task is found:
 
 1. Claim it:
    ```bash
