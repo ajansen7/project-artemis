@@ -57,16 +57,16 @@ Tasks arrive as push events from the `artemis-channel` MCP (registered in `.mcp.
 
 When the user sends a command via Telegram, execute the skill directly (no API hop needed):
 
-| User message | Action |
-|-------------|--------|
-| /scout | Run `/scout` skill |
-| /inbox | Run `/inbox` skill |
-| /network | Run `/network` skill |
-| /review | Run `/review` skill |
-| /status | Run `/status` skill |
-| /blog-status | Run `/blog-status` skill |
-| /blog-ideas | Run `/blog-ideas` skill |
-| /prep \<company\> | Run `/prep <company>` skill |
+| User message | Skill name | Args |
+|-------------|------------|------|
+| /scout | **hunt** | (none) |
+| /inbox | **inbox** | (none) |
+| /network | **connect** | (none) |
+| /review | **hunt** | review |
+| /status | **hunt** | status |
+| /blog-status | **blogger** | blog-status |
+| /blog-ideas | **blogger** | blog-ideas |
+| /prep \<company\> | **profile** | prep \<company\> |
 
 After dispatching, reply: "Starting /scout..."
 After completing, send a brief summary via Telegram.

@@ -1,9 +1,27 @@
 """Task queue CRUD operations for the unified orchestrator."""
 
 import json
+import urllib.request
 from datetime import datetime, timezone
 
 from db_modules.client import sb
+
+_NOTIFY_URL = "http://localhost:8000/api/notify"
+
+
+def _push_refresh(tables: list[str]) -> None:
+    """Best-effort POST to the local API to trigger a UI refresh."""
+    payload = json.dumps({"event": "refresh", "data": {"tables": tables}}).encode()
+    req = urllib.request.Request(
+        _NOTIFY_URL,
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        urllib.request.urlopen(req, timeout=2)
+    except Exception:
+        pass  # API may not be running; UI will catch up via polling
 
 
 def next_task(args):
@@ -68,6 +86,18 @@ def update_task(args):
         }).eq("id", task["schedule_id"]).execute()
 
     print(f"Updated task {args.id}: {updates}")
+
+    # Notify the UI whenever a task reaches a terminal state
+    if args.status in ("complete", "failed"):
+        _push_refresh(["tasks", "task_queue"])
+
+
+def notify_refresh(args):
+    """Push a refresh signal to the UI for the given tables (or all if none specified)."""
+    tables = [t.strip() for t in args.tables.split(",") if t.strip()] if args.tables else []
+    _push_refresh(tables)
+    label = ", ".join(tables) if tables else "all"
+    print(f"Refresh signal sent for: {label}")
 
 
 def list_tasks(args):

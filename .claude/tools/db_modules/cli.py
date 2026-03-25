@@ -10,7 +10,7 @@ from db_modules.batch import batch_update, batch_add
 from db_modules.engagements import add_engagement, update_engagement, list_engagements
 from db_modules.blog import add_blog_post, update_blog_post, batch_import_blog_posts, list_blog_posts
 from db_modules.status import status
-from db_modules.tasks import next_task, update_task, list_tasks
+from db_modules.tasks import next_task, update_task, list_tasks, notify_refresh
 
 
 def main():
@@ -203,6 +203,14 @@ def main():
     p.add_argument("--status", default=None, choices=["queued", "running", "complete", "failed"])
     p.add_argument("--limit", type=int, default=25)
     p.set_defaults(func=list_tasks)
+
+    # notify-refresh
+    p = subparsers.add_parser("notify-refresh",
+                               help="Signal the UI to refresh specific tables (best-effort)")
+    p.add_argument("--tables", default="",
+                   help="Comma-separated table names (e.g. tasks,scheduled_jobs). "
+                        "Omit to trigger a full refresh.")
+    p.set_defaults(func=notify_refresh)
 
     args = parser.parse_args()
     if not args.command:

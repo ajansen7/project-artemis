@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import type { JobStatus } from './types';
 import { useJobs, useAllCounts } from './hooks/useJobs';
 import { useCompanies } from './hooks/useCompanies';
+import { useEvents } from './hooks/useEvents';
 import { Header } from './components/Header';
 import { StatusFilter } from './components/StatusFilter';
 import { JobTable } from './components/JobTable';
@@ -28,6 +29,7 @@ function readLocalStorage<T>(key: string, fallback: T, valid?: T[]): T {
 }
 
 function App() {
+  useEvents();
   const [view, setView] = useState<View>(() => readLocalStorage('artemis:view', 'pipeline', VALID_VIEWS));
   const [statusFilter, setStatusFilter] = useState<JobStatus | 'all'>(() => readLocalStorage<JobStatus | 'all'>('artemis:statusFilter', 'all'));
 

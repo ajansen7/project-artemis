@@ -31,6 +31,18 @@ export function useSchedules() {
     fetchSchedules();
   }, [fetchSchedules]);
 
+  // Refresh when Claude signals a schedules-table change via SSE
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const tables: string[] | undefined = (e as CustomEvent).detail?.tables;
+      if (!tables || tables.includes('scheduled_jobs') || tables.includes('schedules')) {
+        fetchSchedules();
+      }
+    };
+    window.addEventListener('artemis:refresh', handler);
+    return () => window.removeEventListener('artemis:refresh', handler);
+  }, [fetchSchedules]);
+
   // Mutations go through the API so APScheduler stays in sync
 
   const updateSchedule = useCallback(async (id: string, fields: Partial<ScheduledJob>) => {

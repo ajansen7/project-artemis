@@ -56,6 +56,18 @@ export function useTasks() {
     fetchTasks();
   }, [fetchTasks]);
 
+  // Refresh when Claude signals a task-table change via SSE
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const tables: string[] | undefined = (e as CustomEvent).detail?.tables;
+      if (!tables || tables.includes('tasks') || tables.includes('task_queue')) {
+        fetchTasks();
+      }
+    };
+    window.addEventListener('artemis:refresh', handler);
+    return () => window.removeEventListener('artemis:refresh', handler);
+  }, [fetchTasks]);
+
   const pollTask = useCallback(async (taskId: string): Promise<Task> => {
     const res = await fetch(`${API}/api/tasks/${taskId}`);
     if (!res.ok) throw new Error('Task not found');
