@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from api.modules.channel import notify_task
 
-from api.modules.config import _get_supabase
+from api.modules.config import _get_supabase, run_db
 from api.modules.scheduler import _register_schedule, _unregister_schedule
 
 router = APIRouter()
@@ -33,7 +33,7 @@ class ScheduleUpdateRequest(BaseModel):
 @router.get("/api/schedules")
 async def list_schedules():
     sb = _get_supabase()
-    res = sb.table("scheduled_jobs").select("*").order("created_at").execute()
+    res = await run_db(lambda: sb.table("scheduled_jobs").select("*").order("created_at").execute())
     return {"schedules": res.data or []}
 
 
@@ -54,7 +54,7 @@ async def create_schedule(req: ScheduleCreateRequest):
         "enabled": req.enabled,
         "notes": req.notes,
     }
-    res = sb.table("scheduled_jobs").insert(row).execute()
+    res = await run_db(lambda: sb.table("scheduled_jobs").insert(row).execute())
     if not res.data:
         raise HTTPException(status_code=500, detail="Failed to create schedule")
 
@@ -79,7 +79,7 @@ async def update_schedule(schedule_id: str, req: ScheduleUpdateRequest):
             raise HTTPException(status_code=400, detail=f"Invalid cron expression: {exc}")
 
     sb = _get_supabase()
-    res = sb.table("scheduled_jobs").update(updates).eq("id", schedule_id).execute()
+    res = await run_db(lambda: sb.table("scheduled_jobs").update(updates).eq("id", schedule_id).execute())
     if not res.data:
         raise HTTPException(status_code=404, detail="Schedule not found")
 
@@ -98,7 +98,7 @@ async def delete_schedule(schedule_id: str):
     _unregister_schedule(schedule_id)
 
     sb = _get_supabase()
-    res = sb.table("scheduled_jobs").delete().eq("id", schedule_id).execute()
+    res = await run_db(lambda: sb.table("scheduled_jobs").delete().eq("id", schedule_id).execute())
     if not res.data:
         raise HTTPException(status_code=404, detail="Schedule not found")
 
@@ -109,25 +109,25 @@ async def delete_schedule(schedule_id: str):
 async def run_schedule_now(schedule_id: str):
     """Immediately queue a scheduled job for the orchestrator to execute."""
     sb = _get_supabase()
-    res = sb.table("scheduled_jobs").select("*").eq("id", schedule_id).execute()
+    res = await run_db(lambda: sb.table("scheduled_jobs").select("*").eq("id", schedule_id).execute())
     if not res.data:
         raise HTTPException(status_code=404, detail="Schedule not found")
 
     row = res.data[0]
 
-    sb.table("scheduled_jobs").update({
+    await run_db(lambda: sb.table("scheduled_jobs").update({
         "last_status": "queued",
         "last_run_at": datetime.now(timezone.utc).isoformat(),
         "last_error": None,
-    }).eq("id", schedule_id).execute()
+    }).eq("id", schedule_id).execute())
 
-    task_res = sb.table("task_queue").insert({
+    task_res = await run_db(lambda: sb.table("task_queue").insert({
         "name": row["name"],
         "skill": row["skill"].lstrip("/"),
         "skill_args": row.get("skill_args"),
         "source": "schedule",
         "schedule_id": schedule_id,
-    }).execute()
+    }).execute())
 
     if not task_res.data:
         raise HTTPException(status_code=500, detail="Failed to queue task")

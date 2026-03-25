@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from api.modules.channel import notify_task
-from api.modules.config import _get_supabase
+from api.modules.config import _get_supabase, run_db
 
 router = APIRouter()
 
@@ -26,12 +26,12 @@ async def run_skill(req: RunSkillRequest):
     name = f"/{skill_name}{' — ' + req.target[:40] if req.target else ''}"
 
     sb = _get_supabase()
-    res = sb.table("task_queue").insert({
+    res = await run_db(lambda: sb.table("task_queue").insert({
         "name": name,
         "skill": skill_name,
         "skill_args": req.target or None,
         "source": "api",
-    }).execute()
+    }).execute())
 
     if not res.data:
         raise HTTPException(status_code=500, detail="Failed to queue task")

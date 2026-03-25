@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from pathlib import Path
@@ -20,3 +21,12 @@ def _get_supabase():
     if not url or not key:
         raise HTTPException(status_code=500, detail="Supabase credentials not configured.")
     return create_client(url, key)
+
+
+async def run_db(fn):
+    """Run a synchronous Supabase call in a thread pool.
+
+    The sync httpx client blocks on DNS resolution when called directly from an
+    async handler on Python 3.14+/macOS. Running it in a thread avoids that.
+    """
+    return await asyncio.to_thread(fn)

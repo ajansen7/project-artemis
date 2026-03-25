@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from api.modules.channel import notify_task
-from api.modules.config import PROJECT_ROOT, _get_supabase
+from api.modules.config import PROJECT_ROOT, _get_supabase, run_db
 
 _CLAUDE_BIN = os.environ.get("CLAUDE_BIN", shutil.which("claude") or "claude")
 _UV_BIN = os.environ.get("UV_BIN", shutil.which("uv") or "uv")
@@ -39,12 +39,12 @@ async def generate_application(req: GenerateRequest):
 
     name = f"generate — {req.company_name or req.job_id[:8]}"
     sb = _get_supabase()
-    res = sb.table("task_queue").insert({
+    res = await run_db(lambda: sb.table("task_queue").insert({
         "name": name,
         "skill": "generate",
         "skill_args": target_str,
         "source": "api",
-    }).execute()
+    }).execute())
 
     if not res.data:
         raise HTTPException(status_code=500, detail="Failed to queue task")
@@ -136,7 +136,7 @@ async def save_document(req: SaveDocumentRequest):
 
     try:
         sb = _get_supabase()
-        res = sb.table("applications").update({col: req.content}).eq("job_id", req.job_id).execute()
+        res = await run_db(lambda: sb.table("applications").update({col: req.content}).eq("job_id", req.job_id).execute())
         if not res.data:
             raise HTTPException(status_code=404, detail=f"No application found for job {req.job_id}")
         return {"status": "success", "updated_field": col}
@@ -221,11 +221,11 @@ async def mark_submitted(req: MarkSubmittedRequest):
         sb = _get_supabase()
         now = datetime.now(timezone.utc).isoformat()
 
-        app_res = sb.table("applications").update({"submitted_at": now}).eq("job_id", req.job_id).execute()
+        app_res = await run_db(lambda: sb.table("applications").update({"submitted_at": now}).eq("job_id", req.job_id).execute())
         if not app_res.data:
-            sb.table("applications").insert({"job_id": req.job_id, "submitted_at": now}).execute()
+            await run_db(lambda: sb.table("applications").insert({"job_id": req.job_id, "submitted_at": now}).execute())
 
-        sb.table("jobs").update({"status": "applied"}).eq("id", req.job_id).execute()
+        await run_db(lambda: sb.table("jobs").update({"status": "applied"}).eq("id", req.job_id).execute())
         return {"status": "success", "message": f"Application {req.job_id} marked submitted."}
     except HTTPException:
         raise

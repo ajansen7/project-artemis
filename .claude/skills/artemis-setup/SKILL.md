@@ -181,7 +181,7 @@ uv run python .claude/tools/db.py status
 If this fails, remind the user to set up `.env` with Supabase credentials per the README. Non-blocking — continue.
 
 **Gmail/Calendar MCP (optional):**
-Check if Gmail MCP tools are available by attempting `gmail_get_profile`. If available, mention:
+Check if Gmail MCP tools are available by attempting `get_gmail_profile` (smithery-gmail MCP). If available, mention:
 > "Gmail and Calendar are connected. You can use `/inbox` to monitor for recruiter emails and `/schedule` to track upcoming interviews."
 
 If not available, mention:

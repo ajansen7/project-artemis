@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from api.modules.channel import notify_task
-from api.modules.config import PROJECT_ROOT, _get_supabase
+from api.modules.config import PROJECT_ROOT, _get_supabase, run_db
 
 router = APIRouter()
 
@@ -16,7 +16,7 @@ async def get_blog_post_content(post_id: str):
     Prefers the content column in the DB; falls back to reading from draft_path on disk."""
     try:
         sb = _get_supabase()
-        res = sb.table("blog_posts").select("title,content,draft_path").eq("id", post_id).execute()
+        res = await run_db(lambda: sb.table("blog_posts").select("title,content,draft_path").eq("id", post_id).execute())
         if not res.data:
             raise HTTPException(status_code=404, detail="Blog post not found.")
         post = res.data[0]
@@ -52,7 +52,7 @@ async def update_blog_post(post_id: str, body: BlogPostUpdate):
     """Save edits to a blog post's content, notes, and/or status."""
     try:
         sb = _get_supabase()
-        res = sb.table("blog_posts").select("id,status,slug").eq("id", post_id).execute()
+        res = await run_db(lambda: sb.table("blog_posts").select("id,status,slug").eq("id", post_id).execute())
         if not res.data:
             raise HTTPException(status_code=404, detail="Blog post not found.")
         current = res.data[0]
@@ -78,7 +78,7 @@ async def update_blog_post(post_id: str, body: BlogPostUpdate):
         return {"ok": True, "updated": []}
 
     try:
-        sb.table("blog_posts").update(updates).eq("id", post_id).execute()
+        await run_db(lambda: sb.table("blog_posts").update(updates).eq("id", post_id).execute())
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -90,7 +90,7 @@ async def generate_blog_draft(post_id: str):
     """Queue the blogger skill to write a draft for this post."""
     try:
         sb = _get_supabase()
-        res = sb.table("blog_posts").select("id,slug,title,status").eq("id", post_id).execute()
+        res = await run_db(lambda: sb.table("blog_posts").select("id,slug,title,status").eq("id", post_id).execute())
         if not res.data:
             raise HTTPException(status_code=404, detail="Blog post not found.")
         post = res.data[0]
@@ -103,12 +103,12 @@ async def generate_blog_draft(post_id: str):
         raise HTTPException(status_code=400, detail="Cannot regenerate a published post.")
 
     name = f"blog-write — {post['title'][:50]}"
-    task_res = sb.table("task_queue").insert({
+    task_res = await run_db(lambda: sb.table("task_queue").insert({
         "name": name,
         "skill": "blog-write",
         "skill_args": post["slug"],
         "source": "api",
-    }).execute()
+    }).execute())
 
     if not task_res.data:
         raise HTTPException(status_code=500, detail="Failed to queue task")
@@ -122,7 +122,7 @@ async def process_blog_feedback(post_id: str):
     """Queue the blogger skill to revise the draft using saved revision notes."""
     try:
         sb = _get_supabase()
-        res = sb.table("blog_posts").select("id,slug,title,status,notes").eq("id", post_id).execute()
+        res = await run_db(lambda: sb.table("blog_posts").select("id,slug,title,status,notes").eq("id", post_id).execute())
         if not res.data:
             raise HTTPException(status_code=404, detail="Blog post not found.")
         post = res.data[0]
@@ -135,12 +135,12 @@ async def process_blog_feedback(post_id: str):
         raise HTTPException(status_code=400, detail="Cannot revise a published post.")
 
     name = f"blog-revise — {post['title'][:50]}"
-    task_res = sb.table("task_queue").insert({
+    task_res = await run_db(lambda: sb.table("task_queue").insert({
         "name": name,
         "skill": "blog-revise",
         "skill_args": post["slug"],
         "source": "api",
-    }).execute()
+    }).execute())
 
     if not task_res.data:
         raise HTTPException(status_code=500, detail="Failed to queue task")

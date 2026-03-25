@@ -24,12 +24,33 @@ Google Calendar is the source of truth for scheduled calls. We never duplicate c
 
 ## MCP Tools Used
 
-- `gmail_search_messages` — search inbox with Gmail query syntax
-- `gmail_read_message` — read full message content
-- `gmail_read_thread` — read full thread for context
-- `gmail_create_draft` — draft reply/follow-up emails
+Gmail tools come from the **smithery-gmail** MCP server (tool prefix: `mcp__smithery-gmail__`):
+
+- `fetch_emails` — search inbox with Gmail query syntax (use `query` param, e.g. `"from:recruiter after:2026/03/01"`)
+- `fetch_message_by_message_id` — read full message content by ID
+- `fetch_message_by_thread_id` — read full thread for context
+- `create_email_draft` — draft reply/follow-up emails
+- `list_labels` — list all labels (including IDs needed for `add_label_to_email`)
+- `create_label` — create a new label if it doesn't exist
+- `add_label_to_email` — apply a label to a message by message ID
+
+Calendar tools come from the **claude.ai Google Calendar** MCP server:
+
 - `gcal_list_events` — list upcoming calendar events
 - `gcal_list_calendars` — find the right calendar
+
+### Job Applications Label
+
+Before Step 2, ensure the **"Job Applications"** label exists and cache its ID for the session:
+
+```
+1. Call list_labels
+2. Search results for a label named "Job Applications" (case-insensitive)
+3. If found: store its id as JOB_LABEL_ID
+4. If not found: call create_label with label_name="Job Applications" → store the returned id as JOB_LABEL_ID
+```
+
+This only needs to happen once per `/inbox` run. Reuse `JOB_LABEL_ID` for all labeling calls in Steps 3–4.
 
 ## Commands
 
@@ -54,7 +75,7 @@ Read `identity.md` and `.claude/skills/hunt/references/preferences.md` for candi
 
 **Step 2: Search Gmail**
 
-Use the `after:DATE` filter from Step 0 in all queries. Run these searches and combine results (deduplicate by message ID):
+Use `fetch_emails` with the `after:DATE` filter from Step 0 in all queries. Run these searches and combine results (deduplicate by message ID):
 
 - `after:DATE` — broad recent inbox scan (catches everything including rejections not matched by keywords)
 - `from:(*recruiter* OR *talent* OR *hiring*) after:DATE`
@@ -62,11 +83,13 @@ Use the `after:DATE` filter from Step 0 in all queries. Run these searches and c
 - Networking: `subject:(accepted your invitation OR sent you a message) from:(*@linkedin.com) after:DATE`
 - ATS platforms: `from:(*@greenhouse.io OR *@lever.co OR *@notifications.workday.com OR *@icims.com OR *@myworkday.com OR *@smartrecruiters.com OR *@jobvite.com) after:DATE`
 
-**Note:** `gmail_search_messages` searches all mail regardless of Gmail tab/category (Primary, Updates, etc.), so emails routed to the Updates tab are included automatically.
+**Note:** `fetch_emails` searches all mail regardless of Gmail tab/category (Primary, Updates, etc.), so emails routed to the Updates tab are included automatically.
+
+**Exclude already-labeled emails** by adding `-label:"Job Applications"` to each query. This prevents re-processing emails from prior runs.
 
 **Step 3: Read and classify each message**
 
-Read each message with `gmail_read_message`. Skip messages you've already processed in this session (track message IDs).
+Read each message with `fetch_message_by_message_id`. Skip messages you've already processed in this session (track message IDs).
 
 There are two fundamentally different purposes for the inbox scan:
 
@@ -107,6 +130,19 @@ uv run python .claude/tools/db.py add-job --title "..." --company "..." --url ".
 ```
 
 For LinkedIn job notification emails (`jobs-noreply@linkedin.com`), extract each job listed, run `find-job` on each, and only add the ones with no pipeline match.
+
+---
+
+**After classifying any job-related email (Path A or Path B):**
+
+Immediately apply the "Job Applications" label using the `JOB_LABEL_ID` cached in Step 2:
+```
+add_label_to_email(message_id=<id>, add_label_ids=[JOB_LABEL_ID])
+```
+
+This marks the email as processed and prevents it from being re-scanned on future runs (because Step 2 excludes `-label:"Job Applications"`). Apply the label even for emails that result in no action (e.g. status holds, terminal-status skips) — the point is that we read and considered it.
+
+Do **not** apply the label to networking-only emails (LinkedIn connection accepts, InMail replies) — those are handled by the networking path below.
 
 ---
 
@@ -220,7 +256,7 @@ Draft a follow-up, thank-you, or recruiter response email.
    - No em-dashes, conversational tone, genuine and specific
    - Reference specific details about the role/company
    - Keep it brief and warm
-7. Use `gmail_create_draft` to save as a Gmail draft
+7. Use `create_email_draft` to save as a Gmail draft
 8. Present the draft text for user review
 
 ---
