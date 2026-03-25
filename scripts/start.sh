@@ -87,12 +87,9 @@ if [ "$SKIP_FRONTEND" = false ]; then
 fi
 
 # The orchestrator is the unified Telegram interface + task executor.
-# Passes an initial startup message via here-string to kick off task queue
-# polling. The Telegram plugin keeps the session alive after stdin closes.
-# Startup message kicks off the task queue polling loop immediately.
-# The prompt is explicit so the orchestrator doesn't suggest other loops.
-ORCHESTRATOR_STARTUP="/loop 30s Run: uv run python .claude/tools/db.py next-task — if the output is a non-empty JSON object, execute the skill in its 'skill' field (with 'skill_args' if set), then update the task: uv run python .claude/tools/db.py update-task --id <id> --status complete --output-summary '<summary>'. If the output is empty, the queue is idle — do nothing and wait for the next iteration."
-start_window "orchestrator" "sh -c 'claude --dangerously-skip-permissions --channels plugin:telegram@claude-plugins-official --append-system-prompt-file $PROJECT_ROOT/.claude/agents/artemis-orchestrator.md <<< \"$ORCHESTRATOR_STARTUP\"'"
+# The artemis-channel MCP (registered in .mcp.json) pushes task events in
+# directly from the API — no polling loop needed.
+start_window "orchestrator" "claude --dangerously-skip-permissions --channels plugin:telegram@claude-plugins-official --append-system-prompt-file $PROJECT_ROOT/.claude/agents/artemis-orchestrator.md"
 
 # ─── Summary ─────────────────────────────────────────────────────
 

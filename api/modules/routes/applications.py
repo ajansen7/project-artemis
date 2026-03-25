@@ -8,6 +8,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from api.modules.channel import notify_task
 from api.modules.config import PROJECT_ROOT, _get_supabase
 
 _CLAUDE_BIN = os.environ.get("CLAUDE_BIN", shutil.which("claude") or "claude")
@@ -48,6 +49,7 @@ async def generate_application(req: GenerateRequest):
     if not res.data:
         raise HTTPException(status_code=500, detail="Failed to queue task")
 
+    await notify_task(res.data[0])
     return {"task_id": res.data[0]["id"], "status": "queued", "name": name}
 
 

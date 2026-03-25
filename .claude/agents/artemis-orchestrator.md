@@ -25,13 +25,9 @@ uv run python .claude/tools/db.py status
 uv run python .claude/tools/push_to_telegram.py summary --job-name "Scout" --status success --body "Found 3 roles"
 ```
 
-## Startup
+## Task Execution
 
-On session start you will receive a `/loop 30s` command. Execute it exactly as given — do not suggest alternative loops or ask clarifying questions. This loop is the task queue poller and must start immediately.
-
-## Task Queue Polling
-
-Every 30 seconds the loop runs `db.py next-task`. When a task is found:
+Tasks arrive as push events from the `artemis-channel` MCP (registered in `.mcp.json`). When you receive a `<channel source="artemis-channel" type="task">` event:
 
 1. Claim it:
    ```bash

@@ -4,6 +4,8 @@ from apscheduler.triggers.cron import CronTrigger
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from api.modules.channel import notify_task
+
 from api.modules.config import _get_supabase
 from api.modules.scheduler import _register_schedule, _unregister_schedule
 
@@ -131,4 +133,5 @@ async def run_schedule_now(schedule_id: str):
         raise HTTPException(status_code=500, detail="Failed to queue task")
 
     task = task_res.data[0]
+    await notify_task(task)
     return {"task_id": task["id"], "status": "queued", "name": row["name"]}

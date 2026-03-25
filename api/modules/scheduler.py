@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
+from api.modules.channel import notify_task_sync
 from api.modules.config import _get_supabase, logger
 
 scheduler = AsyncIOScheduler()
@@ -22,13 +23,16 @@ def _run_scheduled_job(schedule_id: str, name: str, skill: str, skill_args: str 
         "last_error": None,
     }).eq("id", schedule_id).execute()
 
-    sb.table("task_queue").insert({
+    res = sb.table("task_queue").insert({
         "name": name,
         "skill": skill.lstrip("/"),
         "skill_args": skill_args or None,
         "source": "schedule",
         "schedule_id": schedule_id,
     }).execute()
+
+    if res.data:
+        notify_task_sync(res.data[0])
 
     logger.info("Queued scheduled job: %s (%s)", name, skill)
 

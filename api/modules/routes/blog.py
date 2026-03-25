@@ -4,6 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from api.modules.channel import notify_task
 from api.modules.config import PROJECT_ROOT, _get_supabase
 
 router = APIRouter()
@@ -112,6 +113,7 @@ async def generate_blog_draft(post_id: str):
     if not task_res.data:
         raise HTTPException(status_code=500, detail="Failed to queue task")
 
+    await notify_task(task_res.data[0])
     return {"task_id": task_res.data[0]["id"], "status": "queued", "name": name}
 
 
@@ -143,4 +145,5 @@ async def process_blog_feedback(post_id: str):
     if not task_res.data:
         raise HTTPException(status_code=500, detail="Failed to queue task")
 
+    await notify_task(task_res.data[0])
     return {"task_id": task_res.data[0]["id"], "status": "queued", "name": name}
