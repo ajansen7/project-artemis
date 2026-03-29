@@ -327,6 +327,7 @@ function BlogCard({
   const [expanded, setExpanded] = useState(false);
   const [generatingTask, setGeneratingTask] = useState<string | null>(null);
   const [feedbackTask, setFeedbackTask] = useState<string | null>(null);
+  const [publishTask, setPublishTask] = useState<string | null>(null);
 
   const isPublished = post.status === 'published';
 
@@ -352,6 +353,18 @@ function BlogCard({
     }
     const data = await res.json();
     setFeedbackTask(data.task_id);
+  };
+
+  const handlePublish = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const res = await fetch(`${API_BASE}/api/blog-posts/${post.id}/publish`, { method: 'POST' });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to queue publish task' }));
+      alert(err.detail);
+      return;
+    }
+    const data = await res.json();
+    setPublishTask(data.task_id);
   };
 
   return (
@@ -384,14 +397,27 @@ function BlogCard({
 
       {expanded && (
         <div className="blog-card-body">
-          {/* Status picker */}
+          {/* Status picker + Publish button */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <StatusPicker post={post} onUpdateStatus={onUpdateStatus} />
-            {(generatingTask || feedbackTask) && (
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                Task running in background…
-              </span>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {(generatingTask || feedbackTask || publishTask) && (
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                  Task running in background…
+                </span>
+              )}
+              {!isPublished && (
+                <button
+                  className="action-btn review"
+                  style={{ padding: '3px 12px', fontSize: '0.72rem' }}
+                  onClick={handlePublish}
+                  disabled={!!publishTask}
+                  title="Queue publish task — will open Chrome and post to LinkedIn (confirms via Telegram)"
+                >
+                  {publishTask ? 'Publishing…' : 'Publish'}
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Draft editor (hidden for published posts) */}

@@ -28,10 +28,11 @@ Surface contacts ready for outreach, advance pipeline status, and log interactio
    uv run python .claude/tools/sync_contacts.py --check
    ```
 2. Read `.claude/skills/hunt/references/candidate_context.md` for current target companies and active roles.
-3. Present a prioritized action list:
+3. Build a prioritized action list:
    - **Personal connections** (marked with a star) first — highest leverage
    - Then `draft_ready` contacts ordered by priority (high, medium, low)
    - Flag contacts where `last_contacted_at` is >7 days ago with no status change (follow-up candidates)
+   - **Send the list via Telegram** so the user can respond from their phone. Keep it short: name, company, suggested action. Wait for their reply before drafting messages or making status changes.
 4. For status changes, use `update-contact`:
    ```bash
    uv run python .claude/tools/db.py update-contact \

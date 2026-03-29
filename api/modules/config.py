@@ -14,13 +14,19 @@ logger = logging.getLogger("artemis.api")
 PROJECT_ROOT = str(Path(__file__).resolve().parents[2])
 
 
+_supabase_client = None
+
+
 def _get_supabase():
-    from supabase import create_client
-    url = os.getenv("SUPABASE_URL", "")
-    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
-    if not url or not key:
-        raise HTTPException(status_code=500, detail="Supabase credentials not configured.")
-    return create_client(url, key)
+    global _supabase_client
+    if _supabase_client is None:
+        from supabase import create_client
+        url = os.getenv("SUPABASE_URL", "")
+        key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+        if not url or not key:
+            raise HTTPException(status_code=500, detail="Supabase credentials not configured.")
+        _supabase_client = create_client(url, key)
+    return _supabase_client
 
 
 async def run_db(fn):

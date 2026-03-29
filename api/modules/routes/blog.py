@@ -117,6 +117,40 @@ async def generate_blog_draft(post_id: str):
     return {"task_id": task_res.data[0]["id"], "status": "queued", "name": name}
 
 
+@router.post("/api/blog-posts/{post_id}/publish")
+async def publish_blog_post(post_id: str):
+    """Queue the blogger skill to publish this post via Chrome (LinkedIn, etc.)."""
+    try:
+        sb = _get_supabase()
+        res = await run_db(lambda: sb.table("blog_posts").select("id,slug,title,status").eq("id", post_id).execute())
+        if not res.data:
+            raise HTTPException(status_code=404, detail="Blog post not found.")
+        post = res.data[0]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    if post["status"] == "published":
+        raise HTTPException(status_code=400, detail="Post is already published.")
+    if not post.get("slug"):
+        raise HTTPException(status_code=400, detail="Post has no slug — cannot publish.")
+
+    name = f"blog-publish — {post['title'][:50]}"
+    task_res = await run_db(lambda: sb.table("task_queue").insert({
+        "name": name,
+        "skill": "blogger",
+        "skill_args": f"blog-publish {post['slug']}",
+        "source": "api",
+    }).execute())
+
+    if not task_res.data:
+        raise HTTPException(status_code=500, detail="Failed to queue task")
+
+    await notify_task(task_res.data[0])
+    return {"task_id": task_res.data[0]["id"], "status": "queued", "name": name}
+
+
 @router.post("/api/blog-posts/{post_id}/process-feedback")
 async def process_blog_feedback(post_id: str):
     """Queue the blogger skill to revise the draft using saved revision notes."""

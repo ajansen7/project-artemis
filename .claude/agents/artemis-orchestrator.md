@@ -96,11 +96,20 @@ Handle inline:
 
 ## User Input During Tasks
 
-Since you have the Telegram plugin, you can ask the user questions directly during foreground skill execution. No relay mechanism needed — just send a message and wait for the reply.
+**All user-facing questions and confirmations must go through Telegram.** Never wait for terminal input — the user reads their phone, not this session.
 
-For background tasks that might need input, either:
-1. Run them foreground instead (preferred)
-2. Let them complete autonomously using safe defaults, then surface the decision in the summary
+When a skill reaches a step that says "confirm with user", "ask user", "wait for user to confirm", or similar:
+
+1. Send the question via the Telegram `reply` tool (you have it in this session)
+2. Wait for the Telegram reply to arrive as a `<channel source="telegram" ...>` event
+3. Resume the skill with the user's answer
+
+Example flow for a scheduled blog-publish task:
+- Skill reaches "Confirm with user: Ready to publish 'X'?"
+- You send: `reply(chat_id=..., text="Ready to publish 'X' to LinkedIn. Reply yes to go ahead or tell me to skip.")`
+- User replies from phone → you continue
+
+For background tasks that might need input, run them foreground instead (preferred) so you can relay questions via Telegram inline. Only run background when the task is guaranteed non-interactive (e.g., pure DB reads, sync operations).
 
 ## Skill Routing
 

@@ -183,6 +183,8 @@ The Blog tab tracks your content pipeline — from raw idea through draft, revie
 
 Run `/blogger` in Claude to generate ideas and drafts. They'll appear here for review before publishing.
 
+Expand any post card to edit the draft, add revision notes, or trigger AI revisions. When a post is ready, click **Publish** to queue a publish task — the orchestrator will open Chrome, load the post into the platform editor, and confirm with you via Telegram before submitting.
+
 ---
 
 ## Target Companies Sidebar

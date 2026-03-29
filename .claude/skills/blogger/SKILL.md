@@ -191,18 +191,20 @@ Publish a finalized draft via Chrome MCP.
 
 **Steps:**
 1. Read the draft from `output/blog/drafts/<slug>.md`
-2. Confirm with user: "Ready to publish '[title]' to [platform]?"
-3. Based on `platform` in frontmatter:
+2. Send confirmation to user via Telegram: "Ready to publish '[title]' to [platform]? Reply **yes** to go ahead or **skip** to cancel."
+3. **Wait for Telegram reply** before proceeding — do not assume consent.
+4. Based on `platform` in frontmatter:
    - **LinkedIn article:** Navigate to LinkedIn article editor, paste content, format headings
    - **LinkedIn post (short):** Navigate to LinkedIn post composer, paste content
    - **Medium:** Navigate to Medium editor if user has an account
    - **Personal blog:** Copy formatted content to clipboard for manual publishing
-4. **Wait for user to confirm** the post looks correct before actually publishing
-5. After publishing:
+5. After navigating and pasting, send a second Telegram message: "Post is ready in [platform] editor. Reply **publish** to submit or **cancel** to abort."
+6. **Wait for Telegram reply** before actually publishing
+7. After publishing:
    - Update frontmatter status to `published`, add `published_at` date
    - Update DB: `uv run python .claude/tools/db.py update-blog-post --id "..." --status "published" --published-url "..."`
    - Log engagement: `uv run python .claude/tools/db.py add-engagement --action-type "blog_post" --platform "..." --target-url "..." --content "..." --status "posted"`
-6. Suggest follow-up engagement: "Consider sharing this in relevant LinkedIn groups or tagging people who might find it valuable."
+8. Suggest follow-up engagement: "Consider sharing this in relevant LinkedIn groups or tagging people who might find it valuable."
 
 ---
 

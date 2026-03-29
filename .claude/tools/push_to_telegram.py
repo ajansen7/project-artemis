@@ -20,6 +20,7 @@ import argparse
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 import httpx
@@ -66,12 +67,21 @@ def _send(text: str, parse_mode: str | None = None) -> int:
     if parse_mode:
         payload["parse_mode"] = parse_mode
 
-    resp = httpx.post(API_URL, json=payload, timeout=15.0)
-    resp.raise_for_status()
-    data = resp.json()
-    if not data.get("ok"):
-        raise RuntimeError(f"Telegram API error: {data}")
-    return data["result"]["message_id"]
+    last_exc: Exception | None = None
+    for attempt in range(3):
+        if attempt:
+            time.sleep(2 ** attempt)  # 2s, 4s
+        try:
+            resp = httpx.post(API_URL, json=payload, timeout=15.0)
+            resp.raise_for_status()
+            data = resp.json()
+            if not data.get("ok"):
+                raise RuntimeError(f"Telegram API error: {data}")
+            return data["result"]["message_id"]
+        except (httpx.ConnectError, httpx.RemoteProtocolError, httpx.ReadError) as exc:
+            last_exc = exc
+            print(f"WARNING: Telegram send attempt {attempt + 1} failed ({type(exc).__name__}), retrying…", file=sys.stderr)
+    raise last_exc  # type: ignore[misc]
 
 
 def _read_stdin_or_arg(args) -> str:
