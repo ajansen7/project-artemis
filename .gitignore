@@ -47,6 +47,11 @@ ingestion/
 analysis.md
 analysis_*.md
 
+# ─── Claude Code (local/personal) ────────────────────────────
+.claude/CLAUDE.local.md
+.claude/settings.local.json
+.claude/plans/
+
 # ─── Personal Context (skill references, hot memory) ─────────
 .claude/skills/hunt/references/candidate_context.md
 .claude/skills/hunt/references/preferences.md
@@ -66,13 +71,6 @@ analysis_*.md
 
 # ─── Channels (local settings) ───────────────────────────────
 channels/.claude/settings.local.json
-
-# ─── Plans ─────────────────────────────────────────────────────
-.claude/plans/
-
-# ─── Legacy (remove after migration complete) ────────────────
-.claude/agent-memory/
-.claude/skills/scout/
 
 *.pdf
 *.docx

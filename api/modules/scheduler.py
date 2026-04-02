@@ -15,26 +15,37 @@ def _run_scheduled_job(schedule_id: str, name: str, skill: str, skill_args: str 
     """
     APScheduler callback. Inserts a task into task_queue for the orchestrator to pick up.
     """
-    sb = _get_supabase()
+    try:
+        sb = _get_supabase()
 
-    sb.table("scheduled_jobs").update({
-        "last_status": "queued",
-        "last_run_at": datetime.now(timezone.utc).isoformat(),
-        "last_error": None,
-    }).eq("id", schedule_id).execute()
+        sb.table("scheduled_jobs").update({
+            "last_status": "queued",
+            "last_run_at": datetime.now(timezone.utc).isoformat(),
+            "last_error": None,
+        }).eq("id", schedule_id).execute()
 
-    res = sb.table("task_queue").insert({
-        "name": name,
-        "skill": skill.lstrip("/"),
-        "skill_args": skill_args or None,
-        "source": "schedule",
-        "schedule_id": schedule_id,
-    }).execute()
+        res = sb.table("task_queue").insert({
+            "name": name,
+            "skill": skill.lstrip("/"),
+            "skill_args": skill_args or None,
+            "source": "schedule",
+            "schedule_id": schedule_id,
+        }).execute()
 
-    if res.data:
-        notify_task_sync(res.data[0])
+        if res.data:
+            notify_task_sync(res.data[0])
 
-    logger.info("Queued scheduled job: %s (%s)", name, skill)
+        logger.info("Queued scheduled job: %s (%s)", name, skill)
+    except Exception as exc:
+        logger.error("Failed to queue scheduled job %s (%s): %s", name, skill, exc)
+        try:
+            sb = _get_supabase()
+            sb.table("scheduled_jobs").update({
+                "last_status": "failed",
+                "last_error": str(exc),
+            }).eq("id", schedule_id).execute()
+        except Exception:
+            pass
 
 
 def _register_schedule(row: dict):

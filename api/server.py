@@ -18,14 +18,15 @@ from api.modules.routes.tasks import router as tasks_router
 
 
 async def _cleanup_orphaned_tasks():
-    """Mark running tasks that were never completed (orphaned by a previous session) as failed."""
+    """Mark tasks that were mid-execution (running) when the previous session died as failed.
+    Queued tasks are preserved — they haven't been picked up yet and can still run."""
     try:
         from api.modules.config import _get_supabase, run_db
         sb = _get_supabase()
         res = await run_db(
             lambda: sb.table("task_queue")
             .update({"status": "failed", "error": "Orphaned: session ended without completing task"})
-            .in_("status", ["running", "queued"])
+            .in_("status", ["running"])
             .execute()
         )
         count = len(res.data or [])

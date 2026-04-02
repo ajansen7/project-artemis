@@ -30,6 +30,8 @@ PERSONAL_PATHS = [
     # Secrets / env
     ".env",
     "frontend/.env.local",
+    # Local Claude config (personal overrides)
+    ".claude/CLAUDE.local.md",
     # Hot memory (all non-example files)
     ".claude/memory/hot",
     # Extended memory index + extras

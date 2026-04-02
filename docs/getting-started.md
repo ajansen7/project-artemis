@@ -27,29 +27,30 @@ Optional:
 
 ---
 
-## Step 1: Clone and Install
+## Step 1: Clone and Run Setup
 
 ```bash
 git clone <repo-url> project-artemis
 cd project-artemis
-git submodule update --init    # clones the interview-coach skill
-uv sync                        # install Python dependencies
-cd frontend && npm install && cd ..
+./scripts/setup.sh
 ```
 
----
+The setup script handles everything:
+- Checks prerequisites (Python 3.11+, uv, Node.js, Bun, tmux, Claude Code)
+- Initializes git submodules (interview-coach)
+- Installs Python, Node, and Bun dependencies
+- Creates `.env` from template and prompts for Supabase credentials
+- Verifies the Supabase connection
 
-## Step 2: Supabase Setup
+### Supabase Setup
+
+Before running setup, create a Supabase project:
 
 1. Create a project at [supabase.com](https://supabase.com)
 2. Go to the SQL Editor and run migrations in order: `db/migrations/001_*.sql` through `db/migrations/017_*.sql`
-3. Configure credentials:
+3. Have your Supabase URL, anon key, and service role key ready for the setup script
 
-```bash
-cp .env.example .env
-```
-
-Edit `.env` with your Supabase values:
+If you skipped entering credentials during setup, edit `.env` manually:
 ```
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your-anon-key
@@ -63,7 +64,7 @@ uv run python .claude/tools/db.py status
 
 ---
 
-## Step 3: Run the Setup Wizard
+## Step 2: Run the Profile Setup Wizard
 
 ```bash
 cd project-artemis
@@ -86,7 +87,7 @@ The wizard walks you through:
 
 ---
 
-## Step 4: Start Services
+## Step 3: Start Services
 
 ```bash
 ./scripts/start.sh
@@ -123,7 +124,7 @@ tmux attach -t artemis          # see all windows
 
 ---
 
-## Step 5: Configure the Dashboard
+## Step 4: Configure the Dashboard
 
 Open `http://localhost:5173` in your browser.
 

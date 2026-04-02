@@ -17,42 +17,33 @@
 - **Python 3.11+** and **[uv](https://docs.astral.sh/uv/)**
 - **Supabase** project (free tier works)
 - **Claude Code** (`npm install -g @anthropic-ai/claude-code`)
-- **LibreOffice** for PDF generation: `brew install --cask libreoffice`
-- **tmux** for parallel task execution: `brew install tmux`
+- **Node.js 18+** and **[Bun](https://bun.sh)** (for the dashboard and channels)
+- **tmux** (`brew install tmux`)
+- **LibreOffice** (optional, for PDF generation): `brew install --cask libreoffice`
 
 For the full setup walkthrough (Supabase, MCP integrations, Telegram, scheduled automation), see **[docs/getting-started.md](docs/getting-started.md)**.
 
-### 1. Clone and install
+### 1. Clone and run setup
 
 ```bash
 git clone <repo-url> project-artemis
 cd project-artemis
-git submodule update --init    # clones the interview-coach skill
-uv sync
-cd frontend && npm install && cd ..
+./scripts/setup.sh
 ```
 
-### 2. Configure environment
+The setup script checks prerequisites, installs all dependencies (Python, Node, Bun), initializes git submodules, configures your `.env`, and verifies the Supabase connection.
+
+### 2. Launch Claude Code
 
 ```bash
-cp .env.example .env
-# edit .env with your SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
-```
-
-### 3. Launch
-
-```bash
-cd project-artemis
 claude
 ```
 
-Artemis is a **project-level agent** -- all skills, memory, and hooks are self-contained in this directory. Just opening Claude Code here is all you need. The `artemis-orchestrator` agent is auto-discovered from `.claude/agents/` and the session hooks fire automatically.
-
-### 4. First run -- profile setup
+Artemis is a **project-level agent** -- all skills, memory, and hooks are self-contained in the `.claude/` directory. Just opening Claude Code here is all you need. The `artemis-orchestrator` agent is auto-discovered from `.claude/agents/` and the session hooks fire automatically.
 
 On a fresh clone, the session hook detects that no candidate profile exists and prompts you immediately. Run `/setup` to walk through the setup wizard, or just say **"Set me up"**.
 
-### 5. Start all services
+### 3. Start all services
 
 ```bash
 ./scripts/start.sh
@@ -474,75 +465,56 @@ Side statuses: `not_interested` (with reason), `rejected`, `deleted`
 
 ```
 project-artemis/
-  .claude/
+  .claude/                            # All Claude Code configuration
+    CLAUDE.md                         # Project instructions (shared, committed)
+    CLAUDE.local.md                   # Personal overrides (gitignored)
+    settings.json                     # Shared permissions & hooks
+    settings.local.json               # Personal permission overrides (gitignored)
     agents/
       artemis-orchestrator.md         # Unified orchestrator: Telegram + task execution
     skills/
       hunt/                           # Pipeline discovery + management
-        SKILL.md
-        references/
-          candidate_context.md        # Cached profile (generated)
-          preferences.md              # Target roles, companies, deal-breakers
       apply/                          # Application materials
-        SKILL.md
-        references/
-          resume_master.md            # Verified resume bullets (source of truth)
-          apply_lessons.md            # Lessons from past corrections
-          resume_template.docx        # Noto Sans DOCX template
-          form_defaults.md            # Standard form field answers
       connect/                        # Networking pipeline
-        SKILL.md
       profile/                        # Candidate context + interview prep
-        SKILL.md
       inbox/                          # Gmail + Calendar monitoring
-        SKILL.md
       linkedin/                       # LinkedIn browsing + engagement
-        SKILL.md
       blogger/                        # Content creation + publishing
-        SKILL.md
-      maintain/                       # Pipeline hygiene -- dedupe, cull stale jobs
-        SKILL.md
+      maintain/                       # Pipeline hygiene -- dedupe, cull
       artemis-setup/                  # One-time setup wizard
-        SKILL.md
       interview-coach/                # Git submodule -- coaching, storybank, drills
-        SKILL.md
-        coaching_state.md
     tools/
       db.py                           # Thin CLI shim (forwards to db_modules/)
       db_modules/                     # Modular Supabase CRUD package
       generate_resume_docx.py         # Resume markdown to DOCX/PDF
       sync_contacts.py                # DB to contacts markdown
       push_to_telegram.py             # Send formatted messages to Telegram (Bot API)
+      export_personal.py              # Bundle personal state for portability
+      import_personal.py              # Restore personal state from archive
     hooks/
       load-hot-memory.sh              # SessionStart: inject hot memory + fresh-install check
       check-context.sh                # PreToolUse: context freshness check
       sync-extended.sh                # Stop: sync contacts, cleanup
+    rules/
+      data-handling.md                # PII, CLI, data source rules
+      pipeline-workflow.md            # Job pipeline operational rules
     memory/
-      hot/
-        identity.md                   # Candidate identity + positioning (gitignored)
-        voice.md                      # Tone rules for communications (gitignored)
-        active_loops.md               # Current interview loops (gitignored)
-        lessons.md                    # Operational best practices (gitignored)
+      hot/                            # Hot memory loaded every session (gitignored)
         *.example.md                  # Templates for new users (committed)
+  .mcp.json                           # MCP server registration (artemis-channel)
   channels/
-    artemis-channel/                  # MCP channel server: push task events into the orchestrator
-      index.ts                        # HTTP server (port 8790) + MCP stdio transport
+    artemis-channel/                  # MCP channel: push task events into orchestrator
   scripts/
-    start.sh                          # Start all services in tmux (API, frontend, orchestrator)
+    setup.sh                          # New user setup wizard
+    start.sh                          # Start all services in tmux
     stop.sh                           # Stop services and clean up
   output/                             # All generated artifacts (gitignored)
-    applications/                     # Per-job: resume, cover letter, primer, form fills, PDF
-    blog/drafts/                      # Blog post markdown drafts
-    contacts_pipeline.md              # Generated contacts view
   api/
     server.py                         # FastAPI -- scheduler, task queue, PDF generation
-    modules/
-      channel.py                      # Fire-and-forget notify after task_queue inserts
-  frontend/src/                       # React dashboard (Pipeline, Networking, Engagement, Blog, Schedules)
+  frontend/src/                       # React dashboard
   db/migrations/                      # Supabase SQL migrations (001-017)
-  CLAUDE.md                           # Python env + project layout instructions
   pyproject.toml                      # Python dependencies
-  .env                                # Supabase credentials (not committed)
+  .env                                # Supabase credentials (gitignored)
 ```
 
 ---

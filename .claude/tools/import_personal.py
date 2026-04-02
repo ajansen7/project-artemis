@@ -26,6 +26,7 @@ PROJECT_ROOT = SCRIPT_DIR.parent.parent
 ALLOWED_PREFIXES = (
     ".env",
     "frontend/.env",
+    ".claude/CLAUDE.local.md",
     ".claude/memory/",
     ".claude/skills/hunt/references/",
     ".claude/skills/apply/references/",

@@ -23,43 +23,56 @@ To sync the environment after pulling changes:
 uv sync
 ```
 
-Dependencies are declared in `pyproject.toml`. The `requirements.txt` file is a legacy artifact -- ignore it.
+Dependencies are declared in `pyproject.toml`.
 
 ## Project Layout
 
 ```
-.claude/
-  agents/         # Agent definitions
-    artemis-orchestrator.md  # Unified orchestrator: Telegram interface + task executor
-  skills/         # Workflow skills
-    hunt/           # Job scouting, pipeline management
-    apply/          # Application materials generation
-    connect/        # Networking pipeline
-    profile/        # Candidate context + interview prep
-    inbox/          # Gmail + Calendar monitoring
-    linkedin/       # LinkedIn browsing + engagement (Chrome MCP)
-    blogger/        # Content creation + publishing
-    artemis-setup/  # One-time setup wizard
-    interview-coach/  # Coaching + drills (git submodule)
-  tools/          # Shared Python CLI tools
-    db.py             # Thin CLI shim — forwards to db_modules/
-    db_modules/       # Modular Supabase CRUD (jobs, companies, contacts, applications, engagements, blog, tasks)
-    generate_resume_docx.py  # Resume markdown -> DOCX/PDF via LibreOffice
-    sync_contacts.py         # DB -> contacts markdown sync
-    push_to_telegram.py      # Send formatted messages to Telegram (direct Bot API)
-  hooks/          # Session lifecycle hooks
-    load-hot-memory.sh   # SessionStart: inject hot memory, detect fresh install
-    check-context.sh     # PreToolUse: context freshness check
-    sync-extended.sh     # Stop: sync contacts, cleanup
-  memory/hot/     # Hot memory files loaded every session (gitignored)
+.claude/                    # All Claude Code configuration
+  CLAUDE.md                 # Project instructions (this file)
+  CLAUDE.local.md           # Personal overrides (gitignored)
+  settings.json             # Shared permissions & hooks
+  settings.local.json       # Personal permission overrides (gitignored)
+  agents/                   # Agent definitions
+    artemis-orchestrator.md   # Unified orchestrator: Telegram + task executor
+  skills/                   # Workflow skills
+    hunt/                     # Job scouting, pipeline management
+    apply/                    # Application materials generation
+    connect/                  # Networking pipeline
+    profile/                  # Candidate context + interview prep
+    inbox/                    # Gmail + Calendar monitoring
+    linkedin/                 # LinkedIn browsing + engagement (Chrome MCP)
+    blogger/                  # Content creation + publishing
+    maintain/                 # Pipeline hygiene (dedupe, cull)
+    artemis-setup/            # One-time setup wizard
+    interview-coach/          # Coaching + drills (git submodule)
+  tools/                    # Shared Python CLI tools
+    db.py                     # Thin CLI shim — forwards to db_modules/
+    db_modules/               # Modular Supabase CRUD
+    generate_resume_docx.py   # Resume markdown -> DOCX/PDF via LibreOffice
+    sync_contacts.py          # DB -> contacts markdown sync
+    push_to_telegram.py       # Send formatted messages to Telegram
+  hooks/                    # Session lifecycle hooks
+    load-hot-memory.sh        # SessionStart: inject hot memory, detect fresh install
+    check-context.sh          # PreToolUse: context freshness check
+    sync-extended.sh          # Stop: sync contacts, cleanup
+  rules/                    # Auto-loaded contextual rules
+    data-handling.md          # PII, CLI, data source rules
+    pipeline-workflow.md      # Job pipeline operational rules
+  memory/
+    hot/                      # Hot memory loaded every session (gitignored)
+.mcp.json                   # MCP server registration (project root)
 channels/
-  artemis-channel/  # MCP channel: pushes task events into the orchestrator (port 8790)
-  artemis-webhook/  # (retired)
-output/           # All generated artifacts (gitignored)
-api/              # FastAPI backend (scheduler, task queue, PDF generation)
-frontend/         # React dashboard (Pipeline, Networking, Engagement, Blog, Schedules tabs)
-db/migrations/    # Supabase schema migrations (001-017)
-docs/             # Documentation (automation guide, UI walkthrough)
+  artemis-channel/            # MCP channel: pushes task events into orchestrator
+scripts/
+  setup.sh                    # New user setup wizard
+  start.sh                    # Start all services in tmux
+  stop.sh                     # Stop services
+output/                     # Generated artifacts (gitignored)
+api/                        # FastAPI backend (scheduler, task queue, PDF generation)
+frontend/                   # React dashboard
+db/migrations/              # Supabase schema migrations (001-017)
+docs/                       # Documentation
 ```
 
 ## Skills & Routing
@@ -73,7 +86,7 @@ docs/             # Documentation (automation guide, UI walkthrough)
 | **interview-coach** | `/kickoff`, `/practice`, `/mock`, `/debrief` | Coaching, storybank, drills (git submodule) |
 | **inbox** | `/inbox` | Monitor Gmail + Calendar for job search activity |
 | **linkedin** | `/linkedin` | Browse LinkedIn for jobs, contacts, engagement (Chrome MCP) |
-| **blogger** | `/blog-audit`, `/blog-ideas`, `/blog-write`, `/blog-publish`, `/blog-status` | Import past blog archive, generate ideas, draft/publish posts |
+| **blogger** | `/blog-audit`, `/blog-ideas`, `/blog-write`, `/blog-publish`, `/blog-status` | Content creation + publishing |
 | **maintain** | `/dedupe`, `/cull` | Deduplicate jobs, cull stale/low-value entries |
 | **artemis-setup** | `/setup` | One-time setup wizard for new users |
 
@@ -113,6 +126,10 @@ Side statuses: `not_interested`, `rejected`, `deleted`
 - `preferences.md` -- target roles, companies, deal-breakers (hunt skill)
 - `coaching_state.md` -- full coaching state (interview-coach)
 
+## Local Overrides
+
+Use `.claude/CLAUDE.local.md` (gitignored) for machine-specific notes, personal workflow tweaks, or environment-specific instructions. See `.claude/CLAUDE.local.example.md` for the template.
+
 ## MCP Integrations (Optional)
 
 These unlock additional skills but are not required for core functionality:
@@ -122,19 +139,14 @@ These unlock additional skills but are not required for core functionality:
 - **Claude in Chrome** -- enables `/linkedin` and `/blogger` skills (browsing, engagement, publishing)
 - **Supabase MCP** -- enables direct DB access for migrations and queries
 
-## Data Handling Rules
-
-- Never hardcode PII in scripts. Build extensible CLI tools and pipe data via stdin at runtime.
-- CLI commands must be single-line. Strip newlines from text fields before passing as args.
-- Supabase is the source of truth for structured data. Local markdown files are caches/views.
-- Batch operations via JSON stdin are preferred over individual CLI calls for multiple items.
-- All engagement actions (likes, comments, posts) go through an approval queue. Nothing gets posted without user sign-off.
-- Resume bullets must come verbatim from `resume_master.md`. Never fabricate new ones.
-
 ## Running Artemis
 
-Start all services (API, frontend, Telegram handler) in a single tmux session:
+First-time setup:
+```bash
+./scripts/setup.sh
+```
 
+Start all services (API, frontend, Telegram handler) in a single tmux session:
 ```bash
 ./scripts/start.sh          # start everything
 ./scripts/start.sh --no-frontend   # skip the React frontend
