@@ -47,15 +47,6 @@ export function ApplicationModal({ isOpen, onClose, job, onGenerationComplete, o
   const [saving, setSaving] = useState(false);
   const [regeneratingPdf, setRegeneratingPdf] = useState(false);
   const [teachingFromEdit, setTeachingFromEdit] = useState(false);
-  const [templateMissing, setTemplateMissing] = useState<string | null>(null);
-
-  // Check for resume template on mount
-  useEffect(() => {
-    fetch(`${API_BASE}/api/check-template`)
-      .then(r => r.json())
-      .then(data => setTemplateMissing(data.exists ? null : data.message))
-      .catch(() => {});
-  }, []);
 
   const app = job.applications?.[0] as any;
   const hasResume = !!app?.resume_md;
@@ -273,23 +264,6 @@ export function ApplicationModal({ isOpen, onClose, job, onGenerationComplete, o
             </span>
           )}
         </div>
-
-        {/* Template missing warning */}
-        {templateMissing && (
-          <div style={{
-            padding: '0.5rem 1.25rem',
-            fontSize: '0.8rem',
-            backgroundColor: 'rgba(255, 170, 0, 0.1)',
-            borderBottom: '1px solid var(--border)',
-            color: 'var(--warning, #ffaa00)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}>
-            <span>⚠️</span>
-            <span>{templateMissing}</span>
-          </div>
-        )}
 
         {/* Tab bar */}
         <div style={{

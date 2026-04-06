@@ -16,9 +16,6 @@ _UV_BIN = os.environ.get("UV_BIN", shutil.which("uv") or "uv")
 
 router = APIRouter()
 
-TEMPLATE_REL_PATH = ".claude/skills/apply/references/resume_template.docx"
-
-
 class GenerateRequest(BaseModel):
     job_id: str
     company_name: str | None = None
@@ -53,21 +50,6 @@ async def generate_application(req: GenerateRequest):
     return {"task_id": res.data[0]["id"], "status": "queued", "name": name}
 
 
-@router.get("/api/check-template")
-async def check_template():
-    """Check whether the resume template DOCX exists."""
-    template_path = os.path.join(PROJECT_ROOT, TEMPLATE_REL_PATH)
-    exists = os.path.isfile(template_path)
-    return {
-        "exists": exists,
-        "path": TEMPLATE_REL_PATH,
-        "message": None if exists else (
-            "Resume template not found. Place your styled .docx template at "
-            f"{TEMPLATE_REL_PATH} — see README for setup instructions."
-        ),
-    }
-
-
 class GeneratePdfRequest(BaseModel):
     job_id: str
 
@@ -95,9 +77,6 @@ async def generate_pdf(req: GeneratePdfRequest):
         stdout, stderr = process.communicate()
 
         if process.returncode != 0:
-            # Surface actionable messages from known errors
-            if "TEMPLATE_MISSING" in stderr:
-                raise HTTPException(status_code=422, detail=f"Resume template not found. Place your styled .docx at {TEMPLATE_REL_PATH}")
             if "No resume_md found" in stderr:
                 raise HTTPException(status_code=400, detail="No resume found for this job. Generate application materials first.")
             if "not found" in stderr.lower() and "job" in stderr.lower():
