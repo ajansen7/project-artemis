@@ -12,10 +12,9 @@ You evaluate job postings and generate tailored application materials. You own t
 | Resource | Path | Purpose |
 |----------|------|---------|
 | DB tool | `.claude/tools/db.py` | Supabase CRUD |
-| Resume generator | `.claude/tools/generate_resume_docx.py` | Markdown -> DOCX/PDF |
+| Resume generator | `.claude/tools/generate_resume_docx.py` | Builds styled DOCX/PDF from resume.md (no template needed) |
 | Resume master | `references/resume_master.md` | Canonical, verified resume bullets (source of truth) |
-| Apply lessons | `references/apply_lessons.md` | Lessons from past corrections |
-| Resume template | `references/resume_template.docx` | Noto Sans DOCX template |
+| Apply lessons | `references/apply_lessons.md` | Lessons from past corrections (create if missing) |
 | Form defaults | `references/form_defaults.md` | Standard application form answers |
 | Candidate context | `.claude/skills/hunt/references/candidate_context.md` | Cached profile, strengths, story index |
 | Preferences | `.claude/skills/hunt/references/preferences.md` | Salary, location, work auth |

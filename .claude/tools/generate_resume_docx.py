@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Resume DOCX/PDF Generator — Builds a resume DOCX from the Noto Sans template,
-then converts to PDF via LibreOffice (soffice).
+Resume DOCX/PDF Generator — Builds a styled resume from markdown.
+Matches resume_pretty.docx: dark navy/blue header table, light-blue summary
+box with blue left border, ALL-CAPS blue section headings, 2-col skills table.
 
 Usage:
   uv run python .claude/tools/generate_resume_docx.py --job-id <uuid>
@@ -12,7 +13,6 @@ Requires LibreOffice for PDF conversion:
 """
 
 import argparse
-import copy
 import os
 import re
 import subprocess
@@ -21,21 +21,20 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-# .claude/tools/ is 2 levels below project root
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(PROJECT_ROOT / ".env")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 
-TEMPLATE_PATH = PROJECT_ROOT / ".claude" / "skills" / "apply" / "references" / "resume_template.docx"
+# ─── Colour palette ───────────────────────────────────────────────────────────
 
-W  = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-R  = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
-XML = "http://www.w3.org/XML/1998/namespace"
-
-def _w(tag): return f"{{{W}}}{tag}"
-def _r(tag): return f"{{{R}}}{tag}"
+NAVY   = "1B3A5C"   # header left bg
+BLUE   = "2E7EBF"   # header right bg + section headings + summary border
+LBLUE  = "A8CCE8"   # subtitle in header
+SUMMBG = "EAF3FA"   # summary box background
+DARK   = "222222"   # body text
+GREY   = "646464"   # dates / secondary
 
 
 # ─── Markdown parser ──────────────────────────────────────────────────────────
@@ -44,28 +43,21 @@ def parse_resume_md(md_text: str) -> list[tuple[str, str]]:
     """
     Parse resume markdown into (block_type, content) tuples.
 
-    Types:
-      name       # H1
-      contact    # pipe-separated contact line right after name
-      section    # H2 heading
-      role       # H3 entry (role/company/dates)
-      bold       # **text** standalone paragraph
-      italic     # *text* or _text_ standalone paragraph
-      bullet     # - list item
-      hr         # --- divider (skipped in output)
-      paragraph  # body text
+    Types: name, contact, section, role, bullet, hr, blank, paragraph
     """
     blocks: list[tuple[str, str]] = []
-    prev_type: str | None = None
+    seen_name = False
+    seen_contact = False
 
     for raw in md_text.split("\n"):
         line = raw.rstrip()
         if not line:
-            prev_type = "blank"
+            blocks.append(("blank", ""))
             continue
 
         if line.startswith("# "):
             t, content = "name", line[2:].strip()
+            seen_name = True
         elif line.startswith("## "):
             t, content = "section", line[3:].strip()
         elif line.startswith("### "):
@@ -74,55 +66,46 @@ def parse_resume_md(md_text: str) -> list[tuple[str, str]]:
             t, content = "bullet", line[2:].strip()
         elif line.strip() in ("---", "***", "___"):
             t, content = "hr", ""
-        elif re.match(r"^\*\*[^*].+\*\*$", line.strip()) or re.match(r"^__[^_].+__$", line.strip()):
-            t, content = "bold", line.strip().strip("*").strip("_")
-        elif re.match(r"^\*[^*].+\*$", line.strip()) or re.match(r"^_[^_].+_$", line.strip()):
-            t, content = "italic", line.strip().strip("*").strip("_")
+        elif seen_name and not seen_contact and not line.startswith("#"):
+            t = "contact"
+            content = re.sub(r"^\*\*Contact\*\*:\s*", "", line.strip())
+            seen_contact = True
+        elif re.match(r"^\*\*[^*].+\*\*$", line.strip()):
+            t, content = "bold", line.strip()[2:-2]
+        elif re.match(r"^\*[^*].+\*$", line.strip()):
+            t, content = "italic", line.strip()[1:-1]
         else:
-            t = "contact" if prev_type == "name" else "paragraph"
-            content = line.strip()
+            t, content = "paragraph", line.strip()
 
         blocks.append((t, content))
-        prev_type = t
 
     return blocks
 
 
 def parse_role_line(text: str) -> tuple[str, str, str]:
-    """
-    Parse '### Company — Title | dates' → (title, company, dates).
-    Also handles '### Company — Title (dates)' and '### Title (dates)'.
-    """
-    # Try ' | dates' suffix first
+    """Parse '### Company — Title | dates' → (title, company, dates)."""
     pipe_match = re.search(r"\s+\|\s+(.+)$", text)
     if pipe_match:
         dates = pipe_match.group(1).strip()
         remainder = text[: pipe_match.start()].strip()
     else:
-        # Try '(dates)' suffix
         paren_match = re.search(r"\(([^()]+)\)\s*$", text)
         if paren_match:
             dates = paren_match.group(1).strip()
             remainder = text[: paren_match.start()].strip()
         else:
-            dates = ""
-            remainder = text
+            dates, remainder = "", text
 
     for sep in (" \u2014 ", " \u2013 ", " — ", " – ", " - "):
         if sep in remainder:
             parts = remainder.split(sep, 1)
-            company = parts[0].strip()
-            title = parts[1].strip()
-            return title, company, dates
+            return parts[1].strip(), parts[0].strip(), dates
 
     return remainder, "", dates
 
 
 def parse_contact_items(contact_line: str) -> list[dict]:
-    """
-    Split 'email | phone | [LinkedIn](url) | ...' into structured items.
-    Returns list of {'label': str, 'url': str|None}.
-    """
+    """Split 'email | phone | url' into [{'label': str, 'url': str|None}]."""
     items = []
     for part in contact_line.split(" | "):
         part = part.strip()
@@ -134,43 +117,25 @@ def parse_contact_items(contact_line: str) -> list[dict]:
     return items
 
 
-# ─── Inline markup stripping ──────────────────────────────────────────────────
-
-def _strip_inline(text: str) -> str:
-    """Remove markdown inline formatting for plain text insertion."""
-    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
-    text = re.sub(r"\*(.+?)\*", r"\1", text)
-    text = re.sub(r"__(.+?)__", r"\1", text)
-    text = re.sub(r"_(.+?)_", r"\1", text)
-    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
-    return text
-
-
 def _parse_inline_runs(text: str) -> list[dict]:
-    """
-    Parse inline markdown into runs: [{'text': str, 'bold': bool, 'italic': bool, 'url': str|None}]
-    """
+    """Parse **bold**, *italic*, [link](url) into run dicts."""
     runs = []
     pattern = re.compile(
-        r"\*\*(.+?)\*\*"       # **bold**
-        r"|\*(.+?)\*"          # *italic*
-        r"|__(.+?)__"          # __bold__
-        r"|_(.+?)_"            # _italic_
-        r"|\[([^\]]+)\]\(([^)]+)\)"  # [link](url)
+        r"\*\*(.+?)\*\*|\*(.+?)\*|__(.+?)__|_(.+?)_|\[([^\]]+)\]\(([^)]+)\)"
     )
     pos = 0
     for m in pattern.finditer(text):
         if m.start() > pos:
-            runs.append({"text": text[pos:m.start()], "bold": False, "italic": False, "url": None})
-        if m.group(1):   # **bold**
-            runs.append({"text": m.group(1), "bold": True, "italic": False, "url": None})
-        elif m.group(2): # *italic*
-            runs.append({"text": m.group(2), "bold": False, "italic": True, "url": None})
-        elif m.group(3): # __bold__
-            runs.append({"text": m.group(3), "bold": True, "italic": False, "url": None})
-        elif m.group(4): # _italic_
-            runs.append({"text": m.group(4), "bold": False, "italic": True, "url": None})
-        elif m.group(5): # [link](url)
+            runs.append({"text": text[pos : m.start()], "bold": False, "italic": False, "url": None})
+        if m.group(1):
+            runs.append({"text": m.group(1), "bold": True,  "italic": False, "url": None})
+        elif m.group(2):
+            runs.append({"text": m.group(2), "bold": False, "italic": True,  "url": None})
+        elif m.group(3):
+            runs.append({"text": m.group(3), "bold": True,  "italic": False, "url": None})
+        elif m.group(4):
+            runs.append({"text": m.group(4), "bold": False, "italic": True,  "url": None})
+        elif m.group(5):
             runs.append({"text": m.group(5), "bold": False, "italic": False, "url": m.group(6)})
         pos = m.end()
     if pos < len(text):
@@ -178,434 +143,386 @@ def _parse_inline_runs(text: str) -> list[dict]:
     return runs or [{"text": text, "bold": False, "italic": False, "url": None}]
 
 
-# ─── DOCX XML helpers ─────────────────────────────────────────────────────────
+# ─── Low-level helpers ────────────────────────────────────────────────────────
 
-from lxml import etree
-
-
-def _new_elem(tag: str, **attrs) -> etree._Element:
-    e = etree.Element(_w(tag))
-    for k, v in attrs.items():
-        e.set(_w(k), str(v))
-    return e
+from docx import Document
+from docx.shared import Pt, Inches, RGBColor
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
 
 
-def _make_run(text: str, bold=False, italic=False, color=None, sz=None,
-              font_ascii=None, underline=False) -> etree._Element:
-    r = _new_elem("r")
-    rPr = _new_elem("rPr")
-    if font_ascii:
-        fonts = _new_elem("rFonts")
-        for attr in ("ascii", "cs", "eastAsia", "hAnsi"):
-            fonts.set(_w(attr), font_ascii)
-        rPr.append(fonts)
-    if bold:
-        b = _new_elem("b"); b.set(_w("val"), "1"); rPr.append(b)
-        bCs = _new_elem("bCs"); bCs.set(_w("val"), "1"); rPr.append(bCs)
-    if italic:
-        i = _new_elem("i"); rPr.append(i)
-    if color:
-        c = _new_elem("color"); c.set(_w("val"), color.lstrip("#")); rPr.append(c)
-    if sz:
-        s = _new_elem("sz"); s.set(_w("val"), str(sz)); rPr.append(s)
-        sCs = _new_elem("szCs"); sCs.set(_w("val"), str(sz)); rPr.append(sCs)
-    if underline:
-        u = _new_elem("u"); u.set(_w("val"), "single"); rPr.append(u)
-    if len(rPr):
-        r.append(rPr)
-    t = _new_elem("t")
-    t.text = text
-    if text and (text[0] == " " or text[-1] == " "):
-        t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
-    r.append(t)
-    return r
+def _rgb(hex_str: str) -> RGBColor:
+    h = hex_str.lstrip("#")
+    return RGBColor(int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
 
 
-def _make_hyperlink(text: str, url: str, rel_id: str, color="1155cc",
-                    sz=20, font="Noto Sans Light") -> etree._Element:
-    hl = etree.Element(_w("hyperlink"))
-    hl.set(_r("id"), rel_id)
-    r = _make_run(text, color=color, sz=sz, font_ascii=font, underline=True)
-    hl.append(r)
-    return hl
+def _font(run, size=None, bold=None, italic=None, color: str | None = None):
+    run.font.name = "Calibri"
+    if size   is not None: run.font.size  = Pt(size)
+    if bold   is not None: run.font.bold  = bold
+    if italic is not None: run.font.italic = italic
+    if color  is not None: run.font.color.rgb = _rgb(color)
 
 
-def _clear_para_runs(para_elem: etree._Element) -> None:
-    """Remove all runs and hyperlinks from a paragraph."""
-    for child in list(para_elem):
-        tag = child.tag.split("}")[-1]
-        if tag in ("r", "hyperlink", "bookmarkStart", "bookmarkEnd"):
-            para_elem.remove(child)
+def _spacing(p, before=0, after=0, line=None):
+    pf = p.paragraph_format
+    pf.space_before = Pt(before)
+    pf.space_after  = Pt(after)
+    if line is not None:
+        pf.line_spacing = Pt(line)
 
 
-def _set_para_text(para_elem: etree._Element, text: str,
-                   font=None, sz=None, bold=False, color=None) -> None:
-    """Replace paragraph content with a single plain run."""
-    _clear_para_runs(para_elem)
-    r = _make_run(text, bold=bold, color=color, sz=sz, font_ascii=font)
-    para_elem.append(r)
+def _shd(cell, fill: str):
+    tcPr = cell._tc.get_or_add_tcPr()
+    shd = OxmlElement("w:shd")
+    shd.set(qn("w:fill"), fill)
+    shd.set(qn("w:val"),  "clear")
+    tcPr.append(shd)
 
 
-# ─── Template paragraph builders ──────────────────────────────────────────────
-
-def _build_summary_para(text: str) -> etree._Element:
-    """Plain body paragraph for summary text."""
-    p = etree.Element(_w("p"))
-    pPr = _new_elem("pPr")
-    wc = _new_elem("widowControl"); wc.set(_w("val"), "0"); pPr.append(wc)
-    sp = _new_elem("spacing"); sp.set(_w("before"), "120"); sp.set(_w("lineRule"), "auto"); pPr.append(sp)
-    ind = _new_elem("ind"); ind.set(_w("right"), "-90"); pPr.append(ind)
-    p.append(pPr)
-    for run_data in _parse_inline_runs(text):
-        p.append(_make_run(run_data["text"], bold=run_data["bold"], italic=run_data["italic"]))
-    return p
+def _cell_margins(cell, top=0, left=0, bottom=0, right=0):
+    tcPr = cell._tc.get_or_add_tcPr()
+    tcMar = OxmlElement("w:tcMar")
+    for side, val in [("top", top), ("left", left), ("bottom", bottom), ("right", right)]:
+        e = OxmlElement(f"w:{side}")
+        e.set(qn("w:type"), "dxa")
+        e.set(qn("w:w"), str(val))
+        tcMar.append(e)
+    tcPr.append(tcMar)
 
 
-def _build_section_heading(text: str) -> etree._Element:
-    """Heading1 section header."""
-    p = etree.Element(_w("p"))
-    pPr = _new_elem("pPr")
-    style = _new_elem("pStyle"); style.set(_w("val"), "Heading1"); pPr.append(style)
-    rPr = _new_elem("rPr")
-    sz = _new_elem("sz"); sz.set(_w("val"), "30"); rPr.append(sz)
-    szCs = _new_elem("szCs"); szCs.set(_w("val"), "30"); rPr.append(szCs)
-    pPr.append(rPr)
-    p.append(pPr)
-    p.append(_make_run(text))
-    return p
+def _no_cell_borders(cell):
+    tcPr = cell._tc.get_or_add_tcPr()
+    tcBdr = OxmlElement("w:tcBorders")
+    for side in ["top", "left", "bottom", "right"]:
+        b = OxmlElement(f"w:{side}")
+        b.set(qn("w:val"), "none")
+        tcBdr.append(b)
+    tcPr.append(tcBdr)
 
 
-def _build_divider() -> etree._Element:
-    """Horizontal rule divider paragraph (grey line)."""
-    p = etree.Element(_w("p"))
-    pPr = _new_elem("pPr")
-    sp = _new_elem("spacing"); sp.set(_w("line"), "36"); sp.set(_w("lineRule"), "auto"); pPr.append(sp)
-    ind = _new_elem("ind")
-    ind.set(_w("left"), "-90"); ind.set(_w("right"), "-90"); ind.set(_w("firstLine"), "0")
-    pPr.append(ind)
-    p.append(pPr)
-    r = etree.Element(_w("r"))
-    pict = etree.SubElement(r, _w("pict"))
-    ns_v = "urn:schemas-microsoft-com:vml"
-    ns_o = "urn:schemas-microsoft-com:office:office"
-    rect = etree.SubElement(pict, f"{{{ns_v}}}rect")
-    rect.set("style", "width:0.0pt;height:1.5pt")
-    rect.set(f"{{{ns_o}}}hr", "t")
-    rect.set(f"{{{ns_o}}}hrstd", "t")
-    rect.set(f"{{{ns_o}}}hralign", "center")
-    rect.set("fillcolor", "#A0A0A0")
-    rect.set("stroked", "f")
-    p.append(r)
-    return p
+def _get_or_add_tblPr(tbl_elem):
+    tblPr = tbl_elem.find(qn("w:tblPr"))
+    if tblPr is None:
+        tblPr = OxmlElement("w:tblPr")
+        tbl_elem.insert(0, tblPr)
+    return tblPr
 
 
-def _build_role_header(title: str, company: str, dates: str) -> etree._Element:
-    """Role header: 'Title | Company [right-tab] dates'"""
-    p = etree.Element(_w("p"))
-    pPr = _new_elem("pPr")
-    wc = _new_elem("widowControl"); wc.set(_w("val"), "0"); pPr.append(wc)
-    tabs = _new_elem("tabs")
-    tab = _new_elem("tab")
-    tab.set(_w("val"), "right"); tab.set(_w("leader"), "none"); tab.set(_w("pos"), "10980")
-    tabs.append(tab); pPr.append(tabs)
-    sp = _new_elem("spacing"); sp.set(_w("before"), "80"); sp.set(_w("line"), "240"); sp.set(_w("lineRule"), "auto"); pPr.append(sp)
-    p.append(pPr)
-
-    # Title — bold, dark color
-    p.append(_make_run(title, bold=True, color="434343", sz=22, font_ascii="Noto Sans"))
-    if company:
-        p.append(_make_run(" | ", bold=True, color="434343", sz=22, font_ascii="Noto Sans"))
-        # Company — bold, blue
-        p.append(_make_run(company, bold=True, color="6A94BF", sz=22, font_ascii="Noto Sans"))
-    if dates:
-        # Tab + dates — grey, lighter
-        tab_r = etree.Element(_w("r"))
-        tab_t = etree.SubElement(tab_r, _w("tab"))  # noqa — this is a tab character element
-        p.append(tab_r)
-        p.append(_make_run(dates, color="73808D", sz=18, font_ascii="Noto Sans Light"))
-    return p
+def _no_tbl_borders(table):
+    tblPr = _get_or_add_tblPr(table._tbl)
+    tblBdr = OxmlElement("w:tblBorders")
+    for side in ["top", "left", "bottom", "right", "insideH", "insideV"]:
+        b = OxmlElement(f"w:{side}")
+        b.set(qn("w:val"), "none")
+        tblBdr.append(b)
+    tblPr.append(tblBdr)
 
 
-def _build_body_para(text: str, indent_left: int = 0) -> etree._Element:
-    """Plain body paragraph (intro text under a role)."""
-    p = etree.Element(_w("p"))
-    pPr = _new_elem("pPr")
-    wc = _new_elem("widowControl"); wc.set(_w("val"), "0"); pPr.append(wc)
-    sp = _new_elem("spacing"); sp.set(_w("after"), "80"); sp.set(_w("line"), "240"); sp.set(_w("lineRule"), "auto"); pPr.append(sp)
-    if indent_left:
-        ind = _new_elem("ind"); ind.set(_w("left"), str(indent_left)); ind.set(_w("firstLine"), "0"); pPr.append(ind)
-    p.append(pPr)
-    for run_data in _parse_inline_runs(text):
-        p.append(_make_run(run_data["text"], bold=run_data["bold"], italic=run_data["italic"],
-                           font_ascii="Noto Sans"))
-    return p
+def _valign(cell, val="center"):
+    tcPr = cell._tc.get_or_add_tcPr()
+    v = OxmlElement("w:vAlign")
+    v.set(qn("w:val"), val)
+    tcPr.append(v)
 
 
-def _build_bold_intro(text: str) -> etree._Element:
-    """Bold intro line (e.g. **AI Strategy & Platform**)."""
-    p = etree.Element(_w("p"))
-    pPr = _new_elem("pPr")
-    wc = _new_elem("widowControl"); wc.set(_w("val"), "0"); pPr.append(wc)
-    sp = _new_elem("spacing"); sp.set(_w("after"), "40"); sp.set(_w("line"), "240"); sp.set(_w("lineRule"), "auto"); pPr.append(sp)
-    p.append(pPr)
-    for run_data in _parse_inline_runs(text):
-        p.append(_make_run(run_data["text"], bold=True if run_data["bold"] or not any(
-            r["bold"] for r in _parse_inline_runs(text)) else False,
-                           italic=run_data["italic"], font_ascii="Noto Sans", sz=22))
-    return p
+def _set_col_widths(table, widths: list[int]):
+    """Set column widths in twips."""
+    tbl = table._tbl
+    tblGrid = tbl.find(qn("w:tblGrid"))
+    if tblGrid is None:
+        tblGrid = OxmlElement("w:tblGrid")
+        tbl.append(tblGrid)
+    for gc in tblGrid.findall(qn("w:gridCol")):
+        tblGrid.remove(gc)
+    for w in widths:
+        gc = OxmlElement("w:gridCol")
+        gc.set(qn("w:w"), str(w))
+        tblGrid.append(gc)
+    for cell, w in zip(table.rows[0].cells, widths):
+        tcPr = cell._tc.get_or_add_tcPr()
+        existing = tcPr.find(qn("w:tcW"))
+        if existing is not None:
+            tcPr.remove(existing)
+        tcW = OxmlElement("w:tcW")
+        tcW.set(qn("w:type"), "dxa")
+        tcW.set(qn("w:w"), str(w))
+        tcPr.append(tcW)
 
 
-def _build_italic_para(text: str) -> etree._Element:
-    """Italic note paragraph."""
-    p = etree.Element(_w("p"))
-    pPr = _new_elem("pPr")
-    wc = _new_elem("widowControl"); wc.set(_w("val"), "0"); pPr.append(wc)
-    sp = _new_elem("spacing"); sp.set(_w("after"), "40"); sp.set(_w("line"), "240"); sp.set(_w("lineRule"), "auto"); pPr.append(sp)
-    p.append(pPr)
-    # Strip outer italic markers, render italic
-    inner = re.sub(r"^\*(.+)\*$", r"\1", text.strip())
-    inner = re.sub(r"^_(.+)_$", r"\1", inner)
-    p.append(_make_run(inner, italic=True, color="73808D", sz=20, font_ascii="Noto Sans Light"))
-    return p
+def _set_tbl_width(table, width: int):
+    tblPr = _get_or_add_tblPr(table._tbl)
+    existing = tblPr.find(qn("w:tblW"))
+    if existing is not None:
+        tblPr.remove(existing)
+    tblW = OxmlElement("w:tblW")
+    tblW.set(qn("w:type"), "dxa")
+    tblW.set(qn("w:w"), str(width))
+    tblPr.append(tblW)
 
 
-def _build_bullet(text: str) -> etree._Element:
-    """Bullet list paragraph (numId=2 from template)."""
-    p = etree.Element(_w("p"))
-    pPr = _new_elem("pPr")
-    wc = _new_elem("widowControl"); wc.set(_w("val"), "0"); pPr.append(wc)
-    numPr = _new_elem("numPr")
-    ilvl = _new_elem("ilvl"); ilvl.set(_w("val"), "0"); numPr.append(ilvl)
-    numId = _new_elem("numId"); numId.set(_w("val"), "2"); numPr.append(numId)
-    pPr.append(numPr)
-    sp = _new_elem("spacing"); sp.set(_w("after"), "80"); sp.set(_w("line"), "240"); sp.set(_w("lineRule"), "auto"); pPr.append(sp)
-    ind = _new_elem("ind"); ind.set(_w("left"), "450"); ind.set(_w("hanging"), "360"); pPr.append(ind)
-    rPr_default = _new_elem("rPr")
-    fonts = _new_elem("rFonts")
-    for attr in ("ascii", "cs", "eastAsia", "hAnsi"):
-        fonts.set(_w(attr), "Noto Sans Light")
-    rPr_default.append(fonts)
-    color = _new_elem("color"); color.set(_w("val"), "434343"); rPr_default.append(color)
-    sz = _new_elem("sz"); sz.set(_w("val"), "18"); rPr_default.append(sz)
-    szCs = _new_elem("szCs"); szCs.set(_w("val"), "18"); rPr_default.append(szCs)
-    pPr.append(rPr_default)
-    p.append(pPr)
-
-    # Render inline markup in bullets
-    for run_data in _parse_inline_runs(text):
-        font = "Noto Sans" if run_data["bold"] else "Noto Sans"
-        p.append(_make_run(run_data["text"], bold=run_data["bold"], italic=run_data["italic"],
-                           color="434343", sz=18, font_ascii=font))
-    return p
+def _inline_runs(para, text: str, size=9.5, color: str | None = None):
+    """Add inline-markup-aware runs to a paragraph."""
+    for rd in _parse_inline_runs(text):
+        run = para.add_run(rd["text"])
+        _font(run, size=size, bold=rd["bold"], italic=rd["italic"],
+              color=color or DARK)
 
 
-def _build_skills_category(category: str) -> etree._Element:
-    """Skills category header (bold, smaller)."""
-    p = etree.Element(_w("p"))
-    pPr = _new_elem("pPr")
-    wc = _new_elem("widowControl"); wc.set(_w("val"), "0"); pPr.append(wc)
-    sp = _new_elem("spacing"); sp.set(_w("before"), "60"); sp.set(_w("after"), "20"); sp.set(_w("line"), "240"); sp.set(_w("lineRule"), "auto"); pPr.append(sp)
-    p.append(pPr)
-    p.append(_make_run(category, bold=True, color="434343", sz=20, font_ascii="Noto Sans"))
-    return p
+def _hrule(doc, color="BBBBBB"):
+    p = doc.add_paragraph()
+    _spacing(p, before=0, after=1)
+    pPr = p._p.get_or_add_pPr()
+    pBdr = OxmlElement("w:pBdr")
+    bottom = OxmlElement("w:bottom")
+    bottom.set(qn("w:val"), "single")
+    bottom.set(qn("w:sz"), "4")
+    bottom.set(qn("w:space"), "1")
+    bottom.set(qn("w:color"), color)
+    pBdr.append(bottom)
+    pPr.append(pBdr)
 
 
-def _build_skills_items(text: str) -> etree._Element:
-    """Skills items line."""
-    p = etree.Element(_w("p"))
-    pPr = _new_elem("pPr")
-    wc = _new_elem("widowControl"); wc.set(_w("val"), "0"); pPr.append(wc)
-    sp = _new_elem("spacing"); sp.set(_w("after"), "60"); sp.set(_w("line"), "240"); sp.set(_w("lineRule"), "auto"); pPr.append(sp)
-    p.append(pPr)
-    for run_data in _parse_inline_runs(text):
-        p.append(_make_run(run_data["text"], bold=run_data["bold"], italic=run_data["italic"],
-                           color="434343", sz=18, font_ascii="Noto Sans Light"))
-    return p
+# ─── Section builders ─────────────────────────────────────────────────────────
 
+def _header_table(doc, name: str, subtitle: str, contact_items: list[dict]):
+    """Two-column dark header: navy left (name+title), blue right (contact)."""
+    table = doc.add_table(rows=1, cols=2)
+    _no_tbl_borders(table)
+    _set_tbl_width(table, 10080)
+    _set_col_widths(table, [7200, 2880])
 
-# ─── Header paragraph editors ─────────────────────────────────────────────────
+    left = table.cell(0, 0)
+    _shd(left, NAVY)
+    _cell_margins(left, top=280, left=320, bottom=280, right=200)
+    _valign(left, "center")
+    _no_cell_borders(left)
 
-def _update_header(doc_body: etree._Element, name: str, contact_items: list[dict]) -> None:
-    """
-    Update paragraphs 0-6 in the template with the candidate's info.
-    Template layout:
-      [0] Name  [1] Subtitle(tagline)  [2] empty
-      [3] email [4] phone [5] location [6] LinkedIn+sectPr
-    """
-    children = list(doc_body)
+    p = left.paragraphs[0]
+    _spacing(p, before=0, after=3)
+    _font(p.add_run(name), size=26, bold=True, color="FFFFFF")
 
-    # Para 0: Name
-    _set_para_text(children[0], name, font="Noto Sans Black", sz=72)
+    if subtitle:
+        p2 = left.add_paragraph()
+        _spacing(p2, before=0, after=0)
+        _font(p2.add_run(subtitle), size=13, bold=False, color=LBLUE)
 
-    # Para 1: Subtitle — leave as-is (template has "AI Product Leader")
-    # We could update if the MD had a subtitle, but for now keep template value
+    right = table.cell(0, 1)
+    _shd(right, BLUE)
+    _cell_margins(right, top=280, left=200, bottom=280, right=200)
+    _valign(right, "center")
+    _no_cell_borders(right)
 
-    # Paras 2-6: contact items (right-aligned, Noto Sans Light, sz=20)
-    # Map contact items to contact slot paragraphs (3, 4, 5, 6)
-    # Items are: email, phone, location (optional), LinkedIn, Portfolio, GitHub, ...
-    # Slots [3,4,5,6] — fill first 4 items or leave blank
-    contact_slots = [children[3], children[4], children[5], children[6]]
-
-    # Separate hyperlinks from plain items
-    plain_items = [c for c in contact_items if not c["url"]]
-    link_items  = [c for c in contact_items if c["url"]]
-
-    # Fill slots: plain items first, then links (last slot = LinkedIn)
-    slot_data = (plain_items + link_items)[:4]
-    # Pad to 4 with empty
-    while len(slot_data) < 4:
-        slot_data.append({"label": "", "url": None})
-
-    for slot_para, item in zip(contact_slots, slot_data):
-        _clear_para_runs(slot_para)
+    first = True
+    for item in contact_items:
         if not item["label"]:
             continue
-        if item["url"]:
-            # Add hyperlink relationship
-            from docx.opc.constants import RELATIONSHIP_TYPE as RT
-            # We'll handle rel ids by reusing existing ones or adding new ones
-            # For simplicity, render as plain text with blue styling
-            slot_para.append(_make_run(item["label"], color="1155cc", sz=20,
-                                       font_ascii="Noto Sans Light", underline=True))
-        else:
-            slot_para.append(_make_run(item["label"], sz=20, font_ascii="Noto Sans Light"))
+        p = right.paragraphs[0] if first else right.add_paragraph()
+        first = False
+        _spacing(p, before=0, after=2)
+        _font(p.add_run(item["label"]), size=9, color="FFFFFF")
 
 
-# ─── Body builder ─────────────────────────────────────────────────────────────
+def _summary_box(doc, text: str):
+    """Full-width light-blue box with thick blue left border."""
+    table = doc.add_table(rows=1, cols=1)
+    _set_tbl_width(table, 10080)
+    _set_col_widths(table, [10080])
 
-def _build_body_elements(blocks: list[tuple[str, str]]) -> list[etree._Element]:
-    """Convert parsed blocks into DOCX paragraph elements for the main body."""
-    elements: list[etree._Element] = []
-    i = 0
+    # Blue left border only
+    tblPr = _get_or_add_tblPr(table._tbl)
+    tblBdr = OxmlElement("w:tblBorders")
+    for side in ["top", "bottom", "right", "insideH", "insideV"]:
+        b = OxmlElement(f"w:{side}")
+        b.set(qn("w:val"), "none")
+        tblBdr.append(b)
+    left_bdr = OxmlElement("w:left")
+    left_bdr.set(qn("w:val"), "single")
+    left_bdr.set(qn("w:color"), BLUE)
+    left_bdr.set(qn("w:sz"), "24")
+    tblBdr.append(left_bdr)
+    tblPr.append(tblBdr)
 
-    # Skip header blocks — already handled by _update_header
-    while i < len(blocks) and blocks[i][0] in ("name", "contact"):
-        i += 1
+    cell = table.cell(0, 0)
+    _shd(cell, SUMMBG)
+    _cell_margins(cell, top=120, left=240, bottom=120, right=240)
+    _no_cell_borders(cell)
 
-    # Check for a summary paragraph (paragraph block before first section)
-    summary_blocks = []
-    while i < len(blocks) and blocks[i][0] in ("paragraph", "hr", "blank"):
-        if blocks[i][0] == "paragraph":
-            summary_blocks.append(blocks[i][1])
-        i += 1
+    p = cell.paragraphs[0]
+    _spacing(p, before=0, after=0)
+    _inline_runs(p, text, size=10, color=DARK)
 
-    if summary_blocks:
-        for s in summary_blocks:
-            elements.append(_build_summary_para(s))
 
-    # Now process sections
-    while i < len(blocks):
-        btype, content = blocks[i]
+def _section_heading(doc, text: str):
+    p = doc.add_paragraph()
+    _spacing(p, before=8, after=2)
+    _font(p.add_run(text.upper()), size=11, bold=True, color=BLUE)
+    _hrule(doc)
 
-        if btype == "hr":
-            i += 1
-            continue
 
-        if btype == "section":
-            elements.append(_build_section_heading(content))
-            elements.append(_build_divider())
-            i += 1
-            continue
+def _role_header(doc, title: str, company: str, dates: str):
+    p = doc.add_paragraph()
+    _spacing(p, before=6, after=1)
+    p.paragraph_format.tab_stops.add_tab_stop(Inches(6.5), WD_ALIGN_PARAGRAPH.RIGHT)
+    if company:
+        _font(p.add_run(company), size=11, bold=True)
+        _font(p.add_run("  |  "), size=11, bold=False)
+    _font(p.add_run(title), size=11, italic=bool(company), bold=not bool(company))
+    if dates:
+        _font(p.add_run(f"\t{dates}"), size=9, color=GREY)
 
-        if btype == "role":
-            title, company, dates = parse_role_line(content)
-            elements.append(_build_role_header(title, company, dates))
-            i += 1
-            continue
 
-        if btype == "bold":
-            elements.append(_build_bold_intro(content))
-            i += 1
-            continue
+def _bullet(doc, text: str):
+    p = doc.add_paragraph(style="List Bullet")
+    _spacing(p, before=1, after=1, line=12)
+    p.paragraph_format.left_indent = Inches(0.2)
+    p.paragraph_format.first_line_indent = Inches(-0.15)
+    _inline_runs(p, text, size=9.5)
 
-        if btype == "italic":
-            elements.append(_build_italic_para(content))
-            i += 1
-            continue
 
-        if btype == "bullet":
-            elements.append(_build_bullet(content))
-            i += 1
-            continue
+def _skills_table(doc, pairs: list[tuple[str, str]]):
+    """Two-column table: bold label | value."""
+    table = doc.add_table(rows=len(pairs), cols=2)
+    _no_tbl_borders(table)
+    _set_tbl_width(table, 10080)
 
-        if btype == "paragraph":
-            elements.append(_build_body_para(content))
-            i += 1
-            continue
+    col_widths = [2600, 7480]
+    tbl = table._tbl
+    tblGrid = tbl.find(qn("w:tblGrid"))
+    if tblGrid is None:
+        tblGrid = OxmlElement("w:tblGrid")
+        tbl.append(tblGrid)
+    for gc in tblGrid.findall(qn("w:gridCol")):
+        tblGrid.remove(gc)
+    for w in col_widths:
+        gc = OxmlElement("w:gridCol")
+        gc.set(qn("w:w"), str(w))
+        tblGrid.append(gc)
 
-        i += 1  # skip unknowns
+    for i, (label, value) in enumerate(pairs):
+        row = table.rows[i]
+        for j, (cell, w) in enumerate(zip(row.cells, col_widths)):
+            _no_cell_borders(cell)
+            tcPr = cell._tc.get_or_add_tcPr()
+            tcW = OxmlElement("w:tcW")
+            tcW.set(qn("w:type"), "dxa")
+            tcW.set(qn("w:w"), str(w))
+            tcPr.append(tcW)
 
-    return elements
+        lp = row.cells[0].paragraphs[0]
+        _spacing(lp, before=1, after=1)
+        _font(lp.add_run(f"{label}:"), size=9.5, bold=True)
+
+        vp = row.cells[1].paragraphs[0]
+        _spacing(vp, before=1, after=1)
+        _font(vp.add_run(value), size=9.5)
 
 
 # ─── Main builder ─────────────────────────────────────────────────────────────
 
 def markdown_to_docx(md_text: str, output_path: str) -> None:
-    try:
-        from docx import Document
-    except ImportError:
-        print("❌ Missing dependency: python-docx")
-        print("Install with: uv add python-docx")
-        sys.exit(1)
+    doc = Document()
 
-    if not TEMPLATE_PATH.exists():
-        rel = TEMPLATE_PATH.relative_to(PROJECT_ROOT)
-        print(f"❌ TEMPLATE_MISSING: {rel}")
-        print(f"   Place your resume template DOCX at: {rel}")
-        print(f"   This is a styled Word document that controls fonts, layout, and header formatting.")
-        print(f"   See README.md for setup instructions.")
-        sys.exit(1)
+    for section in doc.sections:
+        section.top_margin    = Inches(0.6)
+        section.bottom_margin = Inches(0.6)
+        section.left_margin   = Inches(0.75)
+        section.right_margin  = Inches(0.75)
 
-    doc = Document(str(TEMPLATE_PATH))
-    body = doc.element.body
-    children = list(body)
+    doc.styles["Normal"].paragraph_format.space_after = Pt(0)
 
     blocks = parse_resume_md(md_text)
 
-    # Update header paragraphs (name, contact)
-    name_block = next((c for t, c in blocks if t == "name"), "")
-    contact_block = next((c for t, c in blocks if t == "contact"), "")
-    contact_items = parse_contact_items(contact_block) if contact_block else []
-    _update_header(body, name_block, contact_items)
+    # Extract header fields
+    name         = next((c for t, c in blocks if t == "name"),    "")
+    contact_raw  = next((c for t, c in blocks if t == "contact"), "")
+    contact_items = parse_contact_items(contact_raw) if contact_raw else []
+    first_role   = next((c for t, c in blocks if t == "role"),    None)
+    subtitle     = parse_role_line(first_role)[0] if first_role else ""
 
-    # Determine whether the MD contains a summary paragraph
-    has_md_summary = any(
-        t == "paragraph"
-        for t, _ in blocks
-        if t not in ("name", "contact")  # first non-header paragraph before a section
-    ) and next(
-        (t for t, _ in blocks if t not in ("name", "contact", "hr")), None
-    ) == "paragraph"
+    _header_table(doc, name, subtitle, contact_items)
 
-    # Remove body content paragraphs (index 8 onwards, keep final sectPr)
-    # children[7]  = horizontal rule divider right after header — keep it
-    # children[8]  = template summary paragraph — keep if MD has no summary
-    # children[9:] = rest of existing body content — remove
-    # children[-1] = final sectPr — keep
-    final_sectPr = children[-1]
-    body_start = 8 if has_md_summary else 9
-    for child in children[body_start:-1]:
-        body.remove(child)
+    # Find where body starts (skip name/contact/blank/hr preamble)
+    i = 0
+    while i < len(blocks) and blocks[i][0] in ("name", "contact", "blank", "hr"):
+        i += 1
 
-    # Build new body content
-    new_elements = _build_body_elements(blocks)
+    # Collect summary paragraph(s) before first section or role
+    summary_parts: list[str] = []
+    j = i
+    while j < len(blocks) and blocks[j][0] in ("paragraph", "blank", "hr"):
+        if blocks[j][0] == "paragraph":
+            summary_parts.append(blocks[j][1])
+        j += 1
+    if summary_parts:
+        _summary_box(doc, " ".join(summary_parts))
+        i = j
 
-    # Insert new elements before the final sectPr
-    for elem in new_elements:
-        final_sectPr.addprevious(elem)
+    # Render body
+    current_section = ""
+    skill_pairs: list[tuple[str, str]] = []
 
-    doc.save(output_path)
-    print(f"✅ DOCX written to: {output_path}")
+    def flush_skills():
+        if skill_pairs:
+            _skills_table(doc, list(skill_pairs))
+            skill_pairs.clear()
 
+    while i < len(blocks):
+        btype, content = blocks[i]
+        i += 1
+
+        if btype in ("blank", "hr"):
+            continue
+
+        if btype == "section":
+            flush_skills()
+            _section_heading(doc, content)
+            current_section = content.lower()
+            continue
+
+        if btype == "role":
+            flush_skills()
+            title, company, dates = parse_role_line(content)
+            _role_header(doc, title, company, dates)
+            continue
+
+        if btype == "bullet":
+            if current_section == "skills":
+                m = re.match(r"\*\*(.+?)\*\*:\s*(.*)", content)
+                if m:
+                    skill_pairs.append((m.group(1), m.group(2)))
+                    continue
+            flush_skills()
+            _bullet(doc, content)
+            continue
+
+        if btype in ("paragraph", "bold", "italic"):
+            flush_skills()
+            p = doc.add_paragraph()
+            _spacing(p, before=2, after=2)
+            italic_override = btype == "italic"
+            for rd in _parse_inline_runs(content):
+                run = p.add_run(rd["text"])
+                _font(run, size=9.5, bold=rd["bold"],
+                      italic=rd["italic"] or italic_override)
+            continue
+
+    flush_skills()
+
+    docx_out = output_path if output_path.endswith(".docx") else output_path.replace(".pdf", ".docx")
+    doc.save(docx_out)
+    print(f"✅ DOCX written to: {docx_out}")
+
+
+# ─── PDF conversion ───────────────────────────────────────────────────────────
 
 def docx_to_pdf(docx_path: str, output_dir: str) -> str:
-    """Convert DOCX to PDF using LibreOffice headless. Returns PDF path."""
     soffice = _find_soffice()
     if not soffice:
         print("❌ LibreOffice not found. Install with:")
         print("   brew install --cask libreoffice")
         sys.exit(1)
-
     result = subprocess.run(
         [soffice, "--headless", "--convert-to", "pdf", "--outdir", output_dir, docx_path],
         capture_output=True, text=True, timeout=60,
@@ -613,36 +530,27 @@ def docx_to_pdf(docx_path: str, output_dir: str) -> str:
     if result.returncode != 0:
         print(f"❌ LibreOffice conversion failed:\n{result.stderr}")
         sys.exit(1)
-
-    docx_stem = Path(docx_path).stem
-    pdf_path = str(Path(output_dir) / f"{docx_stem}.pdf")
+    pdf_path = str(Path(output_dir) / f"{Path(docx_path).stem}.pdf")
     print(f"✅ PDF written to: {pdf_path}")
     return pdf_path
 
 
+def markdown_to_pdf(md_text: str, output_path: str) -> None:
+    docx_path = output_path.replace(".pdf", ".docx")
+    markdown_to_docx(md_text, docx_path)
+    docx_to_pdf(docx_path, str(Path(output_path).parent))
+
+
 def _find_soffice() -> str | None:
-    """Find the LibreOffice soffice binary."""
-    candidates = [
+    for c in [
         "/Applications/LibreOffice.app/Contents/MacOS/soffice",
         "/usr/bin/soffice",
         "/usr/local/bin/soffice",
-    ]
-    for c in candidates:
+    ]:
         if Path(c).exists():
             return c
-    # Try PATH
     result = subprocess.run(["which", "soffice"], capture_output=True, text=True)
-    if result.returncode == 0:
-        return result.stdout.strip()
-    return None
-
-
-def markdown_to_pdf(md_text: str, output_path: str) -> None:
-    """Generate DOCX then convert to PDF. output_path should end in .pdf"""
-    docx_path = output_path.replace(".pdf", ".docx")
-    markdown_to_docx(md_text, docx_path)
-    out_dir = str(Path(output_path).parent)
-    docx_to_pdf(docx_path, out_dir)
+    return result.stdout.strip() if result.returncode == 0 else None
 
 
 # ─── DB helpers ───────────────────────────────────────────────────────────────
@@ -651,13 +559,12 @@ def fetch_resume_md_from_db(job_id: str) -> tuple[str, str, str]:
     if not SUPABASE_URL or not SUPABASE_KEY:
         print("ERROR: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in .env")
         sys.exit(1)
-
     from supabase import create_client
     sb = create_client(SUPABASE_URL, SUPABASE_KEY)
 
     app_res = sb.table("applications").select("resume_md").eq("job_id", job_id).execute()
     if not app_res.data or not app_res.data[0].get("resume_md"):
-        print(f"❌ No resume_md found for job {job_id}. Run /apply first.")
+        print(f"❌ No resume_md found for job {job_id}. Run /generate first.")
         sys.exit(1)
 
     job_res = sb.table("jobs").select("title, companies(name)").eq("id", job_id).execute()
@@ -666,19 +573,16 @@ def fetch_resume_md_from_db(job_id: str) -> tuple[str, str, str]:
         sys.exit(1)
 
     job = job_res.data[0]
-    company_name = (job.get("companies") or {}).get("name", "unknown")
-    job_title = job.get("title", "unknown")
-
-    return app_res.data[0]["resume_md"], company_name, job_title
+    company = (job.get("companies") or {}).get("name", "unknown")
+    title   = job.get("title", "unknown")
+    return app_res.data[0]["resume_md"], company, title
 
 
 def update_pdf_path_in_db(job_id: str, pdf_path: str) -> None:
-    # Store as relative path so the project is portable across machines
     try:
         relative_path = str(Path(pdf_path).relative_to(PROJECT_ROOT))
     except ValueError:
-        relative_path = pdf_path  # fallback if already relative or outside project
-
+        relative_path = pdf_path
     from supabase import create_client
     sb = create_client(SUPABASE_URL, SUPABASE_KEY)
     res = sb.table("applications").update({"resume_pdf_path": relative_path}).eq("job_id", job_id).execute()
@@ -697,12 +601,11 @@ def _safe_dirname(s: str) -> str:
 def main():
     parser = argparse.ArgumentParser(description="Generate a styled resume DOCX/PDF from markdown.")
     src = parser.add_mutually_exclusive_group(required=True)
-    src.add_argument("--job-id", help="Job UUID — fetches resume_md from DB")
+    src.add_argument("--job-id",      help="Job UUID — fetches resume_md from DB")
     src.add_argument("--resume-path", help="Path to a local resume.md file")
     parser.add_argument("--output", "-o", help="Output path (.docx or .pdf)")
-    parser.add_argument("--docx-only", action="store_true", help="Generate DOCX only, skip PDF")
-    parser.add_argument("--no-db-update", action="store_true",
-                        help="Skip writing PDF path back to DB")
+    parser.add_argument("--docx-only",  action="store_true", help="Generate DOCX only, skip PDF")
+    parser.add_argument("--no-db-update", action="store_true", help="Skip writing PDF path to DB")
     args = parser.parse_args()
 
     if args.job_id:
@@ -711,7 +614,7 @@ def main():
             output_path = args.output
         else:
             dir_name = f"{_safe_dirname(company)}-{_safe_dirname(title)}"
-            out_dir = PROJECT_ROOT / "output" / "applications" / dir_name
+            out_dir  = PROJECT_ROOT / "output" / "applications" / dir_name
             out_dir.mkdir(parents=True, exist_ok=True)
             ext = ".docx" if args.docx_only else ".pdf"
             output_path = str(out_dir / f"resume{ext}")
@@ -726,7 +629,7 @@ def main():
 
     if args.docx_only or output_path.endswith(".docx"):
         markdown_to_docx(resume_md, output_path if output_path.endswith(".docx")
-                          else output_path.replace(".pdf", ".docx"))
+                         else output_path.replace(".pdf", ".docx"))
     else:
         markdown_to_pdf(resume_md, output_path)
 

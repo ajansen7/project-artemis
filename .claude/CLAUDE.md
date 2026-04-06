@@ -77,17 +77,21 @@ docs/                       # Documentation
 
 ## Skills & Routing
 
-| Skill | Commands | Purpose |
-|-------|----------|---------|
-| **hunt** | `/scout`, `/sync`, `/review`, `/status` | Discover jobs, maintain pipeline, triage |
-| **apply** | `/analyze`, `/generate`, `/submit` | Evaluate fit, generate application materials |
-| **connect** | `/network` | Manage contacts, draft outreach, track status |
-| **profile** | `/context`, `/prep` | Build candidate context cache, interview prep |
+**Quick reference — hunt vs apply:**
+- **hunt** = managing the job *pipeline* (finding jobs, syncing sources, reviewing the queue, checking status). Use it when you're thinking about the list of jobs.
+- **apply** = working a *specific job* (analyzing a posting, generating resume + cover letter + primer, submitting). Use it once you've picked a job to pursue.
+
+| Skill | Commands | When to use it |
+|-------|----------|----------------|
+| **hunt** | `/scout`, `/sync`, `/review`, `/status` | Finding jobs, updating the pipeline, triaging what came in |
+| **apply** | `/analyze`, `/generate`, `/submit` | Working a specific posting — analysis, resume/cover letter, submission |
+| **connect** | `/network` | Managing contacts, drafting outreach, tracking follow-ups |
+| **profile** | `/context`, `/prep` | Building candidate context cache, interview prep for a company |
 | **interview-coach** | `/kickoff`, `/practice`, `/mock`, `/debrief` | Coaching, storybank, drills (git submodule) |
-| **inbox** | `/inbox` | Monitor Gmail + Calendar for job search activity |
-| **linkedin** | `/linkedin` | Browse LinkedIn for jobs, contacts, engagement (Chrome MCP) |
+| **inbox** | `/inbox` | Monitoring Gmail + Calendar for recruiter emails and interview scheduling |
+| **linkedin** | `/linkedin` | Browsing LinkedIn for jobs, contacts, engagement (Chrome MCP) |
 | **blogger** | `/blog-audit`, `/blog-ideas`, `/blog-write`, `/blog-publish`, `/blog-status` | Content creation + publishing |
-| **maintain** | `/dedupe`, `/cull` | Deduplicate jobs, cull stale/low-value entries |
+| **maintain** | `/dedupe`, `/cull` | Deduplicating jobs, culling stale/low-value entries |
 | **artemis-setup** | `/setup` | One-time setup wizard for new users |
 
 ## Supabase Schema
