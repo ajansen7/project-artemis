@@ -53,6 +53,7 @@ analysis_*.md
 .claude/plans/
 
 # ─── Personal Context (skill references, hot memory) ─────────
+# Legacy paths (keep until migration is complete)
 .claude/skills/hunt/references/candidate_context.md
 .claude/skills/hunt/references/preferences.md
 .claude/skills/apply/references/resume_master.md
@@ -68,6 +69,11 @@ analysis_*.md
 .claude/memory/MEMORY.md
 .claude/memory/*.md
 !.claude/memory/hot/
+
+# ─── Plugin State (new canonical location) ───────────────────
+state/*
+!state/examples/
+skills/coach/coaching_state.md
 
 # ─── Channels (local settings) ───────────────────────────────
 channels/.claude/settings.local.json
