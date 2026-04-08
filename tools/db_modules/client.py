@@ -7,8 +7,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 from supabase import create_client
 
-# Load .env from project root (.claude/tools/db_modules/ is 3 levels below root)
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+# Load .env from project root (tools/db_modules/ is 2 levels below root)
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(PROJECT_ROOT / ".env")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")

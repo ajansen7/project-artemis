@@ -5,7 +5,7 @@ import sys
 
 from db_modules.jobs import add_job, list_jobs, update_job, get_job, save_application, mark_submitted, score_job, merge_jobs, find_job
 from db_modules.companies import add_company, list_companies
-from db_modules.contacts import batch_add_contacts, update_contact
+from db_modules.contacts import batch_add_contacts, find_contact, update_contact
 from db_modules.batch import batch_update, batch_add
 from db_modules.engagements import add_engagement, update_engagement, list_engagements
 from db_modules.blog import add_blog_post, update_blog_post, batch_import_blog_posts, list_blog_posts
@@ -94,6 +94,15 @@ def main():
                               help="Batch add/update contacts from JSON on stdin. "
                                    "See docstring for full schema.")
     p.set_defaults(func=batch_add_contacts)
+
+    # find-contact
+    p = subparsers.add_parser("find-contact",
+                               help="Search for contacts by name, company, or LinkedIn URL. Returns JSON.")
+    p.add_argument("--name", default=None, help="Name (partial match, case-insensitive)")
+    p.add_argument("--company", default=None, help="Company name (partial match, case-insensitive)")
+    p.add_argument("--linkedin-url", default=None, help="LinkedIn URL (partial match)")
+    p.add_argument("--limit", type=int, default=25)
+    p.set_defaults(func=find_contact)
 
     # update-contact
     p = subparsers.add_parser("update-contact", help="Update a contact's status or notes")

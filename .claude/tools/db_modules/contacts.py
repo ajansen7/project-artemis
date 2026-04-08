@@ -112,6 +112,31 @@ def batch_add_contacts(args):
     print("  Run sync_contacts.py to regenerate the memory file.")
 
 
+def find_contact(args):
+    """Search for contacts by name, company, or LinkedIn URL. Returns JSON."""
+    query = sb.table("contacts").select(
+        "id, name, title, linkedin_url, outreach_status, priority, notes, "
+        "company:companies(name)"
+    )
+
+    if args.name:
+        query = query.ilike("name", f"%{args.name}%")
+    if args.company:
+        company_res = sb.table("companies").select("id").ilike("name", f"%{args.company}%").execute()
+        if company_res.data:
+            company_ids = [c["id"] for c in company_res.data]
+            query = query.in_("company_id", company_ids)
+        else:
+            print("[]")
+            return
+    if args.linkedin_url:
+        query = query.ilike("linkedin_url", f"%{args.linkedin_url}%")
+
+    res = query.limit(args.limit).execute()
+    import json
+    print(json.dumps(res.data, indent=2, default=str))
+
+
 def update_contact(args):
     """Update a contact's outreach status or notes by LinkedIn URL or ID."""
     # Find the contact
