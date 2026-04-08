@@ -31,17 +31,17 @@ cd project-artemis
 ./scripts/setup.sh
 ```
 
-The setup script checks prerequisites, installs all dependencies (Python, Node, Bun), initializes git submodules, configures your `.env`, and verifies the Supabase connection.
+The setup script checks prerequisites, installs all dependencies (Python, Node, Bun), sets up state file templates, configures your `.env`, and verifies the Supabase connection.
 
 ### 2. Launch Claude Code
 
 ```bash
-claude
+claude --plugin-dir .
 ```
 
-Artemis is a **project-level agent** -- all skills, memory, and hooks are self-contained in the `.claude/` directory. Just opening Claude Code here is all you need. The `artemis-orchestrator` agent is auto-discovered from `.claude/agents/` and the session hooks fire automatically.
+Artemis is a **Claude Code plugin** -- all skills, agents, hooks, and tools are self-contained at the project root. The `orchestrator` agent is auto-discovered and session hooks fire automatically.
 
-On a fresh clone, the session hook detects that no candidate profile exists and prompts you immediately. Run `/setup` to walk through the setup wizard, or just say **"Set me up"**.
+On a fresh clone, the session hook detects that no candidate profile exists and prompts you immediately. Run `/artemis:setup` to walk through the setup wizard, or just say **"Set me up"**.
 
 ### 3. Start all services
 
@@ -157,36 +157,36 @@ See **[docs/automation.md](docs/automation.md)** for scheduler details and **[do
 
 | Skill | Commands | What it does |
 |-------|----------|-------------|
-| **hunt** | `/scout`, `/sync`, `/review`, `/status` | Discover jobs, maintain pipeline, triage |
-| **apply** | `/analyze`, `/generate`, `/submit` | Evaluate fit, generate application materials, mark submitted |
-| **connect** | `/network` | Manage contacts, draft outreach, track status |
-| **profile** | `/context`, `/prep` | Build candidate context cache, interview prep |
-| **interview-coach** | `/kickoff`, `/practice`, `/mock`, `/debrief` | Coaching, storybank, drills (git submodule) |
-| **inbox** | `/inbox` | Monitor Gmail + Calendar for job search activity |
-| **linkedin** | `/linkedin` | Browse LinkedIn for jobs, contacts, engagement |
-| **blogger** | `/blogger` | Generate blog ideas, draft posts, publish content |
-| **maintain** | `/dedupe`, `/cull` | Deduplicate jobs, cull stale/low-value pipeline entries |
-| **artemis-setup** | `/setup` | One-time setup wizard for new users |
+| **scout** | `/artemis:scout`, `/artemis:sync`, `/artemis:review`, `/artemis:status` | Discover jobs, maintain pipeline, triage |
+| **apply** | `/artemis:analyze`, `/artemis:generate`, `/artemis:submit` | Evaluate fit, generate application materials, mark submitted |
+| **network** | `/artemis:network` | Manage contacts, draft outreach, track status |
+| **profile** | `/artemis:context`, `/artemis:prep` | Build candidate context cache, interview prep |
+| **coach** | `/artemis:kickoff`, `/artemis:practice`, `/artemis:mock`, `/artemis:debrief` | Coaching, storybank, drills |
+| **inbox** | `/artemis:inbox`, `/artemis:schedule`, `/artemis:draft` | Monitor Gmail + Calendar for job search activity |
+| **linkedin** | `/artemis:linkedin-scout`, `/artemis:linkedin-people`, `/artemis:linkedin-engage` | Browse LinkedIn for jobs, contacts, engagement |
+| **blog** | `/artemis:blog-ideas`, `/artemis:blog-write`, `/artemis:blog-publish`, `/artemis:blog-status` | Generate blog ideas, draft posts, publish content |
+| **maintain** | `/artemis:dedupe`, `/artemis:cull` | Deduplicate jobs, cull stale/low-value pipeline entries |
+| **setup** | `/artemis:setup` | One-time setup wizard for new users |
 
-### `/scout` -- Find Jobs
+### `/artemis:scout` -- Find Jobs
 
 > *"Scout for jobs"* or *"Find AI product manager roles"*
 
 Reads your profile and search preferences, searches the web, scores each posting for fit, saves to Supabase.
 
-### `/review` -- Review Pipeline
+### `/artemis:review` -- Review Pipeline
 
 > *"Review my pipeline"*
 
 Shows pipeline grouped by status. Triage: advance, mark not interested, or delete.
 
-### `/analyze <url>` -- Analyze a Posting
+### `/artemis:analyze <url>` -- Analyze a Posting
 
 > *"Analyze this posting: https://..."*
 
 Deep fit analysis: score (0-100), matched requirements, gaps with severity, story recommendations, red flags, go/no-go recommendation.
 
-### `/generate <job_id>` -- Generate Application Materials
+### `/artemis:generate <job_id>` -- Generate Application Materials
 
 > *"Generate application for job 1c1682a7"*
 
@@ -199,71 +199,71 @@ Creates four tailored files, saves to Supabase, builds a styled PDF, opens the f
 | `form_fills.md` | Pre-written answers: why this company, why this role, short bio, salary |
 | `primer.md` | Cheat sheet combining gap analysis + interview strategy |
 
-### `/submit <job_id>` -- Mark Submitted
+### `/artemis:submit <job_id>` -- Mark Submitted
 
 > *"Submit job 1c1682a7"* (after you've applied externally)
 
 Marks the application as submitted in Supabase, advances job to `applied`.
 
-### `/network` -- Networking Pipeline
+### `/artemis:network` -- Networking Pipeline
 
 > *"Show my networking pipeline"* or *"Who should I reach out to today?"*
 
 Surfaces contacts ready for outreach, tracks status, resyncs from DB.
 
-### `/inbox` -- Monitor Gmail + Calendar
+### `/artemis:inbox` -- Monitor Gmail + Calendar
 
 > *"Check my inbox"* or *"Any interviews this week?"*
 
 Scans Gmail for recruiter emails, LinkedIn job alert notifications, interview scheduling, and networking responses. Routes new leads into the pipeline and updates existing job statuses.
 
-### `/linkedin` -- LinkedIn Browsing + Engagement
+### `/artemis:linkedin-scout` -- LinkedIn Browsing + Engagement
 
 > *"Browse LinkedIn for jobs"* or *"Find contacts at Anthropic"*
 
 Uses Chrome MCP to actively browse LinkedIn. Saves discovered jobs to the pipeline, identifies contacts at target companies, and drafts engagement actions (likes, comments, connection requests) for your approval.
 
-### `/blogger` -- Content Creation
+### `/artemis:blog-write` -- Content Creation
 
 > *"Draft a post about agentic AI"* or *"What should I write about?"*
 
 Generates blog post ideas aligned with your positioning and target roles. Writes drafts in your voice. Manages the full lifecycle: idea, draft, review, published. Can publish to LinkedIn via Chrome MCP.
 
-### `/context` -- Refresh Profile Cache
+### `/artemis:context` -- Refresh Profile Cache
 
 > *"Refresh my context"*
 
 Rebuilds `candidate_context.md` from coaching state, resume, and preferences.
 
-### `/prep <company>` -- Interview Prep
+### `/artemis:prep <company>` -- Interview Prep
 
 > *"Prep me for Anthropic"*
 
 Company research, anticipated questions with story deployments, questions to ask, stories to drill.
 
-### `/status` -- Dashboard
+### `/artemis:status` -- Dashboard
 
 > *"Show my status"*
 
 Quick pipeline counts by status and target companies.
 
-### `/sync` -- Refresh & Re-score Pipeline
+### `/artemis:sync` -- Refresh & Re-score Pipeline
 
 Re-evaluates all active jobs against current preferences, prunes dead postings, batch updates scores.
 
-### `/dedupe` -- Deduplicate Jobs
+### `/artemis:dedupe` -- Deduplicate Jobs
 
 > *"Dedupe my pipeline"* or *"Find duplicate jobs"*
 
 Scans the pipeline for duplicate postings (same role from different sources, reposted listings, similar titles at the same company). Auto-merges obvious duplicates, combining sources, notes, and contact links. Surfaces ambiguous cases for your review.
 
-### `/cull` -- Cull Stale Jobs
+### `/artemis:cull` -- Cull Stale Jobs
 
 > *"Cull stale jobs"* or *"Clean up my pipeline"*
 
 Identifies low-value and stale jobs: low match scores, sitting in scouted/to_review for 30+ days with no progress. Presents candidates grouped by reason and culls on your confirmation.
 
-### `/setup` -- Initial Setup
+### `/artemis:setup` -- Initial Setup
 
 > *"Set me up"* (first time using Artemis)
 
@@ -286,11 +286,11 @@ A **two-tier memory system** keeps context compact: hot memory loads every sessi
            ▼ (push via artemis-channel MCP)
   ┌─────────────────────────────────────────┐
   │   Artemis Orchestrator (long-running)   │
-  │   .claude/agents/artemis-orchestrator.md│
+  │   agents/orchestrator.md                │
   │   Routes intent to the right skill      │
   └──────┬──────┬──────┬──────┬─────────────┘
          |      |      |      |
-       hunt  apply connect profile  interview-coach
+       scout  apply network profile  coach
      /scout /analyze /network /context  /kickoff
      /sync  /generate         /prep     /practice
      /review /submit                    /mock
@@ -299,15 +299,15 @@ A **two-tier memory system** keeps context compact: hot memory loads every sessi
       maintain
      /dedupe /cull
          |      |      |
-       inbox linkedin blogger
-     /inbox  /linkedin /blogger
+       inbox linkedin  blog
+     /inbox  /linkedin /blog-*
          |
          └──────────────────────────────────┐
-                   Shared Tools             │
-             .claude/tools/db.py            │
-             generate_resume_docx.py        │
-             sync_contacts.py               │
-             push_to_telegram.py            │
+                   Shared Tools (bin/)       │
+             artemis-db                     │
+             artemis-resume                 │
+             artemis-sync                   │
+             artemis-telegram               │
                        │                   │
                    Supabase ───────────────┘
       jobs . companies . contacts . applications
@@ -321,36 +321,37 @@ Artemis skills are designed to share information through Supabase and shared con
 - **Inbox** scans Gmail incrementally (tracks last-check timestamp) and handles two paths: updating active pipeline jobs (rejections, interview scheduling, confirmations) and adding new leads. Always deduplicates — rejected jobs are never re-added regardless of source
 - **LinkedIn** saves discovered jobs and contacts to the database, drafts engagement to `engagement_log`
 - **Blogger** captures ideas from any skill interaction, manages lifecycle in `blog_posts`
-- **Interview Coach** insights feed back into the master resume and candidate profile
-- **Connect** picks up contacts discovered by LinkedIn or Inbox skills
+- **Coach** insights feed back into the master resume and candidate profile
+- **Network** picks up contacts discovered by LinkedIn or Inbox skills
 - **Apply** uses the latest candidate context, which includes coaching insights
 
 ---
 
 ## Architecture
 
-### Memory (two tiers)
+### State (two tiers)
 
-**Hot memory** (`.claude/memory/hot/`) loads every session via hooks. Kept compact (~70 lines):
+All state files live in `state/` (gitignored). Templates in `state/examples/`.
+
+**Hot state** loads every session via hooks. Kept compact (~70 lines):
 - `identity.md` -- candidate name, headline, positioning, search status
 - `voice.md` -- tone rules for all communications
 - `active_loops.md` -- current interview loops and time-sensitive items
 - `lessons.md` -- operational best practices that evolve over time
 
-**Extended memory** lives in skill `references/` dirs and loads on demand:
-- `candidate_context.md` -- full cached profile (hunt skill)
+**Extended state** loads on demand by skills:
+- `coaching_state.md` -- master coaching state (storybank, scores, intelligence, strategy)
+- `candidate_context.md` -- cached profile (generated by `/artemis:context`)
 - `resume_master.md` -- verified resume bullets (apply skill)
 - `apply_lessons.md` -- feedback from past applications (apply skill)
-- `preferences.md` -- target roles, companies, deal-breakers (hunt skill)
-- `coaching_state.md` -- full coaching state (interview-coach)
+- `preferences.md` -- target roles, companies, deal-breakers (scout skill)
 
-### Hooks (`.claude/hooks/`)
+### Hooks (`hooks/`)
 
 | Hook | Event | What it does |
 |------|-------|-------------|
-| `load-hot-memory.sh` | SessionStart | Injects hot memory; detects fresh install and surfaces setup prompt |
-| `check-context.sh` | PreToolUse | Warns if `candidate_context.md` is stale |
-| `sync-extended.sh` | Stop | Syncs contacts from DB, cleans up temp files |
+| `session-start.sh` | SessionStart | Injects hot state; detects fresh install and surfaces setup prompt |
+| `session-stop.sh` | Stop | Syncs contacts from DB, cleans up temp files |
 
 ### Output (`output/`)
 
@@ -398,41 +399,41 @@ Attach to tmux (`tmux attach -t artemis`) to watch Claude work.
 
 ## DB Helper CLI
 
-All Supabase operations go through `.claude/tools/db.py` (a thin shim over the `db_modules/` package):
+CLI tools are available via `bin/` wrappers (added to PATH when the plugin is loaded):
 
 ```bash
 # Jobs
-uv run python .claude/tools/db.py add-job --title "Senior AI PM" --company "Anthropic" --url "https://..." --source "scout"
-uv run python .claude/tools/db.py list-jobs
-uv run python .claude/tools/db.py list-jobs --status scouted
-uv run python .claude/tools/db.py get-job --id "uuid"
-uv run python .claude/tools/db.py update-job --id "uuid" --status "to_review"
-uv run python .claude/tools/db.py find-job --company "Anthropic" --title "PM"  # dedup lookup — returns JSON, all statuses
-uv run python .claude/tools/db.py merge-jobs --keep "keeper-uuid" --merge "duplicate-uuid"
+artemis-db add-job --title "Senior AI PM" --company "Anthropic" --url "https://..." --source "scout"
+artemis-db list-jobs
+artemis-db list-jobs --status scouted
+artemis-db get-job --id "uuid"
+artemis-db update-job --id "uuid" --status "to_review"
+artemis-db find-job --company "Anthropic" --title "PM"  # dedup lookup
+artemis-db merge-jobs --keep "keeper-uuid" --merge "duplicate-uuid"
 
 # Applications
-uv run python .claude/tools/db.py save-application --id "uuid" --resume "output/applications/.../resume.md" --cover-letter "..." --primer "..." --form-fills "..."
-uv run python .claude/tools/db.py mark-submitted --id "uuid"
+artemis-db save-application --id "uuid" --resume "output/applications/.../resume.md" --cover-letter "..." --primer "..." --form-fills "..."
+artemis-db mark-submitted --id "uuid"
 
 # Companies
-uv run python .claude/tools/db.py add-company --name "Anthropic" --domain "anthropic.com" --careers-url "https://..." --why "..." --priority high
-uv run python .claude/tools/db.py list-companies
+artemis-db add-company --name "Anthropic" --domain "anthropic.com" --careers-url "https://..." --why "..." --priority high
+artemis-db list-companies
 
 # Pipeline
-uv run python .claude/tools/db.py status
+artemis-db status
 
 # Task queue (orchestrator execution tracking)
-uv run python .claude/tools/db.py list-tasks             # recent tasks
-uv run python .claude/tools/db.py list-tasks --status running
-uv run python .claude/tools/db.py next-task              # claim oldest queued task
-uv run python .claude/tools/db.py update-task --id "uuid" --status complete --output-summary "..."
+artemis-db list-tasks             # recent tasks
+artemis-db list-tasks --status running
+artemis-db next-task              # claim oldest queued task
+artemis-db update-task --id "uuid" --status complete --output-summary "..."
 
 # Resume PDF
-uv run python .claude/tools/generate_resume_docx.py --job-id "uuid"
+artemis-resume --job-id "uuid"
 
 # Contacts sync
-uv run python .claude/tools/sync_contacts.py          # write
-uv run python .claude/tools/sync_contacts.py --check  # diff only
+artemis-sync          # write
+artemis-sync --check  # diff only
 ```
 
 ---
@@ -464,57 +465,61 @@ Side statuses: `not_interested` (with reason), `rejected`, `deleted`
 ## Project Structure
 
 ```
-project-artemis/
-  .claude/                            # All Claude Code configuration
-    CLAUDE.md                         # Project instructions (shared, committed)
-    CLAUDE.local.md                   # Personal overrides (gitignored)
-    settings.json                     # Shared permissions & hooks
-    settings.local.json               # Personal permission overrides (gitignored)
-    agents/
-      artemis-orchestrator.md         # Unified orchestrator: Telegram + task execution
-    skills/
-      hunt/                           # Pipeline discovery + management
-      apply/                          # Application materials
-      connect/                        # Networking pipeline
-      profile/                        # Candidate context + interview prep
-      inbox/                          # Gmail + Calendar monitoring
-      linkedin/                       # LinkedIn browsing + engagement
-      blogger/                        # Content creation + publishing
-      maintain/                       # Pipeline hygiene -- dedupe, cull
-      artemis-setup/                  # One-time setup wizard
-      interview-coach/                # Git submodule -- coaching, storybank, drills
-    tools/
-      db.py                           # Thin CLI shim (forwards to db_modules/)
-      db_modules/                     # Modular Supabase CRUD package
-      generate_resume_docx.py         # Resume markdown to DOCX/PDF
-      sync_contacts.py                # DB to contacts markdown
-      push_to_telegram.py             # Send formatted messages to Telegram (Bot API)
-      export_personal.py              # Bundle personal state for portability
-      import_personal.py              # Restore personal state from archive
-    hooks/
-      load-hot-memory.sh              # SessionStart: inject hot memory + fresh-install check
-      check-context.sh                # PreToolUse: context freshness check
-      sync-extended.sh                # Stop: sync contacts, cleanup
-    rules/
-      data-handling.md                # PII, CLI, data source rules
-      pipeline-workflow.md            # Job pipeline operational rules
-    memory/
-      hot/                            # Hot memory loaded every session (gitignored)
-        *.example.md                  # Templates for new users (committed)
-  .mcp.json                           # MCP server registration (artemis-channel)
+project-artemis/                        # Plugin root
+  .claude-plugin/
+    plugin.json                         # Plugin manifest (name: "artemis")
+  skills/                               # All skills
+    scout/                              # Pipeline discovery + management
+    apply/                              # Application materials
+    network/                            # Networking pipeline
+    profile/                            # Candidate context + interview prep
+    coach/                              # Coaching, storybank, drills
+    inbox/                              # Gmail + Calendar monitoring
+    linkedin/                           # LinkedIn browsing + engagement
+    blog/                               # Content creation + publishing
+    maintain/                           # Pipeline hygiene -- dedupe, cull
+    setup/                              # One-time setup wizard
+  agents/
+    orchestrator.md                     # Unified orchestrator: Telegram + task execution
+  hooks/
+    hooks.json                          # Plugin hook configuration
+    session-start.sh                    # Load hot state on session start
+    session-stop.sh                     # Auto-sync on session end
+  bin/                                  # CLI tools (added to PATH by plugin)
+    artemis-db                          # Supabase CRUD operations
+    artemis-sync                        # Contacts DB -> markdown sync
+    artemis-resume                      # Resume markdown -> DOCX/PDF
+    artemis-telegram                    # Telegram notifications
+  tools/                                # Python CLI source
+    db.py                               # Thin CLI shim (forwards to db_modules/)
+    db_modules/                         # Modular Supabase CRUD package
+    generate_resume_docx.py             # Resume markdown to DOCX/PDF
+    sync_contacts.py                    # DB to contacts markdown
+    push_to_telegram.py                 # Send formatted messages to Telegram
+    migrate_state.py                    # Migration from legacy .claude/ layout
+  state/                                # User state files (gitignored)
+    examples/                           # Templates for new users (committed)
+  rules/                                # Auto-loaded rules
+    data-handling.md                    # PII, CLI, data source rules
+    pipeline-workflow.md                # Job pipeline operational rules
+  templates/
+    resume_template.docx                # Resume formatting template
+  .mcp.json                             # MCP server registration (artemis-channel)
+  settings.json                         # Plugin default settings
+  CLAUDE.md                             # Project instructions
   channels/
-    artemis-channel/                  # MCP channel: push task events into orchestrator
+    artemis-channel/                    # MCP channel: push task events into orchestrator
   scripts/
-    setup.sh                          # New user setup wizard
-    start.sh                          # Start all services in tmux
-    stop.sh                           # Stop services and clean up
-  output/                             # All generated artifacts (gitignored)
+    setup.sh                            # New user setup wizard
+    start.sh                            # Start all services in tmux
+    stop.sh                             # Stop services and clean up
+  output/                               # All generated artifacts (gitignored)
   api/
-    server.py                         # FastAPI -- scheduler, task queue, PDF generation
-  frontend/src/                       # React dashboard
-  db/migrations/                      # Supabase SQL migrations (001-017)
-  pyproject.toml                      # Python dependencies
-  .env                                # Supabase credentials (gitignored)
+    server.py                           # FastAPI -- scheduler, task queue, PDF generation
+  frontend/src/                         # React dashboard
+  db/migrations/                        # Supabase SQL migrations (001-017)
+  pyproject.toml                        # Python dependencies
+  .env                                  # Supabase credentials (gitignored)
 ```
 
 ---
@@ -524,24 +529,12 @@ project-artemis/
 Artemis is designed to be forked. All personal data lives outside the committed codebase:
 
 1. **Fork and clone** the repo
-2. **Run `/setup`** -- the wizard builds your personal profile, preferences, and resume from scratch
-3. **Hot memory files** (`.claude/memory/hot/*.md`) are gitignored -- your identity never leaks into the repo
+2. **Run `./scripts/setup.sh`** then **`/artemis:setup`** -- the wizard builds your personal profile, preferences, and resume from scratch
+3. **State files** (`state/*.md`) are gitignored -- your identity never leaks into the repo
 4. **`.env`** holds your Supabase credentials (also gitignored)
 5. **`output/`** is gitignored -- your applications, PDFs, and blog drafts stay local
 
 The only thing you commit is the system itself. Your data stays yours.
-
----
-
-## Updating the Interview Coach
-
-The `interview-coach` skill is a git submodule:
-
-```bash
-git submodule update --remote .claude/skills/interview-coach
-git add .claude/skills/interview-coach
-git commit -m "chore: update interview-coach submodule"
-```
 
 ---
 
