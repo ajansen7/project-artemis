@@ -269,6 +269,29 @@ Artemis is designed to be forked. All personal data lives outside the committed 
 
 The only thing you commit is the system itself. Your data stays yours.
 
+### Migrating Personal Data
+
+Export all personal state (identity, resume, coaching state, applications, env) into a portable archive:
+
+```bash
+uv run python tools/export_personal.py              # creates artemis-personal-TIMESTAMP.tar.gz
+uv run python tools/export_personal.py --dry-run    # preview what would be included
+```
+
+Restore on another machine:
+
+```bash
+uv run python tools/import_personal.py archive.tar.gz            # prompts before overwriting
+uv run python tools/import_personal.py archive.tar.gz --force    # overwrite without prompting
+```
+
+If you're upgrading from the legacy `.claude/` directory structure, a migration script moves state files to their new locations:
+
+```bash
+uv run python tools/migrate_state.py --dry-run    # preview the migration
+uv run python tools/migrate_state.py              # apply
+```
+
 ---
 
 ## Archived Code
