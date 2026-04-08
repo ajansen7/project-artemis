@@ -14,7 +14,7 @@ Configure paths to companion projects. These are optional — skills degrade gra
 | Project | Path | What it owns |
 |---------|------|-------------|
 | **Portfolio** | *(set via `PORTFOLIO_PATH` env var, e.g. `~/Dev/my-portfolio/`)* | Resume, LinkedIn content, professional narrative |
-| **Interview Coach** | `.claude/skills/interview-coach/` | Coaching state, storybank, interview prep, drills |
+| **Interview Coach** | `skills/coach/` | Coaching state, storybank, interview prep, drills |
 
 ### Key source-of-truth files:
 
@@ -37,9 +37,9 @@ When the interview-coach's storybank captures a story with a strong impact state
 
 | Resource | Path | Purpose |
 |----------|------|---------|
-| DB tool | `.claude/tools/db.py` | Supabase CRUD |
-| Candidate context | `.claude/skills/hunt/references/candidate_context.md` | Output: cached profile |
-| Preferences | `.claude/skills/hunt/references/preferences.md` | Target roles, companies, deal-breakers |
+| DB tool | `tools/db.py` | Supabase CRUD |
+| Candidate context | `state/candidate_context.md` | Output: cached profile |
+| Preferences | `state/preferences.md` | Target roles, companies, deal-breakers |
 
 ## Commands
 
@@ -56,8 +56,8 @@ Builds or refreshes the cached candidate context from source-of-truth files. Thi
 1. Read the full source-of-truth files:
    - `coaching_state.md` from Interview Coach (profile, stories, positioning, interview intelligence)
    - `resume.json` from Portfolio (career history, skills)
-   - `.claude/skills/hunt/references/preferences.md` (target roles, companies, deal-breakers)
-2. Distill into `.claude/skills/hunt/references/candidate_context.md` with these sections:
+   - `state/preferences.md` (target roles, companies, deal-breakers)
+2. Distill into `state/candidate_context.md` with these sections:
    - **Profile Summary** — name, current role, target roles, experience level, location
    - **Core Positioning** — voice, differentiator, headline, career arc
    - **Career History** (compact table) — company, title, dates, 1-line highlight
@@ -70,7 +70,7 @@ Builds or refreshes the cached candidate context from source-of-truth files. Thi
    - **Interview Intelligence** — effective/ineffective patterns, coaching focus
 3. Set `Last Synced` timestamp in the file header
 4. **Bidirectional sync checks** (new):
-   - Run `uv run python .claude/tools/sync_state.py --check --json` to get current sync status
+   - Run `uv run python tools/sync_state.py --check --json` to get current sync status
    - If storybank → resume_master is stale: scan coaching_state.md storybank for stories with strong metrics/impact statements not yet in resume_master.md. Surface suggestions: "The story about [X] suggests a stronger bullet — want to update resume_master.md?"
    - If resume → coaching is stale: note that resume positioning changes may not be reflected in coaching state
    - If preferences changed: incorporate updated target companies and deal-breakers into the context
@@ -84,8 +84,8 @@ Builds or refreshes the cached candidate context from source-of-truth files. Thi
 Generate tailored interview prep for a specific company or role.
 
 **Steps:**
-1. Read `.claude/skills/hunt/references/candidate_context.md` (profile, story index, interview intelligence, known gaps)
-2. Look up the job/company: `uv run python .claude/tools/db.py get-job --id "..."`
+1. Read `state/candidate_context.md` (profile, story index, interview intelligence, known gaps)
+2. Look up the job/company: `uv run python tools/db.py get-job --id "..."`
 3. Research the company (web search: recent news, culture, leadership, tech stack)
 4. Generate:
    - **Company Overview**: what they do, recent news, culture signals

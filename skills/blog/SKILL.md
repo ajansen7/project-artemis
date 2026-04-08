@@ -1,9 +1,9 @@
 ---
-name: blogger
+name: blog
 description: "Content creation and personal brand building — generate blog post ideas from job search insights, write drafts aligned with identity and voice, publish to LinkedIn or other platforms via Chrome MCP. Use when the user wants to create thought leadership content, capture insights, or build professional engagement."
 ---
 
-# Blogger — Content Creation & Personal Brand Skill
+# Blog — Content Creation & Personal Brand Skill
 
 You help the candidate capture insights from their job search and professional experience, turning them into thoughtful blog posts that build their personal brand and drive engagement with target companies and hiring managers.
 
@@ -11,13 +11,13 @@ You help the candidate capture insights from their job search and professional e
 
 | Resource | Path | Purpose |
 |----------|------|---------|
-| DB tool | `.claude/tools/db.py` | Blog posts and engagement tracking |
-| Identity | `.claude/memory/hot/identity.md` | Author identity, positioning, differentiator |
-| Voice | `.claude/memory/hot/voice.md` | Tone rules for all written content |
-| Active loops | `.claude/memory/hot/active_loops.md` | Current interview context for timely content |
-| Candidate context | `.claude/skills/hunt/references/candidate_context.md` | Strengths, gaps, story index |
-| Preferences | `.claude/skills/hunt/references/preferences.md` | Target companies, industries |
-| Blog archive | `.claude/skills/blogger/references/blog_archive.md` | Analysis of imported past posts (themes, voice, cadence) |
+| DB tool | `tools/db.py` | Blog posts and engagement tracking |
+| Identity | `state/identity.md` | Author identity, positioning, differentiator |
+| Voice | `state/voice.md` | Tone rules for all written content |
+| Active loops | `state/active_loops.md` | Current interview context for timely content |
+| Candidate context | `state/candidate_context.md` | Strengths, gaps, story index |
+| Preferences | `state/preferences.md` | Target companies, industries |
+| Blog archive | `state/blog_archive.md` | Analysis of imported past posts (themes, voice, cadence) |
 | Content backlog | `output/blog/content_backlog.md` | Ideas pipeline |
 | Drafts | `output/blog/drafts/<slug>.md` | Draft posts |
 | Published archive | `output/blog/published/<slug>.md` | Full text of imported past posts |
@@ -59,8 +59,8 @@ Bootstrap the content system by importing past published posts from an existing 
      <body text>
      ```
    - Collect metadata into a JSON array: `[{"title": "...", "slug": "...", "status": "published", "platform": "substack", "published_url": "...", "published_at": "YYYY-MM-DDTHH:MM:SSZ", "draft_path": "output/blog/published/<slug>.md", "summary": "<one sentence>", "tags": ["tag1"]}, ...]`
-4. Batch import to DB: `echo '<json>' | uv run python .claude/tools/db.py batch-import-blog-posts`
-5. Analyze the full archive and write `.claude/skills/blogger/references/blog_archive.md`:
+4. Batch import to DB: `echo '<json>' | uv run python tools/db.py batch-import-blog-posts`
+5. Analyze the full archive and write `state/blog_archive.md`:
 
    ```markdown
    # Blog Archive Analysis
@@ -112,8 +112,8 @@ Generate blog post ideas from the candidate's job search activity, expertise, an
 3. Read `candidate_context.md` for strengths, story index, and known gaps
 4. Read `active_loops.md` for current interview context
 5. Read `preferences.md` for target companies and industries
-6. **If `.claude/skills/blogger/references/blog_archive.md` exists:** read it — use the themes, voice patterns, and content gaps to ground idea generation in the user's actual writing history. Avoid suggesting topics they've already covered well; prioritize gaps and natural extensions of their strongest posts.
-7. Scan recent pipeline activity: `uv run python .claude/tools/db.py list-jobs --limit 10`
+6. **If `state/blog_archive.md` exists:** read it — use the themes, voice patterns, and content gaps to ground idea generation in the user's actual writing history. Avoid suggesting topics they've already covered well; prioritize gaps and natural extensions of their strongest posts.
+7. Scan recent pipeline activity: `uv run python tools/db.py list-jobs --limit 10`
 8. Generate 5-10 blog post ideas, each with:
    - **Title** — specific and compelling, not generic
    - **Angle** — personal narrative, industry insight, how-to, opinion, case study
@@ -123,7 +123,7 @@ Generate blog post ideas from the candidate's job search activity, expertise, an
    - **Effort** — quick take (30 min) or deep dive (2+ hours)
    - **Platform** — best fit: LinkedIn article, LinkedIn post (short), Medium, personal blog
 9. Save to `output/blog/content_backlog.md` (append to existing, don't overwrite)
-10. Also track in DB: `uv run python .claude/tools/db.py add-blog-post --title "..." --slug "..." --status "idea" --summary "..." --tags "..."`
+10. Also track in DB: `uv run python tools/db.py add-blog-post --title "..." --slug "..." --status "idea" --summary "..." --tags "..."`
 
 **Idea generation angles tied to positioning:**
 - Building agentic AI systems (Artemis itself as a real case study)
@@ -173,7 +173,7 @@ Write a full blog post draft aligned with identity and voice.
 7. Update DB with content AND path (so the dashboard can display it without reading from disk):
    ```bash
    CONTENT=$(cat output/blog/drafts/<slug>.md)
-   uv run python .claude/tools/db.py update-blog-post --id "..." --status "draft" --draft-path "output/blog/drafts/<slug>.md" --content "$CONTENT"
+   uv run python tools/db.py update-blog-post --id "..." --status "draft" --draft-path "output/blog/drafts/<slug>.md" --content "$CONTENT"
    ```
 8. Present the full draft for user review and editing
 
@@ -202,8 +202,8 @@ Publish a finalized draft via Chrome MCP.
 6. **Wait for Telegram reply** before actually publishing
 7. After publishing:
    - Update frontmatter status to `published`, add `published_at` date
-   - Update DB: `uv run python .claude/tools/db.py update-blog-post --id "..." --status "published" --published-url "..."`
-   - Log engagement: `uv run python .claude/tools/db.py add-engagement --action-type "blog_post" --platform "..." --target-url "..." --content "..." --status "posted"`
+   - Update DB: `uv run python tools/db.py update-blog-post --id "..." --status "published" --published-url "..."`
+   - Log engagement: `uv run python tools/db.py add-engagement --action-type "blog_post" --platform "..." --target-url "..." --content "..." --status "posted"`
 8. Suggest follow-up engagement: "Consider sharing this in relevant LinkedIn groups or tagging people who might find it valuable."
 
 ---
@@ -213,7 +213,7 @@ Publish a finalized draft via Chrome MCP.
 Revise a draft using the revision notes the user has saved in the DB. Extracts voice/tone lessons and flags potential new interview stories for the anecdotes table.
 
 **Steps:**
-1. Look up the post in the DB: `uv run python .claude/tools/db.py list-blog-posts` — find by slug
+1. Look up the post in the DB: `uv run python tools/db.py list-blog-posts` — find by slug
 2. Fetch content and notes via the API: `GET http://localhost:8000/api/blog-post-content/<post_id>` for content; notes are in the DB record
 3. Read `voice.md` and `identity.md`
 4. Read `candidate_context.md` for cross-referencing personal stories
@@ -225,9 +225,9 @@ Revise a draft using the revision notes the user has saved in the DB. Extracts v
    - Add a bullet to `voice.md` under a `## Revision Lessons` section (append, do not overwrite)
    - Keep it short and actionable: "Avoid formal constructions like X — user prefers Y"
 7. **Flag potential new interview stories:** scan the revision notes for references to specific experiences, incidents, or decisions the user mentions that are NOT already in the anecdotes table
-   - Check anecdotes: `uv run python .claude/tools/db.py list-blog-posts` — actually query anecdotes via Supabase if accessible, otherwise note them for review
+   - Check anecdotes: `uv run python tools/db.py list-blog-posts` — actually query anecdotes via Supabase if accessible, otherwise note them for review
    - If new stories are found, list them at the end of your response: "These notes mention experiences not in your storybank: [list]. Consider capturing them with `/practice add-story`."
-8. Save the revised draft: `uv run python .claude/tools/db.py update-blog-post --id "..." --content "..." --status "draft"`
+8. Save the revised draft: `uv run python tools/db.py update-blog-post --id "..." --content "..." --status "draft"`
 9. Present a summary of changes made and any voice lessons extracted
 
 **Quality bar:**
@@ -243,7 +243,7 @@ Review the content pipeline: ideas, drafts, published posts.
 
 **Steps:**
 1. Read all files in `output/blog/drafts/` (parse frontmatter)
-2. Query DB: `uv run python .claude/tools/db.py list-blog-posts`
+2. Query DB: `uv run python tools/db.py list-blog-posts`
 3. Present a content calendar table:
    ```
    | Status | Title | Platform | Tags | Date |

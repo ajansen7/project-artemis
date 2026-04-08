@@ -15,12 +15,12 @@ Google Calendar is the source of truth for scheduled calls. We never duplicate c
 
 | Resource | Path | Purpose |
 |----------|------|---------|
-| DB tool | `.claude/tools/db.py` | Supabase CRUD operations |
-| Candidate context | `.claude/skills/hunt/references/candidate_context.md` | Scoring and matching |
-| Preferences | `.claude/skills/hunt/references/preferences.md` | Target companies, roles |
-| Identity | `.claude/memory/hot/identity.md` | Candidate name for matching |
-| Voice | `.claude/memory/hot/voice.md` | Tone for drafted emails |
-| Inbox state | `.claude/skills/inbox/references/inbox_state.json` | Last check timestamp |
+| DB tool | `tools/db.py` | Supabase CRUD operations |
+| Candidate context | `state/candidate_context.md` | Scoring and matching |
+| Preferences | `state/preferences.md` | Target companies, roles |
+| Identity | `state/identity.md` | Candidate name for matching |
+| Voice | `state/voice.md` | Tone for drafted emails |
+| Inbox state | `state/inbox_state.json` | Last check timestamp |
 
 ## MCP Tools Used
 
@@ -62,7 +62,7 @@ Scan emails since the last check, classify them, and route actionable data into 
 
 Read the state file to know where to start:
 ```bash
-cat .claude/skills/inbox/references/inbox_state.json 2>/dev/null || echo '{"last_check": null}'
+cat state/inbox_state.json 2>/dev/null || echo '{"last_check": null}'
 ```
 
 - If `last_check` is non-null (e.g. `"2026-03-20T10:00:00Z"`), extract the date as `YYYY/MM/DD` for the Gmail `after:` filter (e.g. `after:2026/03/20`).
@@ -71,7 +71,7 @@ cat .claude/skills/inbox/references/inbox_state.json 2>/dev/null || echo '{"last
 
 **Step 1: Read context**
 
-Read `identity.md` and `.claude/skills/hunt/references/preferences.md` for candidate name and target companies.
+Read `identity.md` and `state/preferences.md` for candidate name and target companies.
 
 **Step 2: Search Gmail**
 
@@ -99,7 +99,7 @@ There are two fundamentally different purposes for the inbox scan:
 
 For **every email** that mentions a company and role, look up the pipeline first:
 ```bash
-uv run python .claude/tools/db.py find-job --company "Company Name" --title "Role Title"
+uv run python tools/db.py find-job --company "Company Name" --title "Role Title"
 ```
 The result of this lookup determines which path to take (see below).
 
@@ -126,7 +126,7 @@ If `find-job` returns a result with status `rejected`, `not_interested`, or `del
 Only reach this path if `find-job` returned empty results AND the email is clearly a new inbound opportunity (recruiter outreach, LinkedIn job notification, ATS invitation to apply).
 
 ```bash
-uv run python .claude/tools/db.py add-job --title "..." --company "..." --url "..." --source "gmail" --status "recruiter_engaged"
+uv run python tools/db.py add-job --title "..." --company "..." --url "..." --source "gmail" --status "recruiter_engaged"
 ```
 
 For LinkedIn job notification emails (`jobs-noreply@linkedin.com`), extract each job listed, run `find-job` on each, and only add the ones with no pipeline match.
@@ -159,7 +159,7 @@ Do **not** apply the label to networking-only emails (LinkedIn connection accept
 
 If the rejection email doesn't clearly identify the role (some ATS emails just say "your application to [Company]"):
 ```bash
-uv run python .claude/tools/db.py find-job --company "Company Name"
+uv run python tools/db.py find-job --company "Company Name"
 ```
 Read the full email body for any clues: team name, hiring manager, role level (senior/lead/staff), product area, job code, or any language that maps to a known role. Cross-reference with the pipeline results and pick the most logical match. For example:
 - "our engineering team" + only one engineering role at that company → match it
@@ -184,8 +184,7 @@ Report what was found, what was routed, what needs user attention. Structure:
 
 After processing all emails, write the new timestamp:
 ```bash
-mkdir -p .claude/skills/inbox/references
-echo '{"last_check": "CURRENT_TIMESTAMP_ISO"}' > .claude/skills/inbox/references/inbox_state.json
+echo '{"last_check": "CURRENT_TIMESTAMP_ISO"}' > state/inbox_state.json
 ```
 
 Replace `CURRENT_TIMESTAMP_ISO` with the actual current UTC timestamp in ISO 8601 format (e.g. `2026-03-24T15:30:00Z`). This ensures the next run starts exactly where this one left off.
@@ -204,7 +203,7 @@ Specifically parse LinkedIn's job recommendation emails ("jobs you may be intere
 5. Read `candidate_context.md` for scoring factors
 6. For each extracted job, run dedup check:
    ```bash
-   uv run python .claude/tools/db.py find-job --company "X" --title "Y"
+   uv run python tools/db.py find-job --company "X" --title "Y"
    ```
    - Terminal status → skip
    - Active status → skip (already in pipeline)
@@ -212,7 +211,7 @@ Specifically parse LinkedIn's job recommendation emails ("jobs you may be intere
 7. Score each new job (0-100) against preferences and context
 8. Batch-add new jobs:
    ```bash
-   echo '<json>' | uv run python .claude/tools/db.py batch-add
+   echo '<json>' | uv run python tools/db.py batch-add
    ```
    Set `source` to `"linkedin-email"`. `batch-add` also performs company+title dedup as a safety net.
 9. Report: jobs found, skipped (terminal), skipped (already in pipeline), added
@@ -226,7 +225,7 @@ Query Google Calendar and cross-reference with the jobs pipeline.
 **Steps:**
 1. Use `gcal_list_events` to get events for the next 14 days
 2. Filter for interview-related events (look for keywords: interview, phone screen, chat, call + company names from jobs table)
-3. Cross-reference with jobs table: `uv run python .claude/tools/db.py list-jobs --status "interviewing"`
+3. Cross-reference with jobs table: `uv run python tools/db.py list-jobs --status "interviewing"`
 4. For each upcoming interview, report:
    - Date/time, company, role
    - Whether `/prep` materials exist (check `output/applications/<company>-<role>/primer.md`)
@@ -244,7 +243,7 @@ Query Google Calendar and cross-reference with the jobs pipeline.
 Draft a follow-up, thank-you, or recruiter response email.
 
 **Steps:**
-1. Look up the job: `uv run python .claude/tools/db.py get-job --id "..."`
+1. Look up the job: `uv run python tools/db.py get-job --id "..."`
 2. If a company name was provided instead of ID, search by company
 3. Read `voice.md` for tone rules
 4. Read `identity.md` for candidate positioning
@@ -289,5 +288,5 @@ Advance to `interviewing` when an actual interview/call is scheduled on the cale
 - **Always dedup before adding.** Call `find-job` before every `add-job`. Never create a new entry for a company+title already in the pipeline.
 - **Rejected = terminal.** A job in `rejected`, `not_interested`, or `deleted` status must never be re-added as a new lead, even if the same role appears on a different job board or in a new email.
 - **Be conservative with classification.** When uncertain, flag for user review rather than auto-routing.
-- **Run sync after.** After routing data, run `uv run python .claude/tools/sync_contacts.py` if any contacts were updated.
+- **Run sync after.** After routing data, run `uv run python tools/sync_contacts.py` if any contacts were updated.
 - **State file persists.** The `inbox_state.json` file ensures each run only looks at new emails. Never delete it — if something seems off, check the `last_check` timestamp.

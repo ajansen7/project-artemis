@@ -11,9 +11,9 @@ Keep the job pipeline clean by finding duplicates, merging them, and culling sta
 
 | Resource | Path | Purpose |
 |----------|------|---------|
-| DB Tool | `.claude/tools/db.py` | CRUD operations (list-jobs, update-job, merge-jobs, batch-update) |
-| Sync Tool | `.claude/tools/sync_contacts.py` | Resync contacts after merges |
-| Preferences | `.claude/skills/hunt/references/preferences.md` | Target roles, companies, deal-breakers |
+| DB Tool | `tools/db.py` | CRUD operations (list-jobs, update-job, merge-jobs, batch-update) |
+| Sync Tool | `tools/sync_contacts.py` | Resync contacts after merges |
+| Preferences | `state/preferences.md` | Target roles, companies, deal-breakers |
 
 ## Commands
 
@@ -25,7 +25,7 @@ Scan the pipeline for duplicate job postings and merge them. Auto-merge clear ma
 
 1. **Fetch all active jobs:**
    ```
-   uv run python .claude/tools/db.py list-jobs --limit 500
+   uv run python tools/db.py list-jobs --limit 500
    ```
 
 2. **Reason over the full list to identify duplicates.** Group by company and look for:
@@ -43,7 +43,7 @@ Scan the pipeline for duplicate job postings and merge them. Auto-merge clear ma
 
 4. **Auto-merge clear matches** (obviously same role, same company, high confidence):
    ```
-   uv run python .claude/tools/db.py merge-jobs --keep "<keeper_id>" --merge "<dup_id>"
+   uv run python tools/db.py merge-jobs --keep "<keeper_id>" --merge "<dup_id>"
    ```
    The merge command combines sources, fills empty fields, re-points contacts, transfers applications, and marks the duplicate as deleted.
 
@@ -51,7 +51,7 @@ Scan the pipeline for duplicate job postings and merge them. Auto-merge clear ma
 
 6. **Resync contacts** after all merges:
    ```
-   uv run python .claude/tools/sync_contacts.py
+   uv run python tools/sync_contacts.py
    ```
 
 7. **Report summary:** How many duplicates found, how many auto-merged, how many need user review.
@@ -69,12 +69,12 @@ Identify and remove jobs that are no longer worth tracking. Use judgment, not ju
 
 1. **Fetch all active jobs with full details:**
    ```
-   uv run python .claude/tools/db.py list-jobs --limit 500
+   uv run python tools/db.py list-jobs --limit 500
    ```
 
 2. **Read preferences** to understand target roles, companies, and deal-breakers:
    ```
-   Read .claude/skills/hunt/references/preferences.md
+   Read state/preferences.md
    ```
 
 3. **Reason over the full list to identify cull candidates.** Consider:
@@ -91,7 +91,7 @@ Identify and remove jobs that are no longer worth tracking. Use judgment, not ju
 
 5. **On user confirmation**, batch-update to `not_interested`:
    ```
-   echo '[{"id": "...", "status": "not_interested", "reason": "Culled: <reason>"}]' | uv run python .claude/tools/db.py batch-update
+   echo '[{"id": "...", "status": "not_interested", "reason": "Culled: <reason>"}]' | uv run python tools/db.py batch-update
    ```
 
 6. **Report summary:** How many culled by category, how many preserved, current pipeline health.

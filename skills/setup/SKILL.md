@@ -1,9 +1,9 @@
 ---
-name: artemis-setup
+name: setup
 description: One-time setup wizard for new Artemis users — builds hot memory, search preferences, resume master, and form defaults from user input
 ---
 
-# Kickoff — Initial Setup Skill
+# Setup — Initial Setup Skill
 
 You guide new users through building the personal artifacts that Artemis needs to function. This is a one-time setup flow (though users can re-run it to update specific files).
 
@@ -11,13 +11,13 @@ You guide new users through building the personal artifacts that Artemis needs t
 
 | File | Location | Purpose |
 |------|----------|---------|
-| `identity.md` | `.claude/memory/hot/` | Candidate name, role, targets, positioning |
-| `voice.md` | `.claude/memory/hot/` | Tone rules for communications |
-| `active_loops.md` | `.claude/memory/hot/` | Current interview loops (starts empty) |
-| `lessons.md` | `.claude/memory/hot/` | Operational best practices (starts with defaults) |
-| `preferences.md` | `.claude/skills/hunt/references/` | Target roles, companies, industries, deal-breakers |
-| `resume_master.md` | `.claude/skills/apply/references/` | Verified resume bullets (source of truth) |
-| `form_defaults.md` | `.claude/skills/apply/references/` | Standard application form answers |
+| `identity.md` | `state/` | Candidate name, role, targets, positioning |
+| `voice.md` | `state/` | Tone rules for communications |
+| `active_loops.md` | `state/` | Current interview loops (starts empty) |
+| `lessons.md` | `state/` | Operational best practices (starts with defaults) |
+| `preferences.md` | `state/` | Target roles, companies, industries, deal-breakers |
+| `resume_master.md` | `state/` | Verified resume bullets (source of truth) |
+| `form_defaults.md` | `state/` | Standard application form answers |
 
 ---
 
@@ -26,26 +26,6 @@ You guide new users through building the personal artifacts that Artemis needs t
 ### `/kickoff` or `/setup` — Run Initial Setup
 
 Walk the user through building their candidate profile and search configuration.
-
----
-
-### Step 0: Submodule Check
-
-Before anything else, check whether the interview-coach submodule is initialized:
-
-```bash
-git submodule status .claude/skills/interview-coach
-```
-
-- If the output starts with `-`: the submodule has **not** been cloned.
-- If it starts with `+` or a commit hash: it's already initialized — skip to Step 1.
-
-**If not cloned**, tell the user:
-
-> "The interview-coach submodule isn't set up yet. It handles storybank building, mock interviews, and coaching — and its kickoff is actually a great way to extract the background info we need here too. Want me to clone it? It's a quick git operation."
-
-- If yes: `git submodule update --init .claude/skills/interview-coach`
-- If no: proceed without it. Note that `/coach` and `/prep` commands will be unavailable.
 
 ---
 
@@ -79,7 +59,7 @@ If the interview-coach submodule is present, offer this before diving into Artem
 > Want to run that first? I can pull everything I learn there directly into the Artemis setup. Or if you'd rather knock out the Artemis basics now and do the coach kickoff later, that works too."
 
 **If they choose interview-coach first:**
-- Invoke the interview-coach kickoff flow (see `.claude/skills/interview-coach/references/commands/kickoff.md`)
+- Invoke the interview-coach kickoff flow (see `skills/coach/references/commands/kickoff.md`)
 - After it completes, use `coaching_state.md` as the source for identity, positioning, and resume information — don't re-ask what's already been captured
 - Jump to Step 4 (skipping the resume re-capture in Step 3, since the coach already analyzed it)
 
@@ -114,13 +94,13 @@ Otherwise ask:
 - Career arc: the narrative someone would use to explain your trajectory
 - Key differentiator: the thing that's hard to find in other candidates
 
-Write to `.claude/memory/hot/identity.md` using the format from `identity.example.md`.
+Write to `state/identity.md` using the format from `identity.example.md`.
 
 #### `voice.md` (optional — offer defaults)
 
 Show the default voice rules from `voice.example.md`. Ask if they want to customize or use defaults.
 
-Write to `.claude/memory/hot/voice.md`.
+Write to `state/voice.md`.
 
 #### `preferences.md` (required for `/scout`)
 
@@ -134,7 +114,7 @@ Ask:
 
 Generate search keywords from the above.
 
-Write to `.claude/skills/hunt/references/preferences.md`.
+Write to `state/preferences.md`.
 
 #### `form_defaults.md` (required for `/generate`)
 
@@ -145,7 +125,7 @@ Ask:
 - Compensation preferences for forms
 - Demographics (optional, for voluntary fields)
 
-Write to `.claude/skills/apply/references/form_defaults.md`.
+Write to `state/form_defaults.md`.
 
 #### `resume_master.md` (required for `/generate`)
 
@@ -161,7 +141,7 @@ Write to `.claude/skills/apply/references/form_defaults.md`.
   4. **Career narrative gaps**: Transitions that need a story ready
 - Ask the user to review and approve the structured version before writing
 
-Write to `.claude/skills/apply/references/resume_master.md`.
+Write to `state/resume_master.md`.
 
 **Storybank → resume_master feedback loop**: If the interview-coach's storybank captures new anecdotes from past roles (via the coach's `stories` or `kickoff` commands), those stories can surface new or better resume bullets. When this happens, surface it: "The story you told about [X] suggests a stronger framing for this bullet — want to update resume_master.md?"
 
@@ -175,7 +155,7 @@ Copy from `.example.md` templates — no user input needed.
 
 **Supabase:**
 ```bash
-uv run python .claude/tools/db.py status
+uv run python tools/db.py status
 ```
 
 If this fails, remind the user to set up `.env` with Supabase credentials per the README. Non-blocking — continue.

@@ -11,11 +11,11 @@ You browse LinkedIn via Chrome MCP to scout jobs, find networking contacts, and 
 
 | Resource | Path | Purpose |
 |----------|------|---------|
-| DB tool | `.claude/tools/db.py` | Supabase CRUD operations |
-| Candidate context | `.claude/skills/hunt/references/candidate_context.md` | Scoring factors, target companies |
-| Preferences | `.claude/skills/hunt/references/preferences.md` | Target roles, companies, keywords |
-| Identity | `.claude/memory/hot/identity.md` | Candidate positioning |
-| Voice | `.claude/memory/hot/voice.md` | Tone for comments and outreach |
+| DB tool | `tools/db.py` | Supabase CRUD operations |
+| Candidate context | `state/candidate_context.md` | Scoring factors, target companies |
+| Preferences | `state/preferences.md` | Target roles, companies, keywords |
+| Identity | `state/identity.md` | Candidate positioning |
+| Voice | `state/voice.md` | Tone for comments and outreach |
 
 ## MCP Tools Used
 
@@ -58,7 +58,7 @@ Search LinkedIn Jobs for opportunities matching the candidate's profile.
 6. Score each job (0-100) against preferences and context
 7. Batch-add to pipeline:
    ```bash
-   echo '<json>' | uv run python .claude/tools/db.py batch-add
+   echo '<json>' | uv run python tools/db.py batch-add
    ```
    Set `source` to `"linkedin"`
 8. Report: jobs found, scores, companies discovered, patterns noticed
@@ -85,10 +85,10 @@ Browse a company's LinkedIn page to find relevant contacts for networking.
 6. Ask user which contacts to add to the pipeline
 7. For selected contacts:
    ```bash
-   echo '<json>' | uv run python .claude/tools/db.py batch-add-contacts
+   echo '<json>' | uv run python tools/db.py batch-add-contacts
    ```
    Include `"source": "linkedin"` in each contact object
-8. After adding, sync: `uv run python .claude/tools/sync_contacts.py`
+8. After adding, sync: `uv run python tools/sync_contacts.py`
 9. Suggest drafting outreach via the connect skill (`/network`)
 
 ---
@@ -116,7 +116,7 @@ Find and engage with posts relevant to the candidate's positioning and target co
    - **Wait for explicit user approval** before posting
 6. If approved:
    - Use `form_input` to enter the comment
-   - Log to DB: `uv run python .claude/tools/db.py add-engagement --action-type "comment" --platform "linkedin" --target-url "..." --target-person "..." --content "..." --status "posted"`
+   - Log to DB: `uv run python tools/db.py add-engagement --action-type "comment" --platform "linkedin" --target-url "..." --target-person "..." --content "..." --status "posted"`
 7. If the user wants to skip: log as skipped for learning
 8. Report: posts engaged with, comments posted, engagement logged
 
