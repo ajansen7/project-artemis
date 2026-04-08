@@ -9,15 +9,21 @@
   "keywords": ["job-search", "career", "interview-prep", "networking"],
   "userConfig": {
     "supabase_url": {
+      "title": "Supabase URL",
       "description": "Your Supabase project URL",
+      "type": "string",
       "sensitive": false
     },
     "supabase_anon_key": {
+      "title": "Supabase Anon Key",
       "description": "Your Supabase anon/public key",
+      "type": "string",
       "sensitive": true
     },
     "supabase_service_role_key": {
+      "title": "Supabase Service Role Key",
       "description": "Your Supabase service role key (for admin ops)",
+      "type": "string",
       "sensitive": true
     }
   }
