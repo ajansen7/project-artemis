@@ -48,6 +48,7 @@ analysis.md
 analysis_*.md
 
 # ─── Claude Code (local/personal) ────────────────────────────
+CLAUDE.local.md
 .claude/CLAUDE.local.md
 .claude/settings.local.json
 .claude/plans/

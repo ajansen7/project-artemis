@@ -105,18 +105,25 @@ if [ "$MISSING" -ne 0 ]; then
   exit 1
 fi
 
-# ─── Git submodules ─────────────────────────────────────────────
+# ─── State directory setup ─────────────────────────────────────
 
-echo "Initializing git submodules..."
-SUBMODULE_STATUS=$(git -C "$PROJECT_ROOT" submodule status .claude/skills/interview-coach 2>/dev/null || echo "none")
-if [[ "$SUBMODULE_STATUS" == -* ]]; then
-  info "Cloning interview-coach submodule..."
-  git -C "$PROJECT_ROOT" submodule update --init .claude/skills/interview-coach
-  ok "Interview-coach submodule initialized"
-elif [[ "$SUBMODULE_STATUS" == "none" ]]; then
-  warn "No interview-coach submodule configured (skipping)"
-else
-  ok "Interview-coach submodule already initialized"
+echo "Setting up state directory..."
+if [ -d "$PROJECT_ROOT/state/examples" ]; then
+  for example in "$PROJECT_ROOT/state/examples"/*.example.md; do
+    target="$PROJECT_ROOT/state/$(basename "$example" .example.md).md"
+    if [ ! -f "$target" ]; then
+      cp "$example" "$target"
+      ok "Created $(basename "$target") from template"
+    fi
+  done
+fi
+
+# Check for old-structure files and offer migration
+if [ -d "$PROJECT_ROOT/.claude/memory/hot" ] || [ -d "$PROJECT_ROOT/.claude/skills/hunt/references" ]; then
+  echo ""
+  warn "Detected files in old directory structure (.claude/)"
+  info "Run migration: uv run python tools/migrate_state.py --dry-run"
+  info "Then apply:    uv run python tools/migrate_state.py"
 fi
 echo ""
 
@@ -187,22 +194,24 @@ echo ""
 
 # ─── Local config template ─────────────────────────────────────
 
-if [ ! -f "$PROJECT_ROOT/.claude/CLAUDE.local.md" ]; then
-  cp "$PROJECT_ROOT/.claude/CLAUDE.local.example.md" "$PROJECT_ROOT/.claude/CLAUDE.local.md"
-  ok "Created .claude/CLAUDE.local.md from template (gitignored)"
+if [ ! -f "$PROJECT_ROOT/CLAUDE.local.md" ]; then
+  if [ -f "$PROJECT_ROOT/CLAUDE.local.example.md" ]; then
+    cp "$PROJECT_ROOT/CLAUDE.local.example.md" "$PROJECT_ROOT/CLAUDE.local.md"
+    ok "Created CLAUDE.local.md from template (gitignored)"
+  fi
 else
-  ok ".claude/CLAUDE.local.md already exists"
+  ok "CLAUDE.local.md already exists"
 fi
 echo ""
 
 # ─── Supabase connection test ──────────────────────────────────
 
 echo "Verifying Supabase connection..."
-if uv run python .claude/tools/db.py status 2>/dev/null; then
+if uv run python tools/db.py status 2>/dev/null; then
   ok "Supabase connected"
 else
   warn "Could not verify Supabase connection — check .env credentials"
-  warn "You can verify later with: uv run python .claude/tools/db.py status"
+  warn "You can verify later with: artemis-db status"
 fi
 echo ""
 
@@ -212,8 +221,8 @@ echo "============="
 echo "Setup complete!"
 echo ""
 echo "Next steps:"
-echo "  1. Open Claude Code for profile setup:"
-echo "     cd $PROJECT_ROOT && claude"
+echo "  1. Open Claude Code with the Artemis plugin:"
+echo "     cd $PROJECT_ROOT && claude --plugin-dir ."
 echo "     (The session hook will detect a fresh install and prompt you)"
 echo ""
 echo "  2. Start all services:"
@@ -222,4 +231,5 @@ echo ""
 echo "  3. Open the dashboard:"
 echo "     http://localhost:5173"
 echo ""
-echo "For the full guide, see docs/getting-started.md"
+echo "  For Claude Desktop: start services with --no-orchestrator flag,"
+echo "  then add the plugin directory in Claude Desktop settings."
