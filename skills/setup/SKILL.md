@@ -155,7 +155,7 @@ Copy from `.example.md` templates — no user input needed.
 
 **Supabase:**
 ```bash
-uv run python tools/db.py status
+artemis-db status
 ```
 
 If this fails, remind the user to set up `.env` with Supabase credentials per the README. Non-blocking — continue.

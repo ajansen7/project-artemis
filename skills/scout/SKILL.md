@@ -35,8 +35,8 @@ Search the web for job opportunities that match the candidate's profile.
      - 50-79: Moderate (some alignment, adjacent role or less-targeted company)
      - 20-49: Weak (tangentially relevant)
      - 0-19: Barely relevant (save only if company is interesting)
-   - Save: `uv run python tools/db.py add-job --title "..." --company "..." --url "..." --description "..." --source "scout" --match-score <0-100>`
-5. Save interesting companies: `uv run python tools/db.py add-company --name "..." --domain "..." --careers-url "..." --why "..." --priority "high|medium|low"`
+   - Save: `artemis-db add-job --title "..." --company "..." --url "..." --description "..." --source "scout" --match-score <0-100>`
+5. Save interesting companies: `artemis-db add-company --name "..." --domain "..." --careers-url "..." --why "..." --priority "high|medium|low"`
 6. Report: jobs saved, companies discovered, score distribution, patterns noticed
 
 **Search strategy (be creative — pull target roles, companies, and industries from preferences.md):**
@@ -51,7 +51,7 @@ Search the web for job opportunities that match the candidate's profile.
 
 **Batch add (preferred for multiple jobs):**
 ```bash
-echo '[{"title":"Senior PM","company":"Anthropic","url":"https://...","description":"...","match_score":85,"source":"scout"}]' | uv run python tools/db.py batch-add
+echo '[{"title":"Senior PM","company":"Anthropic","url":"https://...","description":"...","match_score":85,"source":"scout"}]' | artemis-db batch-add
 ```
 
 ---
@@ -62,16 +62,16 @@ Bulk maintenance: re-score, prune dead links, update based on latest preferences
 
 **Steps:**
 1. Read `references/candidate_context.md` (scoring factors, target companies, deal breakers)
-2. Get all active jobs: `uv run python tools/db.py list-jobs`
+2. Get all active jobs: `artemis-db list-jobs`
 3. For each job (batch by status, `scouted`/`to_review` first):
    - **Check if still live**: read the job URL
    - If dead: search web for relocated posting before deleting. If genuinely gone, mark deleted. If unclear, flag for manual check.
    - **Re-score** against current preferences
    - Update description if changed materially
-4. Batch update: `echo '<json>' | uv run python tools/db.py batch-update`
+4. Batch update: `echo '<json>' | artemis-db batch-update`
 5. **Staleness check**: note any jobs sitting in `scouted` or `to_review` for 30+ days. Include count and examples in the sync summary. If there are many stale jobs, suggest running `/cull` to clean up.
 6. Report sync summary: removed, moved, flagged, re-scored, stale count, observations
-7. Resync contacts: `uv run python tools/sync_contacts.py`
+7. Resync contacts: `artemis-sync`
 
 ---
 
@@ -80,13 +80,13 @@ Bulk maintenance: re-score, prune dead links, update based on latest preferences
 Show pipeline state and let the user triage.
 
 **Steps:**
-1. Query: `uv run python tools/db.py list-jobs`
+1. Query: `artemis-db list-jobs`
 2. Present summary table grouped by status
 3. For each job: title, company, URL, status, match score
 4. User actions:
-   - Advance: `uv run python tools/db.py update-job --id "..." --status "to_review"`
-   - Not interested: `uv run python tools/db.py update-job --id "..." --status "not_interested" --reason "..."`
-   - Delete: `uv run python tools/db.py update-job --id "..." --status "deleted"`
+   - Advance: `artemis-db update-job --id "..." --status "to_review"`
+   - Not interested: `artemis-db update-job --id "..." --status "not_interested" --reason "..."`
+   - Delete: `artemis-db update-job --id "..." --status "deleted"`
 
 ---
 
@@ -95,5 +95,5 @@ Show pipeline state and let the user triage.
 Quick pipeline overview.
 
 **Steps:**
-1. Run: `uv run python tools/db.py status`
+1. Run: `artemis-db status`
 2. Display counts by status, recent activity, and target companies monitored

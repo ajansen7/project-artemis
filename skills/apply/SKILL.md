@@ -36,7 +36,7 @@ Deep analysis of a specific job posting against the candidate's profile.
    - **Red Flags**: concerns about the role/company
    - **Recommendation**: apply / skip / worth exploring
 4. Save analysis to `analysis.md`
-5. Update job: `uv run python tools/db.py update-job --id "<job_id>" --match-score <score> --analysis-file "analysis.md"`
+5. Update job: `artemis-db update-job --id "<job_id>" --match-score <score> --analysis-file "analysis.md"`
 
 ---
 
@@ -45,7 +45,7 @@ Deep analysis of a specific job posting against the candidate's profile.
 Generate a tailored resume, cover letter, primer, and form-fill cheat sheet.
 
 **Steps:**
-1. Look up job: `uv run python tools/db.py get-job --id "..."`
+1. Look up job: `artemis-db get-job --id "..."`
 2. Read context (these are the **only reads needed** unless you need a specific full STAR story):
    - `state/candidate_context.md` — positioning, voice, strengths, gaps, story index
    - `state/resume_master.md` — **canonical, verified resume content**
@@ -80,7 +80,7 @@ Rules: "Why" sections must be specific to THIS company/job. Short bio differs fr
 
 5. Save to Supabase:
 ```bash
-uv run python tools/db.py save-application \
+artemis-db save-application \
   --id "<job_id>" \
   --resume "output/applications/.../resume.md" \
   --cover-letter "output/applications/.../cover_letter.md" \
@@ -88,7 +88,7 @@ uv run python tools/db.py save-application \
   --form-fills "output/applications/.../form_fills.md"
 ```
 
-6. Generate PDF: `uv run python tools/generate_resume_docx.py --job-id "<job_id>"`
+6. Generate PDF: `artemis-resume --job-id "<job_id>"`
 
 7. Open folder: `open "output/applications/<company_name>-<role_name>/"`
 
@@ -103,7 +103,7 @@ Nightly automation: find every job in `to_review` status that has no application
 **Steps:**
 1. Fetch all `to_review` jobs:
    ```bash
-   uv run python tools/db.py list-jobs --status to_review
+   artemis-db list-jobs --status to_review
    ```
 2. For each job ID, check whether materials already exist:
    ```bash
@@ -135,5 +135,5 @@ Nightly automation: find every job in `to_review` status that has no application
 Mark a job as submitted in the pipeline.
 
 **Steps:**
-1. Run: `uv run python tools/db.py mark-submitted --id "<job_id>"`
+1. Run: `artemis-db mark-submitted --id "<job_id>"`
 2. Confirm: "Pipeline updated — [Company] [Role] is now marked applied."

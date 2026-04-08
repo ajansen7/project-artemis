@@ -70,7 +70,7 @@ Builds or refreshes the cached candidate context from source-of-truth files. Thi
    - **Interview Intelligence** — effective/ineffective patterns, coaching focus
 3. Set `Last Synced` timestamp in the file header
 4. **Bidirectional sync checks** (new):
-   - Run `uv run python tools/sync_state.py --check --json` to get current sync status
+   - Run `uv run python ${CLAUDE_PLUGIN_ROOT}/tools/sync_state.py --check --json` to get current sync status
    - If storybank → resume_master is stale: scan coaching_state.md storybank for stories with strong metrics/impact statements not yet in resume_master.md. Surface suggestions: "The story about [X] suggests a stronger bullet — want to update resume_master.md?"
    - If resume → coaching is stale: note that resume positioning changes may not be reflected in coaching state
    - If preferences changed: incorporate updated target companies and deal-breakers into the context
@@ -85,7 +85,7 @@ Generate tailored interview prep for a specific company or role.
 
 **Steps:**
 1. Read `state/candidate_context.md` (profile, story index, interview intelligence, known gaps)
-2. Look up the job/company: `uv run python tools/db.py get-job --id "..."`
+2. Look up the job/company: `artemis-db get-job --id "..."`
 3. Research the company (web search: recent news, culture, leadership, tech stack)
 4. Generate:
    - **Company Overview**: what they do, recent news, culture signals

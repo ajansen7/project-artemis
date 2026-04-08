@@ -25,7 +25,7 @@ Surface contacts ready for outreach, advance pipeline status, and log interactio
 **Steps:**
 1. Query contacts from Supabase:
    ```bash
-   uv run python tools/sync_contacts.py --check
+   artemis-sync --check
    ```
 2. Read `state/candidate_context.md` for current target companies and active roles.
 3. Build a prioritized action list:
@@ -35,12 +35,12 @@ Surface contacts ready for outreach, advance pipeline status, and log interactio
    - **Send the list via Telegram** so the user can respond from their phone. Keep it short: name, company, suggested action. Wait for their reply before drafting messages or making status changes.
 4. For status changes, use `update-contact`:
    ```bash
-   uv run python tools/db.py update-contact \
+   artemis-db update-contact \
      --linkedin-url "linkedin.com/in/handle" --status "sent"
    ```
 5. To add new contacts, use `batch-add-contacts` via JSON stdin (**never write bespoke seed scripts**):
    ```bash
-   echo '[{"name":"Jane Smith","company":"Anthropic","title":"PM","linkedin_url":"linkedin.com/in/janesmith","relationship_type":"hiring_manager","outreach_status":"draft_ready","priority":"high","is_personal_connection":false,"outreach_message_md":"Subject: ...\n\nHi Jane...","notes":"...","jobs":["4cfb2cb8"]}]' | uv run python tools/db.py batch-add-contacts
+   echo '[{"name":"Jane Smith","company":"Anthropic","title":"PM","linkedin_url":"linkedin.com/in/janesmith","relationship_type":"hiring_manager","outreach_status":"draft_ready","priority":"high","is_personal_connection":false,"outreach_message_md":"Subject: ...\n\nHi Jane...","notes":"...","jobs":["4cfb2cb8"]}]' | artemis-db batch-add-contacts
    ```
    Full contact schema (all fields optional except `name` and `company`):
    `name`, `company`, `title`, `linkedin_url` (dedup key), `relationship_type`
@@ -52,7 +52,7 @@ Surface contacts ready for outreach, advance pipeline status, and log interactio
 
 6. **Always end with a resync**:
    ```bash
-   uv run python tools/sync_contacts.py
+   artemis-sync
    ```
 
 **Resync rule:** Any time contacts are added, updated, or statuses change, run `sync_contacts.py` before ending. Zero token cost, <2 seconds.
