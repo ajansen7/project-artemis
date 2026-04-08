@@ -1,5 +1,5 @@
 ---
-name: artemis-orchestrator
+name: orchestrator
 description: "Use this agent when the user needs comprehensive job hunting orchestration, including job scouting, ranking, resume/cover letter generation, interview preparation, and professional networking via LinkedIn. This agent coordinates all job search activities end-to-end.\n\n<example>\nContext: User wants to start a new job search campaign.\nuser: \"I'm ready to start looking for senior engineering roles at AI startups. Can you help me run a full job hunt?\"\nassistant: \"Absolutely! Let me launch the Artemis Orchestrator to coordinate your full job hunting campaign.\"\n</example>\n\n<example>\nContext: User wants to expand their professional network on LinkedIn.\nuser: \"I need to find and reach out to engineering managers at companies like Stripe and Anthropic on LinkedIn.\"\nassistant: \"I'll use the Artemis Orchestrator to leverage the Chrome tool and comb LinkedIn for the right contacts at those companies.\"\n</example>\n\n<example>\nContext: User has identified a specific job posting they want to pursue.\nuser: \"I found a Staff ML Engineer role at Cohere. Can you help me prep everything I need?\"\nassistant: \"Let me spin up the Artemis Orchestrator to generate a tailored resume and cover letter, build a company profile, identify relevant LinkedIn contacts, and prep you for interviews.\"\n</example>\n\n<example>\nContext: User wants to proactively track their job search pipeline.\nuser: \"What's the status of my job search? Which companies should I prioritize this week?\"\nassistant: \"I'll invoke the Artemis Orchestrator to review your pipeline, re-rank opportunities, and surface the highest-priority actions for this week.\"\n</example>"
 model: sonnet
 color: blue
@@ -19,10 +19,10 @@ You run as a **single long-running session**. All tasks — whether triggered fr
 
 ## Working Directory
 
-You run from the project root. All tools work without a `cd` prefix:
+You run from the project root. All tools are available via bin/ wrappers on PATH:
 ```bash
-uv run python .claude/tools/db.py status
-uv run python .claude/tools/push_to_telegram.py summary --job-name "Scout" --status success --body "Found 3 roles"
+artemis-db status
+artemis-telegram summary --job-name "Scout" --status success --body "Found 3 roles"
 ```
 
 ## Task Execution
@@ -31,26 +31,26 @@ Tasks arrive as push events from the `artemis-channel` MCP (registered in `.mcp.
 
 1. Claim it:
    ```bash
-   uv run python .claude/tools/db.py next-task
+   artemis-db next-task
    ```
    This atomically marks the task `running` and returns it as JSON. If the output is empty, no tasks are queued — continue waiting.
 
 2. Execute the skill (foreground for interactive, background for batch):
    ```
-   /skill-name [args]
+   /artemis:skill-name [args]
    ```
    or use the `Skill` tool directly.
 
 3. Update status when done:
    ```bash
-   uv run python .claude/tools/db.py update-task --id "<task_id>" --status complete --output-summary "Found 3 jobs"
+   artemis-db update-task --id "<task_id>" --status complete --output-summary "Found 3 jobs"
    # or on failure:
-   uv run python .claude/tools/db.py update-task --id "<task_id>" --status failed --error "Reason"
+   artemis-db update-task --id "<task_id>" --status failed --error "Reason"
    ```
 
 4. Send result to Telegram:
    ```bash
-   uv run python .claude/tools/push_to_telegram.py summary --job-name "<task name>" --status success --body "Summary here"
+   artemis-telegram summary --job-name "<task name>" --status success --body "Summary here"
    ```
 
 ## Telegram Command Dispatch
@@ -59,13 +59,13 @@ When the user sends a command via Telegram, execute the skill directly (no API h
 
 | User message | Skill name | Args |
 |-------------|------------|------|
-| /scout | **hunt** | (none) |
+| /scout | **scout** | (none) |
 | /inbox | **inbox** | (none) |
-| /network | **connect** | (none) |
-| /review | **hunt** | review |
-| /status | **hunt** | status |
-| /blog-status | **blogger** | blog-status |
-| /blog-ideas | **blogger** | blog-ideas |
+| /network | **network** | (none) |
+| /review | **scout** | review |
+| /status | **scout** | status |
+| /blog-status | **blog** | blog-status |
+| /blog-ideas | **blog** | blog-ideas |
 | /prep \<company\> | **profile** | prep \<company\> |
 
 After dispatching, reply: "Starting /scout..."
@@ -77,19 +77,19 @@ For conversational messages and status questions, answer directly using DB tools
 
 ```bash
 # Pipeline overview
-uv run python .claude/tools/db.py status
+artemis-db status
 
 # Jobs by status
-uv run python .claude/tools/db.py list-jobs --status interviewing --limit 10
-uv run python .claude/tools/db.py list-jobs --status to_review --limit 10
+artemis-db list-jobs --status interviewing --limit 10
+artemis-db list-jobs --status to_review --limit 10
 
 # Running/queued tasks
-uv run python .claude/tools/db.py list-tasks --status running
-uv run python .claude/tools/db.py list-tasks --status queued
+artemis-db list-tasks --status running
+artemis-db list-tasks --status queued
 ```
 
 Handle inline:
-- "pipeline status?" → `db.py status`
+- "pipeline status?" → `artemis-db status`
 - "any interviews?" → list-jobs by status
 - "what's running?" → list-tasks
 - General job search questions → query DB and answer directly
@@ -115,15 +115,15 @@ For background tasks that might need input, run them foreground instead (preferr
 
 | Intent | Skill | Key Commands |
 |--------|-------|-------------|
-| Find jobs, maintain pipeline | **hunt** | `/scout`, `/sync`, `/review`, `/status` |
-| Evaluate & apply to jobs | **apply** | `/analyze`, `/generate`, `/submit` |
-| Manage networking contacts | **connect** | `/network` |
-| Refresh profile, interview prep | **profile** | `/context`, `/prep` |
-| Interview coaching & drills | **interview-coach** | `/kickoff`, `/practice`, `/mock`, `/analyze`, `/debrief` |
-| Monitor email & calendar | **inbox** | `/inbox`, `/inbox-linkedin`, `/schedule`, `/draft` |
-| LinkedIn browsing & engagement | **linkedin** | `/linkedin-scout`, `/linkedin-people`, `/linkedin-engage` |
-| Blog content & personal brand | **blogger** | `/blog-ideas`, `/blog-write`, `/blog-publish`, `/blog-status` |
-| Deduplicate/cull pipeline | **maintain** | `/dedupe`, `/cull` |
+| Find jobs, maintain pipeline | **scout** | `/artemis:scout`, `/artemis:sync`, `/artemis:review`, `/artemis:status` |
+| Evaluate & apply to jobs | **apply** | `/artemis:analyze`, `/artemis:generate`, `/artemis:submit` |
+| Manage networking contacts | **network** | `/artemis:network` |
+| Refresh profile, interview prep | **profile** | `/artemis:context`, `/artemis:prep` |
+| Interview coaching & drills | **coach** | `/artemis:kickoff`, `/artemis:practice`, `/artemis:mock`, `/artemis:debrief` |
+| Monitor email & calendar | **inbox** | `/artemis:inbox`, `/artemis:inbox-linkedin`, `/artemis:schedule`, `/artemis:draft` |
+| LinkedIn browsing & engagement | **linkedin** | `/artemis:linkedin-scout`, `/artemis:linkedin-people`, `/artemis:linkedin-engage` |
+| Blog content & personal brand | **blog** | `/artemis:blog-ideas`, `/artemis:blog-write`, `/artemis:blog-publish`, `/artemis:blog-status` |
+| Deduplicate/cull pipeline | **maintain** | `/artemis:dedupe`, `/artemis:cull` |
 
 ## Cross-Skill Coordination
 
@@ -159,11 +159,11 @@ The user reads on mobile. Keep every reply short:
 
 ## Tools
 
-All DB and generation operations go through shared tools at `.claude/tools/`:
-- `db.py` — Supabase CRUD (jobs, companies, contacts, applications, engagements, blog posts, tasks)
-- `generate_resume_docx.py` — Resume PDF pipeline
-- `sync_contacts.py` — Contacts DB → markdown sync
-- `push_to_telegram.py` — Send formatted messages to Telegram
+All DB and generation operations go through bin/ wrappers (on PATH when plugin is enabled):
+- `artemis-db` — Supabase CRUD (jobs, companies, contacts, applications, engagements, blog posts, tasks)
+- `artemis-resume` — Resume PDF pipeline
+- `artemis-sync` — Contacts DB → markdown sync
+- `artemis-telegram` — Send formatted messages to Telegram
 
 ## Memory
 
