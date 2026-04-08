@@ -4,7 +4,8 @@ export_personal.py — bundle all personal/gitignored Artemis state into a
 portable archive that can be imported on another machine.
 
 Usage:
-    uv run python .claude/tools/export_personal.py [--out PATH]
+    uv run python tools/export_personal.py [--out PATH]
+    artemis-export [--out PATH]
 
 Output:
     artemis-personal-YYYYMMDD-HHMMSS.tar.gz  (or --out destination)
@@ -20,9 +21,9 @@ import tarfile
 from datetime import datetime
 from pathlib import Path
 
-# Resolve project root (two levels up from this script)
+# Resolve project root (one level up from tools/)
 SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR.parent.parent
+PROJECT_ROOT = SCRIPT_DIR.parent
 
 # ── Files / globs to include ─────────────────────────────────────────────────
 # Add new entries here whenever personal state grows into new locations.
@@ -31,21 +32,14 @@ PERSONAL_PATHS = [
     ".env",
     "frontend/.env.local",
     # Local Claude config (personal overrides)
+    "CLAUDE.local.md",
     ".claude/CLAUDE.local.md",
-    # Hot memory (all non-example files)
-    ".claude/memory/hot",
-    # Extended memory index + extras
-    ".claude/memory/MEMORY.md",
-    ".claude/memory/project_active_loops.md",
-    # Skill references — personal content
-    ".claude/skills/hunt/references/candidate_context.md",
-    ".claude/skills/hunt/references/preferences.md",
-    ".claude/skills/apply/references/resume_master.md",
-    ".claude/skills/apply/references/apply_lessons.md",
-    ".claude/skills/apply/references/resume_template.docx",
-    ".claude/skills/apply/references/form_defaults.md",
-    ".claude/skills/interview-coach/coaching_state.md",
-    ".claude/skills/blogger/references",
+    # All state files (identity, voice, coaching_state, preferences, etc.)
+    "state",
+    # Resume template (may be customized)
+    "templates/resume_template.docx",
+    # Generated output (applications, blog drafts, contacts pipeline)
+    "output",
     # Channel settings
     "channels/.claude/settings.local.json",
 ]
@@ -111,7 +105,7 @@ def main() -> None:
     size_kb = out_path.stat().st_size // 1024
     print(f"\nExported {len(files)} files → {out_path}  ({size_kb} KB)")
     print("\nShare this archive, then on the target machine run:")
-    print(f"  uv run python .claude/tools/import_personal.py {out_path.name}")
+    print(f"  uv run python tools/import_personal.py {out_path.name}")
 
 
 if __name__ == "__main__":

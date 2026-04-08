@@ -3,7 +3,7 @@
 import_personal.py — restore personal Artemis state from an export archive.
 
 Usage:
-    uv run python .claude/tools/import_personal.py <archive.tar.gz> [--dry-run] [--force]
+    uv run python tools/import_personal.py <archive.tar.gz> [--dry-run] [--force]
 
 Options:
     --dry-run   Show what would be written without touching the filesystem
@@ -19,19 +19,18 @@ import tarfile
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR.parent.parent
+PROJECT_ROOT = SCRIPT_DIR.parent
 
 # Sanity-check: only allow paths that look like project-local personal content.
 # This prevents a malicious/corrupted archive from writing anywhere on the system.
 ALLOWED_PREFIXES = (
     ".env",
     "frontend/.env",
+    "CLAUDE.local.md",
     ".claude/CLAUDE.local.md",
-    ".claude/memory/",
-    ".claude/skills/hunt/references/",
-    ".claude/skills/apply/references/",
-    ".claude/skills/interview-coach/",
-    ".claude/skills/blogger/references/",
+    "state/",
+    "templates/resume_template.docx",
+    "output/",
     "channels/.claude/",
 )
 
