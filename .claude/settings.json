@@ -61,5 +61,5 @@
   "enabledPlugins": {
     "telegram@claude-plugins-official": true
   },
-  "enabledMcpjsonServers": ["artemis-channel"]
+  "enabledMcpjsonServers": ["artemis-channel", "gmail"]
 }

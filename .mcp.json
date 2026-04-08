@@ -3,6 +3,10 @@
     "artemis-channel": {
       "command": "bun",
       "args": ["run", "--cwd", "channels/artemis-channel", "--silent", "start"]
+    },
+    "gmail": {
+      "type": "http",
+      "url": "https://server.smithery.ai/gmail/mcp"
     }
   }
 }
