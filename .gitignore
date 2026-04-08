@@ -78,6 +78,7 @@ skills/coach/coaching_state.md
 
 # ─── Channels (local settings) ───────────────────────────────
 channels/.claude/settings.local.json
+channels/telegram/
 
 *.pdf
 *.docx

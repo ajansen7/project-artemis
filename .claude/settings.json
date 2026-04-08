@@ -8,9 +8,6 @@
       "Bash(open *)",
       "Bash(git *)",
       "WebSearch",
-"mcp__fcb415b2-613c-4cd1-abd0-528cb0084a8a__gcal_list_events",
-      "mcp__fcb415b2-613c-4cd1-abd0-528cb0084a8a__gcal_list_calendars",
-      "mcp__fcb415b2-613c-4cd1-abd0-528cb0084a8a__gcal_get_event",
       "mcp__Claude_in_Chrome__navigate",
       "mcp__Claude_in_Chrome__get_page_text",
       "mcp__Claude_in_Chrome__read_page",
@@ -19,47 +16,7 @@
       "mcp__Claude_in_Chrome__find"
     ]
   },
-  "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/hooks/load-hot-memory.sh",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/hooks/check-context.sh",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/hooks/sync-extended.sh",
-            "timeout": 30,
-            "async": true
-          }
-        ]
-      }
-    ]
-  },
   "enabledPlugins": {
     "telegram@claude-plugins-official": true
-  },
-  "enabledMcpjsonServers": []
+  }
 }

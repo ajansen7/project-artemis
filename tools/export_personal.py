@@ -42,6 +42,8 @@ PERSONAL_PATHS = [
     "output",
     # Channel settings
     "channels/.claude/settings.local.json",
+    # Telegram channel config (access policy, allowlist)
+    "channels/telegram",
 ]
 
 EXCLUDE_SUFFIXES = {".example.md", ".example.json"}

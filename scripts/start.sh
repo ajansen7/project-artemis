@@ -90,7 +90,7 @@ if [ "$SKIP_FRONTEND" = false ]; then
 fi
 
 # The orchestrator is the unified Telegram interface + task executor.
-# The artemis-channel MCP (registered in .mcp.json) pushes task events in
+# The artemis-channel MCP (loaded via --plugin-dir) pushes task events in
 # directly from the API — no polling loop needed.
 #
 # --dangerously-load-development-channels requires a one-time interactive confirmation.
@@ -98,7 +98,7 @@ fi
 if [ "$SKIP_ORCHESTRATOR" = false ]; then
   if ! window_exists "orchestrator"; then
     "$TMUX_BIN" new-window -t "$SESSION" -n "orchestrator" -d
-    "$TMUX_BIN" send-keys -t "$SESSION:orchestrator" "cd $PROJECT_ROOT && claude --dangerously-skip-permissions --plugin-dir $PROJECT_ROOT --channels plugin:telegram@claude-plugins-official --dangerously-load-development-channels server:artemis-channel" Enter
+    "$TMUX_BIN" send-keys -t "$SESSION:orchestrator" "cd $PROJECT_ROOT && claude --dangerously-skip-permissions --plugin-dir $PROJECT_ROOT --channels plugin:telegram@claude-plugins-official --dangerously-load-development-channels plugin:artemis@inline" Enter
     # Auto-confirm the "local development" prompt that --dangerously-load-development-channels shows
     sleep 3
     "$TMUX_BIN" send-keys -t "$SESSION:orchestrator" "" Enter

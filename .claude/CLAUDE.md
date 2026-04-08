@@ -52,10 +52,7 @@ Dependencies are declared in `pyproject.toml`.
     generate_resume_docx.py   # Resume markdown -> DOCX/PDF via LibreOffice
     sync_contacts.py          # DB -> contacts markdown sync
     push_to_telegram.py       # Send formatted messages to Telegram
-  hooks/                    # Session lifecycle hooks
-    load-hot-memory.sh        # SessionStart: inject hot memory, detect fresh install
-    check-context.sh          # PreToolUse: context freshness check
-    sync-extended.sh          # Stop: sync contacts, cleanup
+  hooks/                    # (deprecated — hooks moved to plugin root hooks/)
   rules/                    # Auto-loaded contextual rules
     data-handling.md          # PII, CLI, data source rules
     pipeline-workflow.md      # Job pipeline operational rules

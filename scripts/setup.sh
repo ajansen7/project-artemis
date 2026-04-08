@@ -35,19 +35,27 @@ echo ""
 
 MISSING=0
 
-# Python 3.11+
-if command -v python3 &>/dev/null; then
-  PY_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-  PY_MAJOR=$(echo "$PY_VERSION" | cut -d. -f1)
-  PY_MINOR=$(echo "$PY_VERSION" | cut -d. -f2)
-  if [ "$PY_MAJOR" -ge 3 ] && [ "$PY_MINOR" -ge 11 ]; then
-    ok "Python $PY_VERSION"
-  else
-    fail "Python $PY_VERSION (need 3.11+)"
-    MISSING=1
+# Python 3.11+ — try versioned binaries first so system python3 (often 3.9 on macOS)
+# doesn't shadow a newer install managed by Homebrew, uv, or mise.
+PYTHON_BIN=""
+for _py in python3.13 python3.12 python3.11 python3 python; do
+  if command -v "$_py" &>/dev/null; then
+    _ver=$("$_py" -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null) || continue
+    _major=$(echo "$_ver" | cut -d. -f1)
+    _minor=$(echo "$_ver" | cut -d. -f2)
+    if [ "$_major" -ge 3 ] && [ "$_minor" -ge 11 ]; then
+      PYTHON_BIN="$_py"
+      PY_VERSION="$_ver"
+      break
+    fi
   fi
+done
+
+if [ -n "$PYTHON_BIN" ]; then
+  ok "Python $PY_VERSION ($PYTHON_BIN)"
 else
-  fail "Python 3.11+ not found"
+  _sys_ver=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null || echo "not found")
+  fail "Python 3.11+ not found (system python3 is $_sys_ver)"
   MISSING=1
 fi
 

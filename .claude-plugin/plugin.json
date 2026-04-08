@@ -8,13 +8,13 @@
   "repository": "https://github.com/ajansen7/project-artemis",
   "keywords": ["job-search", "career", "interview-prep", "networking"],
   "mcpServers": {
-    "artemis-channel": {
-      "command": "bun",
-      "args": ["run", "--cwd", "${CLAUDE_PLUGIN_ROOT}/channels/artemis-channel", "--silent", "start"]
-    },
     "gmail": {
       "type": "http",
       "url": "https://server.smithery.ai/gmail/mcp"
+    },
+    "artemis-channel": {
+      "command": "bun",
+      "args": ["run", "--cwd", "${CLAUDE_PLUGIN_ROOT}/channels/artemis-channel", "--silent", "start"]
     }
   },
   "userConfig": {
