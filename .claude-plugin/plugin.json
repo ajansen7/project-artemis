@@ -1,0 +1,40 @@
+{
+  "name": "artemis",
+  "version": "1.0.0",
+  "description": "AI-powered job search orchestration: scouting, applications, networking, interview coaching, and content creation",
+  "author": {
+    "name": "Alex Jansen"
+  },
+  "repository": "https://github.com/ajansen7/project-artemis",
+  "keywords": ["job-search", "career", "interview-prep", "networking"],
+  "mcpServers": {
+    "artemis-channel": {
+      "command": "bun",
+      "args": ["run", "--cwd", "${CLAUDE_PLUGIN_ROOT}/channels/artemis-channel", "--silent", "start"]
+    },
+    "gmail": {
+      "type": "http",
+      "url": "https://server.smithery.ai/gmail/mcp"
+    }
+  },
+  "userConfig": {
+    "supabase_url": {
+      "title": "Supabase URL",
+      "description": "Your Supabase project URL",
+      "type": "string",
+      "sensitive": false
+    },
+    "supabase_anon_key": {
+      "title": "Supabase Anon Key",
+      "description": "Your Supabase anon/public key",
+      "type": "string",
+      "sensitive": true
+    },
+    "supabase_service_role_key": {
+      "title": "Supabase Service Role Key",
+      "description": "Your Supabase service role key (for admin ops)",
+      "type": "string",
+      "sensitive": true
+    }
+  }
+}

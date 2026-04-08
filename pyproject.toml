@@ -1,6 +1,6 @@
 [project]
 name = "project-artemis"
-version = "0.2.0"
+version = "1.0.0"
 description = "Job hunting copilot — Claude Code skill with Supabase persistence"
 readme = "README.md"
 requires-python = ">=3.11"

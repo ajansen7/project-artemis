@@ -1,0 +1,5 @@
+#!/bin/bash
+# Wrapper for Artemis DB CLI tool.
+# Available on PATH when the artemis plugin is enabled.
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+cd "$PLUGIN_ROOT" && exec uv run python tools/db.py "$@"
