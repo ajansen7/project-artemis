@@ -37,7 +37,6 @@ cd project-artemis
 
 The setup script handles everything:
 - Checks prerequisites (Python 3.11+, uv, Node.js, Bun, tmux, Claude Code)
-- Initializes git submodules (interview-coach)
 - Installs Python, Node, and Bun dependencies
 - Creates `.env` from template and prompts for Supabase credentials
 - Verifies the Supabase connection
@@ -59,7 +58,7 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
 Verify the connection:
 ```bash
-uv run python .claude/tools/db.py status
+artemis-db status
 ```
 
 ---
@@ -68,13 +67,13 @@ uv run python .claude/tools/db.py status
 
 ```bash
 cd project-artemis
-claude
+claude --plugin-dir .
 ```
 
 On first launch, the session hook detects no candidate profile and prompts you. You can also trigger it manually:
 
 ```
-/setup
+/artemis:setup
 ```
 
 The wizard walks you through:
@@ -113,6 +112,11 @@ On your local network:
 ```
 
 Open the local-network URL on your phone or any device on the same Wi-Fi to access the dashboard without any extra configuration.
+
+For Claude Desktop users (without CLI orchestrator):
+```bash
+./scripts/start.sh --no-orchestrator
+```
 
 Useful commands:
 ```bash
@@ -176,14 +180,14 @@ When prompted, configure it:
 
 Test sending a message directly:
 ```bash
-uv run python .claude/tools/push_to_telegram.py send --text "Hello from Artemis!"
+artemis-telegram send --text "Hello from Artemis!"
 ```
 
 You should see the message on your phone.
 
 ### 5e. Start the Orchestrator
 
-The orchestrator is started automatically by `./scripts/start.sh`. It runs as a single long-running Claude session that handles both Telegram messages and skill execution. There is no separate "Telegram handler" — the orchestrator does both.
+The orchestrator is started automatically by `./scripts/start.sh`. It runs as a single long-running Claude session that handles both Telegram messages and skill execution. There is no separate "Telegram handler" -- the orchestrator does both.
 
 Once running, you can message your bot from Telegram:
 - `/scout` -- kicks off a job scouting run
@@ -191,13 +195,13 @@ Once running, you can message your bot from Telegram:
 - `/status` -- shows your pipeline overview
 - `/prep <company>` -- generates interview prep for a company
 
-The Telegram plugin is enabled in `.claude/settings.json` so it loads automatically in the orchestrator session. Your main interactive Claude session does not use the Telegram plugin — only the orchestrator does.
+The Telegram plugin is enabled in `settings.json` so it loads automatically in the orchestrator session. Your main interactive Claude session does not use the Telegram plugin -- only the orchestrator does.
 
 ---
 
 ## Optional: Gmail and Calendar MCP
 
-These enable the `/inbox` skill (scanning for recruiter emails, interview scheduling, follow-up drafting).
+These enable the `/artemis:inbox` skill (scanning for recruiter emails, interview scheduling, follow-up drafting).
 
 Gmail and Calendar are Claude.ai OAuth integrations added directly through Claude Code.
 
@@ -211,11 +215,11 @@ Gmail and Calendar are Claude.ai OAuth integrations added directly through Claud
 
 3. Complete the Google OAuth flow in the browser window that opens. You'll be asked to grant read/compose access to Gmail and read/write access to Calendar.
 
-4. Verify the connection — in Claude Code, ask:
+4. Verify the connection -- in Claude Code, ask:
    ```
    List my Gmail labels
    ```
-   If it returns label names, the integration is live. Then run `/inbox` to confirm the skill works end-to-end.
+   If it returns label names, the integration is live. Then run `/artemis:inbox` to confirm the skill works end-to-end.
 
 These integrations are only available in interactive Claude sessions (not headless `-p` mode). Scheduled jobs that need Gmail/Calendar run in interactive mode automatically.
 
@@ -223,7 +227,7 @@ These integrations are only available in interactive Claude sessions (not headle
 
 ## Optional: Claude in Chrome MCP
 
-This enables the `/linkedin` and `/blogger` skills (LinkedIn browsing, engagement drafting, blog publishing).
+This enables the `/artemis:linkedin-scout` and `/artemis:blog-write` skills (LinkedIn browsing, engagement drafting, blog publishing).
 
 ### Install the extension
 
@@ -235,11 +239,11 @@ This enables the `/linkedin` and `/blogger` skills (LinkedIn browsing, engagemen
 
 4. In a Claude Code session, run `/mcp` and look for **Claude in Chrome** in the integrations list, then enable it
 
-   Alternatively, Claude Code auto-detects the extension when Chrome is open — you'll see `mcp__claude-in-chrome__*` tools available in sessions where the extension is running.
+   Alternatively, Claude Code auto-detects the extension when Chrome is open -- you'll see `mcp__claude-in-chrome__*` tools available in sessions where the extension is running.
 
 5. Verify: in Claude Code, ask Claude to navigate to a URL. If it can control the browser tab, the connection is working.
 
-6. Run `/linkedin` to confirm the full skill works.
+6. Run `/artemis:linkedin-scout` to confirm the full skill works.
 
 **Note:** Chrome must be open with the extension active for browser tools to work. If you see "Extension not found" errors, reload the extension from `chrome://extensions` or restart Chrome.
 
@@ -251,29 +255,7 @@ Direct database access for running migrations, ad-hoc queries, and schema change
 
 1. In a Claude Code session, run `/mcp` and connect the **Supabase** integration
 2. When prompted, paste your Supabase project URL and service role key (same values from your `.env`)
-3. Verify: ask Claude to list your tables — it should return the Artemis schema (jobs, contacts, applications, etc.)
-
----
-
-## Scheduled Automation
-
-With services running (`./scripts/start.sh`), the API server's scheduler triggers skills on a cron schedule. Default schedules (all disabled by default):
-
-| Schedule | Skill | Default Time |
-|----------|-------|-------------|
-| Daily Inbox Check | `/inbox` | Weekdays 8am |
-| Daily Job Scout | `/scout` | Weekdays 7am |
-| Daily LinkedIn Engagement | `/linkedin` | Weekdays 9am |
-| Networking Follow-ups | `/network` | Mon & Thu 10am |
-| Interview Prep Reminder | `/prep` | Daily 6pm |
-| Weekly Blog Ideas | `/blog-ideas` | Monday 10am |
-| Draft Publish Reminder | `/blog-status` | Friday 9am |
-
-Enable them in the Dashboard's Schedules tab. Results are pushed to Telegram (if configured) so you can review and respond from your phone.
-
-Scheduled jobs can ask you questions mid-run. For example, the scout skill might ask "Found 8 jobs. Save all or filter to top 5?" The question appears on Telegram, you reply, and the job continues with your answer.
-
-See [automation.md](automation.md) for advanced configuration.
+3. Verify: ask Claude to list your tables -- it should return the Artemis schema (jobs, contacts, applications, etc.)
 
 ---
 
@@ -281,13 +263,15 @@ See [automation.md](automation.md) for advanced configuration.
 
 After setup, verify each layer is working:
 
-- [ ] `uv run python .claude/tools/db.py status` -- Supabase connection
+- [ ] `artemis-db status` -- Supabase connection
 - [ ] `http://localhost:5173` -- Dashboard loads (also test on your phone via the LAN URL printed by start.sh)
 - [ ] `http://localhost:8000/api/schedules` -- API is running
-- [ ] `/scout` in Claude Code -- skill execution works
+- [ ] `/artemis:scout` in Claude Code -- skill execution works
 - [ ] `curl -X POST http://127.0.0.1:8790/notify -H "Content-Type: application/json" -d '{"message":"ping"}'` -- artemis-channel is up (if services running)
-- [ ] `uv run python .claude/tools/push_to_telegram.py send --text "test"` -- Telegram delivery (if configured)
+- [ ] `artemis-telegram send --text "test"` -- Telegram delivery (if configured)
 - [ ] Send `/status` from Telegram -- orchestrator responds (if configured)
+
+For scheduled automation setup and configuration, see **[automation.md](automation.md)**.
 
 ---
 
@@ -303,15 +287,15 @@ Check `.env` has the correct `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. The
 - Verify the API server is running: `curl http://localhost:8000/api/schedules`
 - Check schedules are enabled in the Schedules tab
 - Check that the orchestrator is running: `tmux attach -t artemis` and look for the `orchestrator` window
-- Check the task queue: `uv run python .claude/tools/db.py list-tasks --status queued`
+- Check the task queue: `artemis-db list-tasks --status queued`
 
 ### Telegram messages not arriving
-- Verify bot token: `uv run python .claude/tools/push_to_telegram.py send --text "test"`
+- Verify bot token: `artemis-telegram send --text "test"`
 - Check the orchestrator is running: look for the `orchestrator` window in tmux
 - Confirm the Telegram plugin is listed: the orchestrator startup line should include `--channels plugin:telegram@claude-plugins-official`
 
 ### Tasks stuck in "queued"
-- Check the artemis-channel is running: `curl -X POST http://127.0.0.1:8790/notify -H "Content-Type: application/json" -d '{"message":"test"}'` — should return "ok"
+- Check the artemis-channel is running: `curl -X POST http://127.0.0.1:8790/notify -H "Content-Type: application/json" -d '{"message":"test"}'` -- should return "ok"
 - If the channel is down, restart with `./scripts/stop.sh && ./scripts/start.sh`
 - Tasks remain in Supabase even if the channel is down; the orchestrator will pick them up on next interaction
 
