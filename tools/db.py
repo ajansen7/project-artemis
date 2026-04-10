@@ -3,7 +3,7 @@
 Artemis DB Helper — Supabase CRUD operations for the job hunting pipeline.
 
 CLI interface for Artemis Supabase database.
-Called by Claude via `uv run python .claude/tools/db.py <command>`.
+Called by Claude via `uv run python tools/db.py <command>`.
 
 This is a thin shim that forwards to the db_modules package.
 """

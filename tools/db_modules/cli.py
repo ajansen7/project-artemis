@@ -1,7 +1,19 @@
 """CLI entry point — argparse setup and command dispatch."""
 
 import argparse
+import subprocess
 import sys
+from pathlib import Path
+
+
+def _run_state_sync(flag):
+    """Delegate state sync to tools/state_sync.py."""
+    tools_dir = Path(__file__).resolve().parent.parent
+    project_root = tools_dir.parent
+    subprocess.run(
+        ["uv", "run", "python", str(tools_dir / "state_sync.py"), flag],
+        cwd=str(project_root),
+    )
 
 from db_modules.jobs import add_job, list_jobs, update_job, get_job, save_application, mark_submitted, score_job, merge_jobs, find_job
 from db_modules.companies import add_company, list_companies
@@ -220,6 +232,22 @@ def main():
                    help="Comma-separated table names (e.g. tasks,scheduled_jobs). "
                         "Omit to trigger a full refresh.")
     p.set_defaults(func=notify_refresh)
+
+    # state-pull
+    p = subparsers.add_parser("state-pull", help="Pull state files from DB (newer wins)")
+    p.set_defaults(func=lambda args: _run_state_sync("--pull"))
+
+    # state-push
+    p = subparsers.add_parser("state-push", help="Push state files to DB (newer wins)")
+    p.set_defaults(func=lambda args: _run_state_sync("--push"))
+
+    # state-seed
+    p = subparsers.add_parser("state-seed", help="Force-push all local state to DB")
+    p.set_defaults(func=lambda args: _run_state_sync("--seed"))
+
+    # state-check
+    p = subparsers.add_parser("state-check", help="Report state sync status")
+    p.set_defaults(func=lambda args: _run_state_sync("--check"))
 
     args = parser.parse_args()
     if not args.command:

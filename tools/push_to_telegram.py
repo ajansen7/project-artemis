@@ -6,10 +6,10 @@ Called by scheduled Claude subprocesses to send curated, mobile-formatted
 output directly to the user's phone. No proxy or webhook chain required.
 
 Usage:
-    uv run python .claude/tools/push_to_telegram.py send --text "Hello from Artemis"
-    uv run python .claude/tools/push_to_telegram.py summary --job-name "Morning Scout" --status success --body "Found 3 roles"
-    uv run python .claude/tools/push_to_telegram.py question --job-name "Morning Scout" --token abc123 --question "Save all 8 jobs?"
-    echo "long message..." | uv run python .claude/tools/push_to_telegram.py send --stdin
+    uv run python tools/push_to_telegram.py send --text "Hello from Artemis"
+    uv run python tools/push_to_telegram.py summary --job-name "Morning Scout" --status success --body "Found 3 roles"
+    uv run python tools/push_to_telegram.py question --job-name "Morning Scout" --token abc123 --question "Save all 8 jobs?"
+    echo "long message..." | uv run python tools/push_to_telegram.py send --stdin
 
 Exit codes:
     0 — message sent (prints message_id to stdout)

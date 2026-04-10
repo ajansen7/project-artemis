@@ -6,8 +6,8 @@ DB is the single source of truth. This script regenerates the markdown
 pipeline file from Supabase so the two never drift.
 
 Usage:
-  uv run python .claude/tools/sync_contacts.py          # write
-  uv run python .claude/tools/sync_contacts.py --check  # diff only
+  uv run python tools/sync_contacts.py          # write
+  uv run python tools/sync_contacts.py --check  # diff only
 """
 
 import os
@@ -18,8 +18,8 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 from supabase import create_client
 
-# .claude/tools/ is 2 levels below project root
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+# tools/ is 1 level below project root
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(PROJECT_ROOT / ".env")
 
 sb = create_client(os.getenv("SUPABASE_URL", ""), os.getenv("SUPABASE_SERVICE_ROLE_KEY", ""))

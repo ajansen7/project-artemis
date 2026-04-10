@@ -9,6 +9,11 @@
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 STATE_DIR="$PLUGIN_ROOT/state"
 
+# Pull latest state from DB (silent — if offline, uses local cache)
+if command -v uv &>/dev/null; then
+  cd "$PLUGIN_ROOT" && uv run python tools/state_sync.py --pull 2>/dev/null
+fi
+
 # Fresh-install detection: if identity.md doesn't exist, this is a new setup.
 if [ ! -f "$STATE_DIR/identity.md" ]; then
   cat <<'SETUP'

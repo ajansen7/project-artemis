@@ -1,5 +1,30 @@
 #!/bin/bash
-# Wrapper for Artemis contacts sync tool.
+# Wrapper for Artemis sync tools.
 # Available on PATH when the artemis plugin is enabled.
+#
+# Usage:
+#   artemis-sync              # full sync: state push/pull + contacts
+#   artemis-sync --contacts   # contacts pipeline only (backwards compat)
+#   artemis-sync --state      # state files only (push + pull)
+#   artemis-sync --seed       # first-time upload of all state to DB
+
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
-cd "$PLUGIN_ROOT" && exec uv run python tools/sync_contacts.py "$@"
+
+case "${1:-}" in
+  --contacts)
+    cd "$PLUGIN_ROOT" && exec uv run python tools/sync_contacts.py "${@:2}"
+    ;;
+  --state)
+    cd "$PLUGIN_ROOT" && uv run python tools/state_sync.py --push
+    cd "$PLUGIN_ROOT" && exec uv run python tools/state_sync.py --pull
+    ;;
+  --seed)
+    cd "$PLUGIN_ROOT" && exec uv run python tools/state_sync.py --seed
+    ;;
+  *)
+    # Full sync: state + contacts
+    cd "$PLUGIN_ROOT" && uv run python tools/state_sync.py --push 2>/dev/null
+    cd "$PLUGIN_ROOT" && uv run python tools/state_sync.py --pull 2>/dev/null
+    cd "$PLUGIN_ROOT" && exec uv run python tools/sync_contacts.py "$@"
+    ;;
+esac

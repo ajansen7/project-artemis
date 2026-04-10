@@ -66,7 +66,7 @@ async def generate_pdf(req: GeneratePdfRequest):
         process = subprocess.Popen(
             [
                 _UV_BIN, "run", "python",
-                ".claude/tools/generate_resume_docx.py",
+                "tools/generate_resume_docx.py",
                 "--job-id", req.job_id,
             ],
             cwd=PROJECT_ROOT,
@@ -145,7 +145,7 @@ async def learn_from_edit(req: LearnFromEditRequest):
         return {"status": "skipped", "message": "No changes detected."}
 
     doc_label = "resume" if req.doc_type == "resume" else "cover letter"
-    lessons_path = ".claude/skills/apply/references/apply_lessons.md"
+    lessons_path = "state/apply_lessons.md"
     prompt = (
         f"The user manually corrected their AI-generated {doc_label}. "
         f"Your job is NOT to patch the document — it is to extract the reusable lessons "

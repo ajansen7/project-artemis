@@ -5,8 +5,8 @@ Matches resume_pretty.docx: dark navy/blue header table, light-blue summary
 box with blue left border, ALL-CAPS blue section headings, 2-col skills table.
 
 Usage:
-  uv run python .claude/tools/generate_resume_docx.py --job-id <uuid>
-  uv run python .claude/tools/generate_resume_docx.py --resume-path path/to/resume.md
+  uv run python tools/generate_resume_docx.py --job-id <uuid>
+  uv run python tools/generate_resume_docx.py --resume-path path/to/resume.md
 
 Requires LibreOffice for PDF conversion:
   brew install --cask libreoffice
@@ -21,7 +21,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(PROJECT_ROOT / ".env")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")

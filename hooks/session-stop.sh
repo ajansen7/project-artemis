@@ -5,9 +5,10 @@
 # Fall back to relative path for local development/testing.
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 
-# Run comprehensive auto-sync (contacts pipeline, manifest update)
+# Push state changes to DB, then sync contacts pipeline
 if command -v uv &>/dev/null; then
-  cd "$PLUGIN_ROOT" && uv run python tools/sync_state.py --auto 2>/dev/null
+  cd "$PLUGIN_ROOT" && uv run python tools/state_sync.py --push 2>/dev/null
+  cd "$PLUGIN_ROOT" && uv run python tools/sync_contacts.py 2>/dev/null
 fi
 
 # Clean up temp analysis files
