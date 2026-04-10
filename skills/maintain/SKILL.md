@@ -54,7 +54,12 @@ Scan the pipeline for duplicate job postings and merge them. Auto-merge clear ma
    artemis-sync
    ```
 
-7. **Report summary:** How many duplicates found, how many auto-merged, how many need user review.
+7. **Log activity:**
+   ```bash
+   artemis-db add-engagement --action-type "dedupe" --platform "artemis" --status "posted" --content "Dedup: N duplicate groups found, N auto-merged, N need user review"
+   ```
+
+8. **Report summary:** How many duplicates found, how many auto-merged, how many need user review.
 
 **When triggered from "Flag Duplicate" button with a specific job context:**
 - Focus on finding the best match for the flagged job specifically
@@ -94,4 +99,9 @@ Identify and remove jobs that are no longer worth tracking. Use judgment, not ju
    echo '[{"id": "...", "status": "not_interested", "reason": "Culled: <reason>"}]' | artemis-db batch-update
    ```
 
-6. **Report summary:** How many culled by category, how many preserved, current pipeline health.
+6. **Log activity:**
+   ```bash
+   artemis-db add-engagement --action-type "cull" --platform "artemis" --status "posted" --content "Culled N jobs (N low relevance, N stale). Pipeline: N active"
+   ```
+
+7. **Report summary:** How many culled by category, how many preserved, current pipeline health.

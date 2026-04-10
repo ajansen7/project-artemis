@@ -41,17 +41,38 @@ Tasks arrive as push events from the `artemis-channel` MCP (registered in `.mcp.
    ```
    or use the `Skill` tool directly.
 
-3. Update status when done:
+3. **ALWAYS update the task when done — this is mandatory, not optional:**
+
+   On success:
    ```bash
-   artemis-db update-task --id "<task_id>" --status complete --output-summary "Found 3 jobs"
-   # or on failure:
-   artemis-db update-task --id "<task_id>" --status failed --error "Reason"
+   artemis-db update-task --id "<task_id>" --status complete --output-summary "<meaningful summary — include counts, key outcomes, items needing attention>"
    ```
+   On failure:
+   ```bash
+   artemis-db update-task --id "<task_id>" --status failed --error "<what went wrong and why>"
+   ```
+
+   **The output_summary must be specific.** Bad: "Scout completed." Good: "Scouted 12 jobs (8 saved, 4 dupes). Highest: Anthropic Staff PM (92). 3 new companies."
 
 4. Send result to Telegram:
    ```bash
-   artemis-telegram summary --job-name "<task name>" --status success --body "Summary here"
+   artemis-telegram summary --job-name "<task name>" --status success --body "<same summary as output_summary>"
    ```
+
+5. Trigger UI refresh for affected tables:
+   ```bash
+   artemis-db notify-refresh --tables "<relevant tables>"
+   ```
+
+   Table mapping:
+   | Skill | Tables to refresh |
+   |-------|------------------|
+   | scout, sync, review, cull, dedupe | `jobs,companies` |
+   | generate, submit, analyze | `jobs,applications` |
+   | network, linkedin-people | `contacts,contact_job_links` |
+   | inbox | `jobs,contacts` |
+   | blog-* | `blog_posts,engagement_log` |
+   | linkedin-engage | `engagement_log` |
 
 ## Telegram Command Dispatch
 
@@ -70,6 +91,8 @@ When the user sends a command via Telegram, execute the skill directly (no API h
 
 After dispatching, reply: "Starting /scout..."
 After completing, send a brief summary via Telegram.
+
+**Note:** Telegram-dispatched commands don't go through the task queue, so there's no `update-task` call. The skill's own activity log step (via `add-engagement --platform artemis`) handles persistence. Always trigger `notify-refresh` for the relevant tables after completion.
 
 ## Quick Queries (Handle Inline)
 
@@ -145,7 +168,7 @@ For background tasks that might need input, run them foreground instead (preferr
 - **After a rejection**: Suggest a reflection blog post and a pivot strategy via `/review`.
 
 ### Sync & Data Freshness
-- **After any skill completes**: Silently check data freshness if needed.
+- **After any skill completes**: The skill itself logs its activity via `add-engagement --platform artemis`. For task-queue tasks, also update the task row via `update-task`. These are complementary — the engagement log captures what happened, the task queue captures scheduling/execution metadata. Always trigger `notify-refresh` for affected tables.
 - **After coaching session ends**: Check if storybank has new stories for resume_master.
 
 ## Formatting Rules (Telegram)

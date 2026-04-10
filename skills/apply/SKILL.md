@@ -37,6 +37,10 @@ Deep analysis of a specific job posting against the candidate's profile.
    - **Recommendation**: apply / skip / worth exploring
 4. Save analysis to `analysis.md`
 5. Update job: `artemis-db update-job --id "<job_id>" --match-score <score> --analysis-file "analysis.md"`
+6. **Log activity:**
+   ```bash
+   artemis-db add-engagement --action-type "analyze" --platform "artemis" --status "posted" --content "Analyzed [Company] [Role]: fit [score]/100. Rec: [apply/skip/explore]"
+   ```
 
 ---
 
@@ -92,7 +96,11 @@ artemis-db save-application \
 
 7. Open folder: `open "output/applications/<company_name>-<role_name>/"`
 
-8. Tell the user what was generated and where. Remind: "When you've submitted, run `/submit` to update the pipeline."
+8. **Log activity:**
+   ```bash
+   artemis-db add-engagement --action-type "generate" --platform "artemis" --status "posted" --content "Generated materials for [Company] [Role]: resume, cover letter, primer, form fills"
+   ```
+9. Tell the user what was generated and where. Remind: "When you've submitted, run `/submit` to update the pipeline."
 
 ---
 
@@ -127,6 +135,10 @@ Nightly automation: find every job in `to_review` status that has no application
 - If there are no `to_review` jobs without materials, send a short Telegram message: "Nightly materials run: nothing to generate."
 - Do not ask for approval before generating — this is an automated run. Generate for all eligible jobs.
 - If a single job fails, log it and continue with the rest. Don't abort the whole batch.
+- After the batch completes, **log activity:**
+  ```bash
+  artemis-db add-engagement --action-type "generate-pending" --platform "artemis" --status "posted" --content "Batch generate: N to_review found, N skipped (had materials), N generated, N failed"
+  ```
 
 ---
 
@@ -136,4 +148,8 @@ Mark a job as submitted in the pipeline.
 
 **Steps:**
 1. Run: `artemis-db mark-submitted --id "<job_id>"`
-2. Confirm: "Pipeline updated — [Company] [Role] is now marked applied."
+2. **Log activity:**
+   ```bash
+   artemis-db add-engagement --action-type "submit" --platform "artemis" --status "posted" --content "Submitted [Company] [Role]"
+   ```
+3. Confirm: "Pipeline updated — [Company] [Role] is now marked applied."

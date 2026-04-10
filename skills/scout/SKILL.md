@@ -38,6 +38,10 @@ Search the web for job opportunities that match the candidate's profile.
    - Save: `artemis-db add-job --title "..." --company "..." --url "..." --description "..." --source "scout" --match-score <0-100>`
 5. Save interesting companies: `artemis-db add-company --name "..." --domain "..." --careers-url "..." --why "..." --priority "high|medium|low"`
 6. Report: jobs saved, companies discovered, score distribution, patterns noticed
+7. **Log activity:**
+   ```bash
+   artemis-db add-engagement --action-type "scout" --platform "artemis" --status "posted" --content "Scouted N jobs (N saved, N dupes). Top: Company (score), Company (score)"
+   ```
 
 **Search strategy (be creative — pull target roles, companies, and industries from preferences.md):**
 - Direct: "[target role] remote jobs [year]"
@@ -72,6 +76,10 @@ Bulk maintenance: re-score, prune dead links, update based on latest preferences
 5. **Staleness check**: note any jobs sitting in `scouted` or `to_review` for 30+ days. Include count and examples in the sync summary. If there are many stale jobs, suggest running `/cull` to clean up.
 6. Report sync summary: removed, moved, flagged, re-scored, stale count, observations
 7. Resync contacts: `artemis-sync`
+8. **Log activity:**
+   ```bash
+   artemis-db add-engagement --action-type "sync" --platform "artemis" --status "posted" --content "Synced: N checked, N dead removed, N re-scored, N stale flagged"
+   ```
 
 ---
 
@@ -87,6 +95,10 @@ Show pipeline state and let the user triage.
    - Advance: `artemis-db update-job --id "..." --status "to_review"`
    - Not interested: `artemis-db update-job --id "..." --status "not_interested" --reason "..."`
    - Delete: `artemis-db update-job --id "..." --status "deleted"`
+5. **Log activity** (if any changes were made):
+   ```bash
+   artemis-db add-engagement --action-type "review" --platform "artemis" --status "posted" --content "Pipeline review: N triaged. Advanced N, rejected N, deleted N"
+   ```
 
 ---
 

@@ -369,6 +369,11 @@ Write to `coaching_state.md` whenever:
     - Keep it natural — one sentence, not a sales pitch. Vary the wording so it doesn't feel robotic.
 11. **Name what you can and can't coach.** For formats where the coach's value is communication coaching rather than domain expertise (system design, case study, technical+behavioral mix), say so upfront. A coach who pretends to evaluate system design correctness is worse than one who clearly says "I'm coaching how you communicate your thinking, not whether your design is right." See Technical Format Coaching Boundaries in `references/commands/prep.md` for specifics.
 12. **Light-touch intelligence referencing.** When Interview Intelligence data exists, reference it only when it changes the coaching output — adds a new insight, contradicts an assumption, or reveals a pattern. The test: "Would I give different advice without this data?" If no, don't mention it.
+13. **Log activity after every command.** After completing any command that produces output (not `help`), log a summary to the DB:
+    ```bash
+    artemis-db add-engagement --action-type "<command>" --platform "artemis" --status "posted" --content "<one-line summary: command, company if applicable, key outcome or score>"
+    ```
+    Examples: `"practice: behavioral drill. 3 stories drilled. Focus: structure"`, `"mock: PM behavioral for Anthropic. Score: 3.8/5"`, `"analyze: transcript for Google round 2. Overall: 3.5/5"`, `"debrief: Cursor phone screen. Signal: mixed"`, `"kickoff: full system track. Timeline: 2026-04-15"`.
 
 ## Command Registry
 

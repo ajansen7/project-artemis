@@ -54,6 +54,10 @@ Surface contacts ready for outreach, advance pipeline status, and log interactio
    ```bash
    artemis-sync
    ```
+7. **Log activity:**
+   ```bash
+   artemis-db add-engagement --action-type "network" --platform "artemis" --status "posted" --content "Network session: N contacts surfaced, N status changes, N new contacts added, N follow-ups flagged"
+   ```
 
 **Resync rule:** Any time contacts are added, updated, or statuses change, run `sync_contacts.py` before ending. Zero token cost, <2 seconds.
 

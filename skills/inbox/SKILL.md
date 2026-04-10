@@ -180,7 +180,13 @@ Report what was found, what was routed, what needs user attention. Structure:
 - Duplicates blocked (terminal status): N
 - Items needing your attention: list them
 
-**Step 5: Write state file**
+**Step 5: Log activity**
+
+```bash
+artemis-db add-engagement --action-type "inbox" --platform "artemis" --status "posted" --content "Inbox: N processed. Rejections: N, interviews: N, new leads: N, networking: N"
+```
+
+**Step 6: Write state file**
 
 After processing all emails, write the new timestamp:
 ```bash
@@ -215,6 +221,10 @@ Specifically parse LinkedIn's job recommendation emails ("jobs you may be intere
    ```
    Set `source` to `"linkedin-email"`. `batch-add` also performs company+title dedup as a safety net.
 9. Report: jobs found, skipped (terminal), skipped (already in pipeline), added
+10. **Log activity:**
+    ```bash
+    artemis-db add-engagement --action-type "inbox-linkedin" --platform "artemis" --status "posted" --content "LinkedIn email scan: N extracted, N added, N skipped (dupes/terminal)"
+    ```
 
 ---
 
@@ -256,7 +266,11 @@ Draft a follow-up, thank-you, or recruiter response email.
    - Reference specific details about the role/company
    - Keep it brief and warm
 7. Use `create_email_draft` to save as a Gmail draft
-8. Present the draft text for user review
+8. **Log activity:**
+   ```bash
+   artemis-db add-engagement --action-type "draft" --platform "artemis" --status "posted" --content "Drafted [email type] for [Company] [Role]. Saved as Gmail draft"
+   ```
+9. Present the draft text for user review
 
 ---
 

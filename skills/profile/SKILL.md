@@ -75,7 +75,11 @@ Builds or refreshes the cached candidate context from source-of-truth files. Thi
    - If resume → coaching is stale: note that resume positioning changes may not be reflected in coaching state
    - If preferences changed: incorporate updated target companies and deal-breakers into the context
    - Report all sync directions and their status
-5. Report what was updated and changes detected since last sync
+5. **Log activity:**
+   ```bash
+   artemis-db add-engagement --action-type "context" --platform "artemis" --status "posted" --content "Refreshed candidate context cache. Sync: [storybank/resume/preferences status]"
+   ```
+6. Report what was updated and changes detected since last sync
 
 ---
 
@@ -95,3 +99,7 @@ Generate tailored interview prep for a specific company or role.
    - **Stories to Drill**: read **only those story sections** from `coaching_state.md` for full STAR details
    - **Watch Out For**: concerns to address proactively (from Known Gaps)
 5. If the Interview Coach skill should capture a new interview loop, update `coaching_state.md`
+6. **Log activity:**
+   ```bash
+   artemis-db add-engagement --action-type "prep" --platform "artemis" --status "posted" --content "Generated prep for [Company] [Role]: overview, N anticipated questions, N stories to drill"
+   ```

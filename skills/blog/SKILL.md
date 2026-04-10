@@ -93,7 +93,11 @@ Bootstrap the content system by importing past published posts from an existing 
    <3-5 specific ideas grounded in the archive patterns>
    ```
 
-6. Report back: summary table of posts imported, key themes identified, and top 3 content gap suggestions.
+6. **Log activity:**
+   ```bash
+   artemis-db add-engagement --action-type "blog-audit" --platform "artemis" --status "posted" --content "Imported N posts from [url]. Themes: [top 2-3]"
+   ```
+7. Report back: summary table of posts imported, key themes identified, and top 3 content gap suggestions.
 
 **Notes:**
 - If Chrome MCP is unavailable, ask the user to export their Substack (Settings → Exports) and provide the zip path — then parse the HTML files locally.
@@ -124,6 +128,10 @@ Generate blog post ideas from the candidate's job search activity, expertise, an
    - **Platform** — best fit: LinkedIn article, LinkedIn post (short), Medium, personal blog
 9. Save to `output/blog/content_backlog.md` (append to existing, don't overwrite)
 10. Also track in DB: `artemis-db add-blog-post --title "..." --slug "..." --status "idea" --summary "..." --tags "..."`
+11. **Log activity:**
+    ```bash
+    artemis-db add-engagement --action-type "blog-ideas" --platform "artemis" --status "posted" --content "Generated N blog post ideas. Top: [title1], [title2]"
+    ```
 
 **Idea generation angles tied to positioning:**
 - Building agentic AI systems (Artemis itself as a real case study)
@@ -175,7 +183,11 @@ Write a full blog post draft aligned with identity and voice.
    CONTENT=$(cat output/blog/drafts/<slug>.md)
    artemis-db update-blog-post --id "..." --status "draft" --draft-path "output/blog/drafts/<slug>.md" --content "$CONTENT"
    ```
-8. Present the full draft for user review and editing
+8. **Log activity:**
+   ```bash
+   artemis-db add-engagement --action-type "blog-write" --platform "artemis" --status "posted" --content "Wrote draft: [title] (~N words, platform: [platform])"
+   ```
+9. Present the full draft for user review and editing
 
 **Quality bar:**
 - Would you send this to a hiring manager at your top-choice company? If not, revise.
@@ -204,6 +216,7 @@ Publish a finalized draft via Chrome MCP.
    - Update frontmatter status to `published`, add `published_at` date
    - Update DB: `artemis-db update-blog-post --id "..." --status "published" --published-url "..."`
    - Log engagement: `artemis-db add-engagement --action-type "blog_post" --platform "..." --target-url "..." --content "..." --status "posted"`
+   - Log activity: `artemis-db add-engagement --action-type "blog-publish" --platform "artemis" --status "posted" --content "Published: [title] to [platform]. URL: [url]"`
 8. Suggest follow-up engagement: "Consider sharing this in relevant LinkedIn groups or tagging people who might find it valuable."
 
 ---
@@ -228,7 +241,11 @@ Revise a draft using the revision notes the user has saved in the DB. Extracts v
    - Check anecdotes: `artemis-db list-blog-posts` — actually query anecdotes via Supabase if accessible, otherwise note them for review
    - If new stories are found, list them at the end of your response: "These notes mention experiences not in your storybank: [list]. Consider capturing them with `/practice add-story`."
 8. Save the revised draft: `artemis-db update-blog-post --id "..." --content "..." --status "draft"`
-9. Present a summary of changes made and any voice lessons extracted
+9. **Log activity:**
+   ```bash
+   artemis-db add-engagement --action-type "blog-revise" --platform "artemis" --status "posted" --content "Revised draft: [title]. N notes applied, N voice lessons extracted"
+   ```
+10. Present a summary of changes made and any voice lessons extracted
 
 **Quality bar:**
 - Every note must be addressed — if a note is ambiguous, make the most charitable interpretation

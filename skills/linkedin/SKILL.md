@@ -61,8 +61,12 @@ Search LinkedIn Jobs for opportunities matching the candidate's profile.
    echo '<json>' | artemis-db batch-add
    ```
    Set `source` to `"linkedin"`
-8. Report: jobs found, scores, companies discovered, patterns noticed
-9. If high-scoring jobs found at companies with no contacts, suggest `/linkedin-people <company>`
+8. **Log activity:**
+   ```bash
+   artemis-db add-engagement --action-type "linkedin-scout" --platform "artemis" --status "posted" --content "LinkedIn scout: N found, N added to pipeline. Top: [companies]"
+   ```
+9. Report: jobs found, scores, companies discovered, patterns noticed
+10. If high-scoring jobs found at companies with no contacts, suggest `/linkedin-people <company>`
 
 ---
 
@@ -89,7 +93,11 @@ Browse a company's LinkedIn page to find relevant contacts for networking.
    ```
    Include `"source": "linkedin"` in each contact object
 8. After adding, sync: `artemis-sync`
-9. Suggest drafting outreach via the connect skill (`/network`)
+9. **Log activity:**
+   ```bash
+   artemis-db add-engagement --action-type "linkedin-people" --platform "artemis" --status "posted" --content "Found N contacts at [Company]. N added to pipeline"
+   ```
+10. Suggest drafting outreach via the connect skill (`/network`)
 
 ---
 
@@ -118,7 +126,11 @@ Find and engage with posts relevant to the candidate's positioning and target co
    - Use `form_input` to enter the comment
    - Log to DB: `artemis-db add-engagement --action-type "comment" --platform "linkedin" --target-url "..." --target-person "..." --content "..." --status "posted"`
 7. If the user wants to skip: log as skipped for learning
-8. Report: posts engaged with, comments posted, engagement logged
+8. **Log activity:**
+   ```bash
+   artemis-db add-engagement --action-type "linkedin-engage" --platform "artemis" --status "posted" --content "LinkedIn engagement: N posts reviewed, N comments drafted, N posted, N skipped"
+   ```
+9. Report: posts engaged with, comments posted, engagement logged
 
 **Comment quality bar:**
 - Must add a specific insight, experience, or perspective
