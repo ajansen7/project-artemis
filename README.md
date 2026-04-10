@@ -125,9 +125,9 @@ For architecture details, see **[docs/architecture.md](docs/architecture.md)**.
 
 ## Architecture
 
-### State (two tiers)
+### State (two tiers, cloud-synced)
 
-All state files live in `state/` (gitignored). Templates in `state/examples/`.
+All state files live in `state/` (gitignored). Templates in `state/examples/`. State is automatically synced to Supabase — pulled on session start, pushed on session stop — so any machine with the right `.env` gets the same state automatically.
 
 **Hot state** loads every session via hooks. Kept compact (~70 lines):
 - `identity.md` -- candidate name, headline, positioning, search status
@@ -146,8 +146,8 @@ All state files live in `state/` (gitignored). Templates in `state/examples/`.
 
 | Hook | Event | What it does |
 |------|-------|-------------|
-| `session-start.sh` | SessionStart | Injects hot state; detects fresh install and surfaces setup prompt |
-| `session-stop.sh` | Stop | Syncs contacts from DB, cleans up temp files |
+| `session-start.sh` | SessionStart | Pulls state from Supabase; injects hot state; detects fresh install and surfaces setup prompt |
+| `session-stop.sh` | Stop | Pushes state to Supabase; syncs contacts from DB; cleans up temp files |
 
 ### Output (`output/`)
 
@@ -220,12 +220,13 @@ project-artemis/                        # Plugin root
     session-stop.sh                     # Auto-sync on session end
   bin/                                  # CLI tools (added to PATH by plugin)
     artemis-db                          # Supabase CRUD operations
-    artemis-sync                        # Contacts DB -> markdown sync
+    artemis-sync                        # State + contacts sync (see flags below)
     artemis-resume                      # Resume markdown -> DOCX/PDF
     artemis-telegram                    # Telegram notifications
   tools/                                # Python CLI source
     db.py                               # Thin CLI shim (forwards to db_modules/)
     db_modules/                         # Modular Supabase CRUD package
+    state_sync.py                       # Cloud state sync (pull/push/seed/check)
     generate_resume_docx.py             # Resume markdown to DOCX/PDF
     sync_contacts.py                    # DB to contacts markdown
     push_to_telegram.py                 # Send formatted messages to Telegram
@@ -250,7 +251,7 @@ project-artemis/                        # Plugin root
   api/
     server.py                           # FastAPI -- scheduler, task queue, PDF generation
   frontend/src/                         # React dashboard
-  db/migrations/                        # Supabase SQL migrations (001-017)
+  db/migrations/                        # Supabase SQL migrations (001-018)
   pyproject.toml                        # Python dependencies
   .env                                  # Supabase credentials (gitignored)
 ```
@@ -269,18 +270,47 @@ Artemis is designed to be forked. All personal data lives outside the committed 
 
 The only thing you commit is the system itself. Your data stays yours.
 
-### Migrating Personal Data
+### Setting Up a New Machine
 
-Export all personal state (identity, resume, coaching state, applications, env) into a portable archive:
+State files are cloud-synced via Supabase. On a new machine, just clone and pull:
+
+```bash
+git clone <repo-url> project-artemis
+cd project-artemis
+cp .env.example .env    # paste your Supabase credentials
+uv sync
+uv run python tools/state_sync.py --pull    # downloads all state from DB
+claude --plugin-dir .
+```
+
+On the first install, seed your state up to the DB from an existing machine:
+
+```bash
+uv run python tools/state_sync.py --seed    # force-push all local state to DB
+```
+
+Manual sync commands (also available via `artemis-sync`):
+
+```bash
+artemis-sync              # full sync: state push/pull + contacts pipeline
+artemis-sync --state      # state files only
+artemis-sync --contacts   # contacts pipeline only
+artemis-sync --seed       # first-time upload from this machine
+
+# Or via db CLI:
+artemis-db state-check    # report which files are ahead/behind/in-sync
+artemis-db state-pull     # pull from DB
+artemis-db state-push     # push to DB
+```
+
+### Offline Fallback (no Supabase access)
+
+If Supabase is unreachable, export/import via archive instead:
 
 ```bash
 uv run python tools/export_personal.py              # creates artemis-personal-TIMESTAMP.tar.gz
 uv run python tools/export_personal.py --dry-run    # preview what would be included
-```
 
-Restore on another machine:
-
-```bash
 uv run python tools/import_personal.py archive.tar.gz            # prompts before overwriting
 uv run python tools/import_personal.py archive.tar.gz --force    # overwrite without prompting
 ```
