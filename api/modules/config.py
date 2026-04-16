@@ -76,3 +76,20 @@ def get_user_id_from_request(request: Request) -> str:
     except Exception as e:
         logger.error("Failed to decode JWT: %s", e)
         raise HTTPException(status_code=401, detail="Invalid token")
+
+
+async def get_user_profile(user_id: str) -> dict | None:
+    """Fetch user profile (role, status) from user_profiles table.
+
+    Returns dict with keys: user_id, email, role, status.
+    Returns None if no profile exists.
+    """
+    sb = _get_supabase()
+    res = await run_db(
+        lambda: sb.table("user_profiles")
+        .select("user_id, email, role, status")
+        .eq("user_id", user_id)
+        .maybe_single()
+        .execute()
+    )
+    return res.data

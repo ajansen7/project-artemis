@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from api.modules.middleware import ApprovalMiddleware
 
 from api.modules.config import logger
 from api.modules.scheduler import _load_all_schedules, scheduler
@@ -65,6 +66,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_middleware(ApprovalMiddleware)
 
 app.include_router(auth_router)
 app.include_router(tasks_router)
