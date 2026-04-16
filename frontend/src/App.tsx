@@ -33,6 +33,8 @@ function readLocalStorage<T>(key: string, fallback: T, valid?: T[]): T {
 function App() {
   const [session, setSession] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [view, setView] = useState<View>(() => readLocalStorage('artemis:view', 'pipeline', VALID_VIEWS));
+  const [statusFilter, setStatusFilter] = useState<JobStatus | 'all'>(() => readLocalStorage<JobStatus | 'all'>('artemis:statusFilter', 'all'));
 
   useEffect(() => {
     // Initialize auth state
@@ -51,6 +53,15 @@ function App() {
     };
   }, []);
 
+  useEffect(() => { localStorage.setItem('artemis:view', view); }, [view]);
+  useEffect(() => { localStorage.setItem('artemis:statusFilter', statusFilter); }, [statusFilter]);
+
+  // Call all hooks unconditionally, at top level
+  useEvents();
+  const { jobs, loading, updateStatus, deleteJob, refetch, sortMode, setSortMode, groupByCompany, setGroupByCompany, companyGroups } = useJobs(statusFilter);
+  const allCounts = useAllCounts();
+  const { companies, loading: companiesLoading } = useCompanies();
+
   // If not authenticated, show login page
   if (authLoading) {
     return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>Loading...</div>;
@@ -59,16 +70,6 @@ function App() {
   if (!session) {
     return <LoginPage onLoginSuccess={() => {}} />;
   }
-
-  useEvents();
-  const [view, setView] = useState<View>(() => readLocalStorage('artemis:view', 'pipeline', VALID_VIEWS));
-  const [statusFilter, setStatusFilter] = useState<JobStatus | 'all'>(() => readLocalStorage<JobStatus | 'all'>('artemis:statusFilter', 'all'));
-
-  useEffect(() => { localStorage.setItem('artemis:view', view); }, [view]);
-  useEffect(() => { localStorage.setItem('artemis:statusFilter', statusFilter); }, [statusFilter]);
-  const { jobs, loading, updateStatus, deleteJob, refetch, sortMode, setSortMode, groupByCompany, setGroupByCompany, companyGroups } = useJobs(statusFilter);
-  const allCounts = useAllCounts();
-  const { companies, loading: companiesLoading } = useCompanies();
 
   const handleStatusChange = async (jobId: string, status: JobStatus, notes?: string) => {
     const ok = await updateStatus(jobId, status, notes);
