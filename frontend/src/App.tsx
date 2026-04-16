@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { JobStatus } from './types';
 import { useJobs, useAllCounts } from './hooks/useJobs';
 import { useCompanies } from './hooks/useCompanies';
@@ -35,23 +35,41 @@ function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [view, setView] = useState<View>(() => readLocalStorage('artemis:view', 'pipeline', VALID_VIEWS));
   const [statusFilter, setStatusFilter] = useState<JobStatus | 'all'>(() => readLocalStorage<JobStatus | 'all'>('artemis:statusFilter', 'all'));
+  const prevUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     // Initialize auth state
     initAuth().then(async (sess) => {
       if (sess) {
         setSession(sess);
+        prevUserIdRef.current = sess.user?.id || null;
       } else {
         // No browser session — try to pick up CLI session
         const cliSess = await syncFromServerSession();
         setSession(cliSess);
+        prevUserIdRef.current = cliSess?.user?.id || null;
       }
       setAuthLoading(false);
     });
 
     // Subscribe to auth state changes
     const listener = onAuthStateChange((sess) => {
-      setSession(sess);
+      const currentUserId = sess?.user?.id || null;
+      const prevUserId = prevUserIdRef.current;
+
+      // Detect user switch or logout: reload page for clean data fetch
+      if (prevUserId && currentUserId && prevUserId !== currentUserId) {
+        // User switched to a different account
+        prevUserIdRef.current = currentUserId;
+        window.location.reload();
+      } else if (prevUserId && !currentUserId) {
+        // User logged out
+        window.location.reload();
+      } else {
+        // First login or session refresh with same user
+        prevUserIdRef.current = currentUserId;
+        setSession(sess);
+      }
     });
 
     return () => {
