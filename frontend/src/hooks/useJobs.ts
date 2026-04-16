@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, getCurrentUserId } from '../lib/supabase';
 import type { Job, JobStatus, JobSortMode } from '../types';
 
 const STATUS_PRIORITY: Record<string, number> = {
@@ -85,11 +85,17 @@ export function useJobs(statusFilter: JobStatus | 'all' = 'all') {
   const fetchJobs = useCallback(async () => {
     setLoading(true);
     try {
+      const userId = await getCurrentUserId();
       let query = supabase
         .from('jobs')
         .select('*, companies(name, domain, careers_url), applications(resume_md, cover_letter_md, primer_md, form_fills_md, resume_pdf_path, submitted_at)')
         .not('status', 'eq', 'deleted')
         .order('created_at', { ascending: false });
+
+      // Filter by current user (RLS will also enforce this)
+      if (userId) {
+        query = query.eq('user_id', userId);
+      }
 
       if (statusFilter !== 'all') {
         query = query.eq('status', statusFilter);

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, getCurrentUserId } from '../lib/supabase';
 import type { Contact, OutreachStatus, InteractionType } from '../types';
 
 export function useContacts() {
@@ -10,14 +10,22 @@ export function useContacts() {
   const fetchContacts = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error: err } = await supabase
+      const userId = await getCurrentUserId();
+      let query = supabase
         .from('contacts')
         .select(`
           *,
           companies(name),
           contact_job_links(job_id, jobs(title, companies(name))),
           contact_interactions(id, interaction_type, notes, occurred_at, created_at)
-        `)
+        `);
+
+      // Filter by current user (RLS will also enforce this)
+      if (userId) {
+        query = query.eq('user_id', userId);
+      }
+
+      const { data, error: err } = await query
         .order('priority', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: false });
 
