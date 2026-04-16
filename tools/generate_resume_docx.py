@@ -581,15 +581,26 @@ def fetch_resume_md_from_db(job_id: str) -> tuple[str, str, str]:
 def _upload_artifact_to_storage(job_id: str, file_path: str, company: str, title: str) -> str | None:
     """Upload a generated artifact to Supabase Storage. Returns storage URL or None."""
     try:
+        import json
         import re
         from supabase import create_client
         sb = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-        # Build storage path: artifacts/applications/{job-slug}/{filename}
+        # Get current user ID for multi-tenant isolation
+        user_id = "shared"
+        creds_file = Path.home() / ".artemis" / "credentials.json"
+        if creds_file.exists():
+            try:
+                creds = json.loads(creds_file.read_text())
+                user_id = creds.get("user_id", "shared")
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        # Build storage path: artifacts/users/{user_id}/applications/{job-slug}/{filename}
         slug = f"{company}-{title}".lower()
         slug = re.sub(r"[^a-z0-9-]", "-", slug)[:50].strip("-")
         filename = Path(file_path).name
-        storage_path = f"applications/{slug}/{filename}"
+        storage_path = f"artifacts/users/{user_id}/applications/{slug}/{filename}"
 
         with open(file_path, "rb") as f:
             file_bytes = f.read()

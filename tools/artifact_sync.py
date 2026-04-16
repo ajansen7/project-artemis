@@ -68,9 +68,24 @@ def _list_local_artifacts() -> dict[str, list[Path]]:
     return local
 
 
-def _storage_path(job_slug: str, filename: str) -> str:
-    """Build Supabase Storage path: applications/{job_slug}/{filename}"""
-    return f"applications/{job_slug}/{filename}"
+def _get_user_id() -> str:
+    """Get current user ID from stored credentials."""
+    import json
+    creds_file = Path.home() / ".artemis" / "credentials.json"
+    if creds_file.exists():
+        try:
+            creds = json.loads(creds_file.read_text())
+            return creds.get("user_id", "")
+        except (json.JSONDecodeError, OSError):
+            pass
+    return ""
+
+
+def _storage_path(job_slug: str, filename: str, user_id: str = "") -> str:
+    """Build Supabase Storage path: artifacts/users/{user_id}/applications/{job_slug}/{filename}"""
+    if not user_id:
+        user_id = _get_user_id() or "shared"
+    return f"artifacts/users/{user_id}/applications/{job_slug}/{filename}"
 
 
 def pull(job_id: str = None):
