@@ -276,3 +276,17 @@ export const CRON_PRESETS = [
   { label: 'Weekly Friday at 9am', value: '0 9 * * 5' },
   { label: 'Custom', value: '' },
 ];
+
+// ─── User Profiles ───────────────────────────────────────────────
+
+export type UserRole = 'admin' | 'user';
+export type UserStatus = 'pending' | 'approved' | 'blocked';
+
+export interface UserProfile {
+  user_id: string;
+  email: string;
+  role: UserRole;
+  status: UserStatus;
+  created_at: string;
+  updated_at: string;
+}
