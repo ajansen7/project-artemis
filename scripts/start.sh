@@ -2,9 +2,10 @@
 # Artemis — start all services in a single tmux session.
 #
 # Usage:
-#   ./scripts/start.sh                   # start everything
-#   ./scripts/start.sh --no-frontend     # skip the React frontend
-#   ./scripts/start.sh --no-orchestrator # skip orchestrator (use with Claude Desktop)
+#   ./scripts/start.sh                      # start everything
+#   ./scripts/start.sh --no-frontend        # skip the React frontend
+#   ./scripts/start.sh --no-orchestrator    # skip orchestrator (use with Claude Desktop)
+#   ./scripts/start.sh --non-interactive    # fail if not authenticated (for CI/automation)
 #
 # Services started (each in its own tmux window):
 #   api           — FastAPI backend (uvicorn, port 8000)
@@ -18,11 +19,13 @@ SESSION="artemis"
 TMUX_BIN="${TMUX_BIN:-$(command -v tmux || echo /opt/homebrew/bin/tmux)}"
 SKIP_FRONTEND=false
 SKIP_ORCHESTRATOR=false
+NON_INTERACTIVE=false
 
 for arg in "$@"; do
   case "$arg" in
     --no-frontend) SKIP_FRONTEND=true ;;
     --no-orchestrator) SKIP_ORCHESTRATOR=true ;;
+    --non-interactive) NON_INTERACTIVE=true ;;
   esac
 done
 
@@ -40,6 +43,26 @@ fi
 
 if [ ! -f "$PROJECT_ROOT/.env" ]; then
   echo "WARNING: .env not found in $PROJECT_ROOT — Supabase may not connect." >&2
+fi
+
+# ─── Auth check ──────────────────────────────────────────────────
+
+AUTH_STATUS=$(cd "$PROJECT_ROOT" && uv run python tools/auth.py whoami 2>/dev/null)
+if echo "$AUTH_STATUS" | grep -q "^User:"; then
+  USER_EMAIL=$(echo "$AUTH_STATUS" | grep "^User:" | cut -d' ' -f2-)
+  echo "Authenticated as: $USER_EMAIL"
+else
+  if [ "$NON_INTERACTIVE" = true ]; then
+    echo "ERROR: Not authenticated. Run: artemis-login login" >&2
+    exit 1
+  fi
+  echo "Not signed in. Starting login..."
+  (cd "$PROJECT_ROOT" && uv run python tools/auth.py login)
+  AUTH_STATUS=$(cd "$PROJECT_ROOT" && uv run python tools/auth.py whoami 2>/dev/null)
+  if ! echo "$AUTH_STATUS" | grep -q "^User:"; then
+    echo "ERROR: Login failed or was cancelled." >&2
+    exit 1
+  fi
 fi
 
 # ─── Helpers ──────────────────────────────────────────────────────

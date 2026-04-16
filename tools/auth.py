@@ -5,6 +5,7 @@ Artemis Auth — manage JWT session for CLI/tools access.
 Stores session in ~/.artemis/credentials.json. Auto-refreshes on expiry.
 
 Usage:
+    uv run python tools/auth.py signup             # create new account (requires SERVICE_ROLE_KEY)
     uv run python tools/auth.py login              # email+password sign-in
     uv run python tools/auth.py login --magic-link # email magic link sign-in
     uv run python tools/auth.py logout             # clear stored session
@@ -13,8 +14,10 @@ Usage:
 """
 
 import argparse
+import getpass
 import json
 import os
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,6 +30,7 @@ load_dotenv(PROJECT_ROOT / ".env")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 
 CREDS_FILE = Path.home() / ".artemis" / "credentials.json"
 
@@ -104,12 +108,15 @@ def login(use_magic_link: bool = False):
     _save_creds(creds)
     print(f"✅ Signed in as {user.email}")
 
+    _restart_orchestrator_if_running()
+
 
 def logout():
     """Clear stored credentials."""
     if CREDS_FILE.exists():
         CREDS_FILE.unlink()
         print("✅ Signed out")
+        _restart_orchestrator_if_running()
     else:
         print("⚠️  Not signed in")
 
@@ -157,10 +164,91 @@ def refresh():
     print(f"✅ Token refreshed for {creds.get('email')}")
 
 
+def signup():
+    """Create a new account (requires SUPABASE_SERVICE_ROLE_KEY)."""
+    if not SUPABASE_SERVICE_ROLE_KEY:
+        print("❌ SUPABASE_SERVICE_ROLE_KEY not set in .env — required for signup")
+        print("   Contact your administrator to enable account creation")
+        sys.exit(1)
+
+    email = input("Email: ").strip()
+    if not email:
+        print("❌ Email required")
+        return
+
+    while True:
+        password = getpass.getpass("Password: ")
+        if not password:
+            print("❌ Password required")
+            return
+        password_confirm = getpass.getpass("Confirm password: ")
+        if password != password_confirm:
+            print("❌ Passwords do not match")
+            continue
+        break
+
+    # Create user via admin API
+    try:
+        sb_admin = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+        user_data = {
+            "email": email,
+            "password": password,
+            "email_confirm": True,  # Skip email verification for CLI-managed accounts
+        }
+        user = sb_admin.auth.admin.create_user(user_data)
+    except Exception as e:
+        print(f"❌ Account creation failed: {e}")
+        sys.exit(1)
+
+    print(f"✅ Account created for {email}")
+    print(f"   User ID: {user.user.id}")
+
+    # Automatically sign in with the new account
+    try:
+        sb = _get_client()
+        res = sb.auth.sign_in_with_password({"email": email, "password": password})
+    except Exception as e:
+        print(f"⚠️  Account created but sign-in failed: {e}")
+        print("   Try: artemis-login login")
+        return
+
+    session = res.session
+    if not session or not session.access_token:
+        print("⚠️  Account created but no session returned")
+        return
+
+    creds = {
+        "access_token": session.access_token,
+        "refresh_token": session.refresh_token,
+        "expires_at": session.expires_at,
+        "user_id": user.user.id,
+        "email": user.user.email,
+        "signed_in_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    _save_creds(creds)
+    print(f"✅ Signed in as {email}")
+
+    _restart_orchestrator_if_running()
+
+
+def _restart_orchestrator_if_running() -> None:
+    """Restart orchestrator tmux window if artemis session is active."""
+    result = subprocess.run(
+        ["tmux", "list-windows", "-t", "artemis", "-F", "#{window_name}"],
+        capture_output=True, text=True
+    )
+    if "orchestrator" in result.stdout.splitlines():
+        print("Restarting orchestrator to apply new credentials...")
+        script = PROJECT_ROOT / "scripts" / "restart-orchestrator.sh"
+        subprocess.run(["bash", str(script)], check=False)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Artemis Auth — manage JWT session")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
+    subparsers.add_parser("signup", help="Create a new account (requires SERVICE_ROLE_KEY)")
     login_parser = subparsers.add_parser("login", help="Sign in with email/password")
     login_parser.add_argument("--magic-link", action="store_true", help="Use email magic link instead of password")
 
@@ -170,7 +258,9 @@ def main():
 
     args = parser.parse_args()
 
-    if args.command == "login":
+    if args.command == "signup":
+        signup()
+    elif args.command == "login":
         login(args.magic_link if hasattr(args, "magic_link") else False)
     elif args.command == "logout":
         logout()
