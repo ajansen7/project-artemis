@@ -13,6 +13,7 @@ Usage:
 """
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -45,6 +46,32 @@ SYNC_FILES = [
 ]
 
 
+def _get_user_id():
+    """Get current user's ID from ~/.artemis/credentials.json, or None if not logged in."""
+    creds_file = Path.home() / ".artemis" / "credentials.json"
+    if creds_file.exists():
+        try:
+            creds = json.loads(creds_file.read_text())
+            return creds.get("user_id")
+        except Exception:
+            pass
+    return None
+
+
+def _claim_null_rows(user_id):
+    """Claim any existing rows with no user_id (first-time migration for this user)."""
+    if not user_id:
+        return
+    try:
+        null_rows = sb.table("user_state").select("id").is_("user_id", "null").execute()
+        if null_rows.data:
+            ids = [r["id"] for r in null_rows.data]
+            sb.table("user_state").update({"user_id": user_id}).in_("id", ids).execute()
+            print(f"Claimed {len(ids)} existing state row(s) for this user")
+    except Exception as e:
+        print(f"WARNING: Could not claim null rows: {e}", file=sys.stderr)
+
+
 def _local_mtime(path):
     """Get file mtime as a timezone-aware datetime, or None if missing."""
     if path.exists():
@@ -53,9 +80,13 @@ def _local_mtime(path):
 
 
 def _db_rows():
-    """Fetch all user_state rows, keyed by filename."""
+    """Fetch all user_state rows for current user, keyed by filename."""
     try:
-        res = sb.table("user_state").select("key, content, updated_at").execute()
+        user_id = _get_user_id()
+        query = sb.table("user_state").select("key, content, updated_at")
+        if user_id:
+            query = query.eq("user_id", user_id)
+        res = query.execute()
         return {row["key"]: row for row in (res.data or [])}
     except Exception as e:
         print(f"WARNING: Could not reach Supabase: {e}", file=sys.stderr)
@@ -74,6 +105,12 @@ def _parse_ts(ts_str):
 
 def pull():
     """Pull state from DB where DB is newer than local."""
+    user_id = _get_user_id()
+
+    # On first login, claim any existing rows with no user_id
+    if user_id:
+        _claim_null_rows(user_id)
+
     db = _db_rows()
     if db is None:
         return  # offline — silently use local cache
@@ -102,6 +139,7 @@ def pull():
 
 def push():
     """Push local state to DB where local is newer."""
+    user_id = _get_user_id()
     db = _db_rows()
     if db is None:
         print("WARNING: Supabase unreachable — push deferred.", file=sys.stderr)
@@ -117,13 +155,18 @@ def push():
         local_mt = _local_mtime(local_path)
         row = db.get(key)
 
+        payload = {
+            "key": key,
+            "content": content,
+            "updated_at": local_mt.isoformat() if local_mt else datetime.now(timezone.utc).isoformat(),
+        }
+        if user_id:
+            payload["user_id"] = user_id
+
         if row is None:
-            # New file — insert
-            sb.table("user_state").upsert({
-                "key": key,
-                "content": content,
-                "updated_at": local_mt.isoformat() if local_mt else datetime.now(timezone.utc).isoformat(),
-            }, on_conflict="key").execute()
+            # New file — insert via upsert with user_id-aware conflict resolution
+            on_conflict = "user_id,key" if user_id else "key"
+            sb.table("user_state").upsert(payload, on_conflict=on_conflict).execute()
             pushed.append(key)
         else:
             db_mt = _parse_ts(row["updated_at"])
@@ -140,6 +183,7 @@ def push():
 
 def seed():
     """Force-push all local state files to DB (first-time upload)."""
+    user_id = _get_user_id()
     seeded = []
     for key in SYNC_FILES:
         local_path = STATE_DIR / key
@@ -148,11 +192,16 @@ def seed():
 
         content = local_path.read_text()
         local_mt = _local_mtime(local_path)
-        sb.table("user_state").upsert({
+        payload = {
             "key": key,
             "content": content,
             "updated_at": local_mt.isoformat() if local_mt else datetime.now(timezone.utc).isoformat(),
-        }, on_conflict="key").execute()
+        }
+        if user_id:
+            payload["user_id"] = user_id
+
+        on_conflict = "user_id,key" if user_id else "key"
+        sb.table("user_state").upsert(payload, on_conflict=on_conflict).execute()
         seeded.append(key)
 
     print(f"Seeded {len(seeded)} file(s) to DB: {', '.join(seeded)}")

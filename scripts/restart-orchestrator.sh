@@ -25,6 +25,8 @@ fi
 "$TMUX_BIN" send-keys -t "$SESSION:orchestrator" \
   "cd $PROJECT_ROOT && claude --dangerously-skip-permissions --plugin-dir $PROJECT_ROOT --channels plugin:telegram@claude-plugins-official --dangerously-load-development-channels plugin:artemis@inline" Enter
 
-# Auto-confirm the "local development" prompt that --dangerously-load-development-channels shows
-sleep 3
-"$TMUX_BIN" send-keys -t "$SESSION:orchestrator" "" Enter
+# Auto-accept both --dangerously-* prompts (send Enter at 3s, 6s, 9s)
+for i in 1 2 3; do
+  sleep 3
+  "$TMUX_BIN" send-keys -t "$SESSION:orchestrator" "" Enter 2>/dev/null || true
+done
