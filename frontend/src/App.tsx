@@ -13,11 +13,14 @@ import { BlogPanel } from './components/BlogPanel';
 import { SchedulePanel } from './components/SchedulePanel';
 import { TasksPanel } from './components/TasksPanel';
 import { LoginPage } from './components/LoginPage';
+import { PendingApproval } from './components/PendingApproval';
+import { AdminPanel } from './components/AdminPanel';
+import { useProfile } from './hooks/useProfile';
 import { initAuth, onAuthStateChange, syncFromServerSession } from './lib/supabase';
 
-type View = 'pipeline' | 'networking' | 'engagement' | 'blog' | 'schedules';
+type View = 'pipeline' | 'networking' | 'engagement' | 'blog' | 'schedules' | 'admin';
 
-const VALID_VIEWS: View[] = ['pipeline', 'networking', 'engagement', 'blog', 'schedules'];
+const VALID_VIEWS: View[] = ['pipeline', 'networking', 'engagement', 'blog', 'schedules', 'admin'];
 
 function readLocalStorage<T>(key: string, fallback: T, valid?: T[]): T {
   try {
@@ -106,14 +109,30 @@ function App() {
   const { jobs, loading, updateStatus, deleteJob, refetch, sortMode, setSortMode, groupByCompany, setGroupByCompany, companyGroups } = useJobs(statusFilter);
   const allCounts = useAllCounts();
   const { companies, loading: companiesLoading } = useCompanies();
+  const { profile, loading: profileLoading } = useProfile();
 
   // If not authenticated, show login page
-  if (authLoading) {
+  if (authLoading || profileLoading) {
     return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>Loading...</div>;
   }
 
   if (!session) {
     return <LoginPage onLoginSuccess={() => {}} />;
+  }
+
+  // Gate: user must be approved
+  if (profile && profile.status !== 'approved') {
+    return (
+      <PendingApproval
+        email={profile.email}
+        status={profile.status as 'pending' | 'blocked'}
+        onSignOut={async () => {
+          const { supabase } = await import('./lib/supabase');
+          await supabase.auth.signOut();
+          window.location.reload();
+        }}
+      />
+    );
   }
 
   const handleStatusChange = async (jobId: string, status: JobStatus, notes?: string) => {
@@ -163,6 +182,14 @@ function App() {
             >
               Schedules
             </button>
+            {profile?.role === 'admin' && (
+              <button
+                className={`view-tab ${view === 'admin' ? 'active' : ''}`}
+                onClick={() => setView('admin')}
+              >
+                Users
+              </button>
+            )}
           </div>
 
           {view === 'pipeline' ? (
@@ -191,6 +218,8 @@ function App() {
             <EngagementPanel />
           ) : view === 'blog' ? (
             <BlogPanel />
+          ) : view === 'admin' ? (
+            <AdminPanel />
           ) : (
             <SchedulePanel />
           )}
