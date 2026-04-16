@@ -578,18 +578,63 @@ def fetch_resume_md_from_db(job_id: str) -> tuple[str, str, str]:
     return app_res.data[0]["resume_md"], company, title
 
 
-def update_pdf_path_in_db(job_id: str, pdf_path: str) -> None:
+def _upload_artifact_to_storage(job_id: str, file_path: str, company: str, title: str) -> str | None:
+    """Upload a generated artifact to Supabase Storage. Returns storage URL or None."""
     try:
-        relative_path = str(Path(pdf_path).relative_to(PROJECT_ROOT))
+        import re
+        from supabase import create_client
+        sb = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+        # Build storage path: artifacts/applications/{job-slug}/{filename}
+        slug = f"{company}-{title}".lower()
+        slug = re.sub(r"[^a-z0-9-]", "-", slug)[:50].strip("-")
+        filename = Path(file_path).name
+        storage_path = f"applications/{slug}/{filename}"
+
+        with open(file_path, "rb") as f:
+            file_bytes = f.read()
+
+        sb.storage.from_("artifacts").upload(storage_path, file_bytes)
+        # Return the storage bucket path (not the full URL, just the path in the bucket)
+        return storage_path
+    except Exception as e:
+        print(f"⚠️  Could not upload {file_path} to storage: {e}", file=sys.stderr)
+        return None
+
+
+def update_pdf_path_in_db(job_id: str, pdf_path: str, docx_path: str = None, company: str = "", title: str = "") -> None:
+    """Update DB with local paths and storage paths for generated artifacts."""
+    try:
+        relative_pdf = str(Path(pdf_path).relative_to(PROJECT_ROOT))
     except ValueError:
-        relative_path = pdf_path
+        relative_pdf = pdf_path
+
     from supabase import create_client
     sb = create_client(SUPABASE_URL, SUPABASE_KEY)
-    res = sb.table("applications").update({"resume_pdf_path": relative_path}).eq("job_id", job_id).execute()
+
+    update_data = {"resume_pdf_path": relative_pdf}
+
+    # Upload PDF to storage
+    pdf_storage_path = _upload_artifact_to_storage(job_id, pdf_path, company, title)
+    if pdf_storage_path:
+        update_data["resume_pdf_path_storage"] = pdf_storage_path
+
+    # Upload DOCX to storage if provided
+    if docx_path and Path(docx_path).exists():
+        try:
+            relative_docx = str(Path(docx_path).relative_to(PROJECT_ROOT))
+        except ValueError:
+            relative_docx = docx_path
+
+        docx_storage_path = _upload_artifact_to_storage(job_id, docx_path, company, title)
+        if docx_storage_path:
+            update_data["resume_docx_path"] = docx_storage_path
+
+    res = sb.table("applications").update(update_data).eq("job_id", job_id).execute()
     if res.data:
-        print(f"✅ Saved PDF path to DB for job {job_id}")
+        print(f"✅ Saved artifact paths to DB for job {job_id}")
     else:
-        print(f"⚠️  Could not update resume_pdf_path in DB for job {job_id}")
+        print(f"⚠️  Could not update artifact paths in DB for job {job_id}")
 
 
 def _safe_dirname(s: str) -> str:
@@ -608,6 +653,8 @@ def main():
     parser.add_argument("--no-db-update", action="store_true", help="Skip writing PDF path to DB")
     args = parser.parse_args()
 
+    company = ""
+    title = ""
     if args.job_id:
         resume_md, company, title = fetch_resume_md_from_db(args.job_id)
         if args.output:
@@ -627,14 +674,18 @@ def main():
         ext = ".docx" if args.docx_only else ".pdf"
         output_path = args.output or str(p.with_suffix(ext))
 
+    docx_path = None
     if args.docx_only or output_path.endswith(".docx"):
-        markdown_to_docx(resume_md, output_path if output_path.endswith(".docx")
-                         else output_path.replace(".pdf", ".docx"))
+        docx_output = output_path if output_path.endswith(".docx") else output_path.replace(".pdf", ".docx")
+        markdown_to_docx(resume_md, docx_output)
+        docx_path = docx_output
     else:
         markdown_to_pdf(resume_md, output_path)
+        # For PDF, also generate DOCX alongside it
+        docx_path = output_path.replace(".pdf", ".docx")
 
     if args.job_id and not args.no_db_update and not args.docx_only:
-        update_pdf_path_in_db(args.job_id, output_path)
+        update_pdf_path_in_db(args.job_id, output_path, docx_path, company, title)
 
 
 if __name__ == "__main__":
