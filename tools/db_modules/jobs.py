@@ -2,7 +2,7 @@
 
 import json
 
-from db_modules.client import get_client
+from db_modules.client import get_client, get_current_user_id
 from db_modules.helpers import _ensure_company
 
 
@@ -12,9 +12,14 @@ TERMINAL_STATUSES = {"rejected", "not_interested", "deleted"}
 def add_job(args):
     """Add a job to the pipeline."""
     sb = get_client()
-    # Check for duplicate URL
+    user_id = get_current_user_id()
+
+    # Check for duplicate URL (filter by user)
     if args.url:
-        existing = sb.table("jobs").select("id, status").eq("url", args.url).execute()
+        query = sb.table("jobs").select("id, status").eq("url", args.url)
+        if user_id:
+            query = query.eq("user_id", user_id)
+        existing = query.execute()
         if existing.data:
             existing_status = existing.data[0].get("status", "")
             if existing_status in TERMINAL_STATUSES:
@@ -25,7 +30,10 @@ def add_job(args):
 
     # No URL — check by company+title to prevent duplicate entries
     if args.company and args.title:
-        companies_res = sb.table("companies").select("id").ilike("name", f"%{args.company}%").execute()
+        companies_q = sb.table("companies").select("id").ilike("name", f"%{args.company}%")
+        if user_id:
+            companies_q = companies_q.eq("user_id", user_id)
+        companies_res = companies_q.execute()
         company_ids = [c["id"] for c in (companies_res.data or [])]
         if company_ids:
             existing_q = (
@@ -33,8 +41,10 @@ def add_job(args):
                 .select("id, title, status")
                 .in_("company_id", company_ids)
                 .ilike("title", f"%{args.title[:40]}%")
-                .execute()
             )
+            if user_id:
+                existing_q = existing_q.eq("user_id", user_id)
+            existing_q = existing_q.execute()
             if existing_q.data:
                 match = existing_q.data[0]
                 if match["status"] in TERMINAL_STATUSES:
@@ -60,6 +70,8 @@ def add_job(args):
         data["company_id"] = company_id
     if args.match_score is not None:
         data["match_score"] = args.match_score
+    if user_id:
+        data["user_id"] = user_id
 
     result = sb.table("jobs").insert(data).execute()
     if result.data:
@@ -72,7 +84,11 @@ def add_job(args):
 def list_jobs(args):
     """List all jobs, optionally filtered by status."""
     sb = get_client()
+    user_id = get_current_user_id()
+
     query = sb.table("jobs").select("id, title, url, status, match_score, source, created_at, companies(name)")
+    if user_id:
+        query = query.eq("user_id", user_id)
     if args.status:
         query = query.eq("status", args.status)
     query = query.order("created_at", desc=True)
@@ -165,6 +181,9 @@ def get_job(args):
 
 def save_application(args):
     """Save generated application materials into the applications table."""
+    sb = get_client()
+    user_id = get_current_user_id()
+
     # Read the markdown files
     files = {
         "resume_md": args.resume,
@@ -190,7 +209,10 @@ def save_application(args):
         return
 
     # Check if an application already exists for this job
-    existing = sb.table("applications").select("id").eq("job_id", args.id).execute()
+    query = sb.table("applications").select("id").eq("job_id", args.id)
+    if user_id:
+        query = query.eq("user_id", user_id)
+    existing = query.execute()
 
     if existing.data:
         # Update existing
@@ -203,6 +225,8 @@ def save_application(args):
     else:
         # Insert new
         content["job_id"] = args.id
+        if user_id:
+            content["user_id"] = user_id
         insert_res = sb.table("applications").insert(content).execute()
         if insert_res.data:
             print(f"✅ Created new application record with materials for job {args.id}")
@@ -213,6 +237,7 @@ def save_application(args):
 def mark_submitted(args):
     """Mark an application as submitted: set submitted_at and advance job status to 'applied'."""
     sb = get_client()
+    user_id = get_current_user_id()
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc).isoformat()
 
@@ -222,7 +247,10 @@ def mark_submitted(args):
         print(f"✅ Application marked submitted at {now}")
     else:
         # Application row may not exist yet — create a minimal one
-        sb.table("applications").insert({"job_id": args.id, "submitted_at": now}).execute()
+        data = {"job_id": args.id, "submitted_at": now}
+        if user_id:
+            data["user_id"] = user_id
+        sb.table("applications").insert(data).execute()
         print(f"✅ Created application record with submitted_at={now}")
 
     # Advance job status to 'applied'

@@ -1,12 +1,18 @@
 """Shared helper functions for db_modules."""
 
-from db_modules.client import get_client
+from db_modules.client import get_client, get_current_user_id
 
 
 def _ensure_company(name, job_score=None):
     """Find or create a company, return its ID. Auto-targets if job_score >= 80."""
     sb = get_client()
-    result = sb.table("companies").select("id, is_target").eq("name", name).execute()
+    user_id = get_current_user_id()
+
+    # Filter by current user
+    result = sb.table("companies").select("id, is_target").eq("name", name)
+    if user_id:
+        result = result.eq("user_id", user_id)
+    result = result.execute()
 
     if result.data:
         company_id = result.data[0]["id"]
@@ -24,6 +30,8 @@ def _ensure_company(name, job_score=None):
 
     # Create new company
     data = {"name": name, "is_target": False}
+    if user_id:
+        data["user_id"] = user_id
 
     if job_score is not None and job_score >= 80:
         priority = "high" if job_score >= 90 else "medium"
@@ -48,15 +56,25 @@ def _resolve_job_prefix(prefix):
 def _upsert_contact(data):
     """Insert or update a contact. Deduplicates on linkedin_url if present."""
     sb = get_client()
+    user_id = get_current_user_id()
+
     linkedin = data.get("linkedin_url")
     if linkedin:
-        existing = sb.table("contacts").select("id").eq("linkedin_url", linkedin).execute()
+        query = sb.table("contacts").select("id").eq("linkedin_url", linkedin)
+        if user_id:
+            query = query.eq("user_id", user_id)
+        existing = query.execute()
         if existing.data:
             cid = existing.data[0]["id"]
             sb.table("contacts").update(
                 {k: v for k, v in data.items() if k != "linkedin_url"}
             ).eq("id", cid).execute()
             return cid, "updated"
+
+    # Ensure user_id is set for new contacts
+    if user_id and "user_id" not in data:
+        data["user_id"] = user_id
+
     res = sb.table("contacts").insert(data).execute()
     if res.data:
         return res.data[0]["id"], "inserted"

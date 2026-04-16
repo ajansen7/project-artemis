@@ -93,5 +93,11 @@ def get_client():
     return create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 
+def get_current_user_id() -> str | None:
+    """Get the current user's ID from credentials, or None if not signed in."""
+    creds = _load_creds()
+    return creds.get("user_id")
+
+
 # Deprecated: Use get_client() instead
 # sb = get_client()  # Don't evaluate at import time
