@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { MarkdownModal } from './MarkdownModal';
 import { API_BASE } from '../lib/api';
+import { useSyncStatus } from '../hooks/useSyncStatus';
 
 interface HeaderProps {
   counts: Record<string, number>;
@@ -11,9 +12,16 @@ export function Header({ counts }: HeaderProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalContent, setModalContent] = useState('');
   const [modalTitle, setModalTitle] = useState('');
+  const syncStatus = useSyncStatus();
 
   const handleRunSkill = async (skill: string) => {
     setRunningSkill(skill);
+
+    // Emit sync start event for /sync command
+    if (skill === 'sync') {
+      window.dispatchEvent(new Event('artemis:sync:start'));
+    }
+
     try {
       const response = await fetch(`${API_BASE}/api/run-skill`, {
         method: 'POST',
@@ -22,10 +30,15 @@ export function Header({ counts }: HeaderProps) {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || 'Execution failed');
-      
+
       setModalTitle(`/${skill} Results`);
       setModalContent(data.output);
       setModalOpen(true);
+
+      // Emit sync complete event after /sync succeeds
+      if (skill === 'sync') {
+        window.dispatchEvent(new Event('artemis:sync:complete'));
+      }
     } catch (err: any) {
       setModalTitle(`Error running /${skill}`);
       setModalContent(`❌ **Error:** ${err.message}`);
@@ -65,8 +78,23 @@ export function Header({ counts }: HeaderProps) {
         </div>
       </div>
       
-      <div className="header-right" style={{ display: 'flex', gap: '8px' }}>
-        <button 
+      <div className="header-right" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div className="sync-status" style={{
+          fontSize: '12px',
+          color: 'var(--text-secondary)',
+          padding: '4px 8px',
+          borderRadius: '4px',
+          backgroundColor: 'var(--bg-elevated)',
+          minWidth: '100px',
+          textAlign: 'center',
+        }}>
+          {syncStatus.isSyncing ? (
+            <>⏳ Syncing...</>
+          ) : (
+            <>✓ {syncStatus.formattedTime}</>
+          )}
+        </div>
+        <button
           className="action-btn"
           style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
           onClick={() => handleRunSkill('review')}
@@ -74,7 +102,7 @@ export function Header({ counts }: HeaderProps) {
         >
           {runningSkill === 'review' ? '⏳ Running...' : '📋 /review'}
         </button>
-        <button 
+        <button
           className="action-btn"
           style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
           onClick={() => handleRunSkill('sync')}
