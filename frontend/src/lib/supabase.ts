@@ -20,9 +20,9 @@ export async function initAuth() {
 
 // Subscribe to auth state changes
 export function onAuthStateChange(callback: (session: any | null) => void) {
-  const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
     callback(session);
   });
 
-  return listener;
+  return subscription;
 }
