@@ -33,7 +33,14 @@ cd project-artemis
 
 The setup script checks prerequisites, installs all dependencies (Python, Node, Bun), sets up state file templates, configures your `.env`, and verifies the Supabase connection.
 
-### 2. Launch Claude Code
+### 2. Sign in
+
+```bash
+artemis-login login              # email + password, or use --magic-link
+# Then start Claude Code
+```
+
+### 3. Launch Claude Code
 
 ```bash
 claude --plugin-dir .
@@ -41,15 +48,17 @@ claude --plugin-dir .
 
 Artemis is a **Claude Code plugin** -- all skills, agents, hooks, and tools are self-contained at the project root. The `orchestrator` agent is auto-discovered and session hooks fire automatically.
 
-On a fresh clone, the session hook detects that no candidate profile exists and prompts you immediately. Run `/artemis:setup` to walk through the setup wizard, or just say **"Set me up"**.
+On first launch, state will be pulled from Supabase. On a fresh clone, the session hook detects that no candidate profile exists and prompts you immediately. Run `/artemis:setup` to walk through the setup wizard, or just say **"Set me up"**.
 
-### 3. Start all services
+### 4. Start all services
 
 ```bash
 ./scripts/start.sh
 ```
 
 This launches the API server, React dashboard, and orchestrator in a single tmux session. For Claude Desktop users (without CLI orchestrator), use `./scripts/start.sh --no-orchestrator`.
+
+The dashboard opens at `http://localhost:5173` — you'll see a login screen (use the same credentials as above).
 
 See [docs/getting-started.md](docs/getting-started.md) for details.
 
@@ -71,6 +80,43 @@ See [docs/getting-started.md](docs/getting-started.md) for details.
 | **setup** | `/artemis:setup` | One-time setup wizard for new users |
 
 For detailed usage of each command, see **[docs/workflows.md](docs/workflows.md)**.
+
+---
+
+## Authentication & Cloud Sync
+
+Artemis is **single-user by design but multi-tenant ready**. All data is automatically isolated by user via Supabase RLS (Row-Level Security).
+
+### Sign In
+```bash
+artemis-login login              # email + password
+artemis-login login --magic-link # email magic link
+artemis-login whoami             # show current user
+artemis-login logout             # sign out
+```
+
+### Cloud State Sync
+State files (identity, voice, active loops, etc.) are synced with Supabase — pulled on session start, pushed on session end. This means:
+
+- **Multi-machine**: Work from any machine with the same `.env`
+- **Automatic**: No manual export/import needed
+- **Offline fallback**: Tools work without Supabase if state is cached locally
+
+```bash
+artemis-sync              # full sync: push state, pull contacts
+artemis-sync --state      # state only
+artemis-sync --contacts   # contacts pipeline only
+artemis-sync --seed       # first-time upload of all state to DB
+```
+
+### Binary Artifacts
+Generated resumes/DOCXs are uploaded to Supabase Storage automatically after generation. Pull them on a new machine:
+
+```bash
+uv run python tools/artifact_sync.py --pull              # all artifacts
+uv run python tools/artifact_sync.py --pull --job-id <id>  # specific job
+uv run python tools/artifact_sync.py --list              # local vs storage status
+```
 
 ---
 
@@ -125,9 +171,13 @@ For architecture details, see **[docs/architecture.md](docs/architecture.md)**.
 
 ## Architecture
 
-### State (two tiers, cloud-synced)
+### State (two tiers, cloud-synced, multi-user)
 
-All state files live in `state/` (gitignored). Templates in `state/examples/`. State is automatically synced to Supabase — pulled on session start, pushed on session stop — so any machine with the right `.env` gets the same state automatically.
+All state files live in `state/` (gitignored). Templates in `state/examples/`. 
+
+**Cloud sync**: State is backed by Supabase `user_state` table and automatically pulled on session start, pushed on session end. Any machine with the right `.env` gets the same state automatically. Offline mode falls back to local cache.
+
+**Multi-user**: Each user's data is completely isolated via Supabase RLS (Row-Level Security). User A cannot see any of user B's data at the database level.
 
 **Hot state** loads every session via hooks. Kept compact (~70 lines):
 - `identity.md` -- candidate name, headline, positioning, search status
@@ -146,8 +196,8 @@ All state files live in `state/` (gitignored). Templates in `state/examples/`. S
 
 | Hook | Event | What it does |
 |------|-------|-------------|
-| `session-start.sh` | SessionStart | Pulls state from Supabase; injects hot state; detects fresh install and surfaces setup prompt |
-| `session-stop.sh` | Stop | Pushes state to Supabase; syncs contacts from DB; cleans up temp files |
+| `session-start.sh` | SessionStart | Pulls state from Supabase (if online); injects hot state; detects fresh install and surfaces setup prompt |
+| `session-stop.sh` | SessionStop | Pushes state to Supabase; syncs contacts pipeline; cleans up temp files |
 
 ### Output (`output/`)
 
@@ -219,16 +269,20 @@ project-artemis/                        # Plugin root
     session-start.sh                    # Load hot state on session start
     session-stop.sh                     # Auto-sync on session end
   bin/                                  # CLI tools (added to PATH by plugin)
-    artemis-db                          # Supabase CRUD operations
-    artemis-sync                        # State + contacts sync (see flags below)
+    artemis-db                          # Supabase CRUD operations + state subcommands
+    artemis-sync                        # State + contacts + artifacts sync
+    artemis-login                       # User authentication (login/logout/whoami)
     artemis-resume                      # Resume markdown -> DOCX/PDF
     artemis-telegram                    # Telegram notifications
   tools/                                # Python CLI source
     db.py                               # Thin CLI shim (forwards to db_modules/)
-    db_modules/                         # Modular Supabase CRUD package
+    db_modules/                         # Modular Supabase CRUD (uses JWT auth)
+    auth.py                             # User authentication & session management
     state_sync.py                       # Cloud state sync (pull/push/seed/check)
-    generate_resume_docx.py             # Resume markdown to DOCX/PDF
+    artifact_sync.py                    # Artifact sync (resume/DOCX to Storage)
+    generate_resume_docx.py             # Resume markdown to DOCX/PDF + upload
     sync_contacts.py                    # DB to contacts markdown
+    backfill_user_id.py                 # Multi-tenant backfill (one-time)
     push_to_telegram.py                 # Send formatted messages to Telegram
     migrate_state.py                    # Migration from legacy .claude/ layout
   state/                                # User state files (gitignored)
@@ -251,7 +305,11 @@ project-artemis/                        # Plugin root
   api/
     server.py                           # FastAPI -- scheduler, task queue, PDF generation
   frontend/src/                         # React dashboard
-  db/migrations/                        # Supabase SQL migrations (001-018)
+  db/migrations/                        # Supabase SQL migrations (001-021)
+                                        # 018: user_state table (cloud sync)
+                                        # 019: storage artifact paths
+                                        # 020: add user_id to all tables
+                                        # 021: RLS user isolation policies
   pyproject.toml                        # Python dependencies
   .env                                  # Supabase credentials (gitignored)
 ```
@@ -272,36 +330,23 @@ The only thing you commit is the system itself. Your data stays yours.
 
 ### Setting Up a New Machine
 
-State files are cloud-synced via Supabase. On a new machine, just clone and pull:
-
 ```bash
 git clone <repo-url> project-artemis
 cd project-artemis
 cp .env.example .env    # paste your Supabase credentials
 uv sync
-uv run python tools/state_sync.py --pull    # downloads all state from DB
+
+# Sign in (same user as other machines)
+artemis-login login
+
+# Pull state from Supabase
+artemis-sync
+
+# Start Claude Code
 claude --plugin-dir .
 ```
 
-On the first install, seed your state up to the DB from an existing machine:
-
-```bash
-uv run python tools/state_sync.py --seed    # force-push all local state to DB
-```
-
-Manual sync commands (also available via `artemis-sync`):
-
-```bash
-artemis-sync              # full sync: state push/pull + contacts pipeline
-artemis-sync --state      # state files only
-artemis-sync --contacts   # contacts pipeline only
-artemis-sync --seed       # first-time upload from this machine
-
-# Or via db CLI:
-artemis-db state-check    # report which files are ahead/behind/in-sync
-artemis-db state-pull     # pull from DB
-artemis-db state-push     # push to DB
-```
+State and artifacts are automatically synced via Supabase — no export/import needed.
 
 ### Offline Fallback (no Supabase access)
 
