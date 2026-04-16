@@ -13,7 +13,7 @@ import { BlogPanel } from './components/BlogPanel';
 import { SchedulePanel } from './components/SchedulePanel';
 import { TasksPanel } from './components/TasksPanel';
 import { LoginPage } from './components/LoginPage';
-import { initAuth, onAuthStateChange } from './lib/supabase';
+import { initAuth, onAuthStateChange, syncFromServerSession } from './lib/supabase';
 
 type View = 'pipeline' | 'networking' | 'engagement' | 'blog' | 'schedules';
 
@@ -38,8 +38,14 @@ function App() {
 
   useEffect(() => {
     // Initialize auth state
-    initAuth().then((sess) => {
-      setSession(sess);
+    initAuth().then(async (sess) => {
+      if (sess) {
+        setSession(sess);
+      } else {
+        // No browser session — try to pick up CLI session
+        const cliSess = await syncFromServerSession();
+        setSession(cliSess);
+      }
       setAuthLoading(false);
     });
 
@@ -84,7 +90,7 @@ function App() {
   return (
     <>
     <div className="app">
-      <Header counts={allCounts} />
+      <Header counts={allCounts} session={session} />
       <div className="app-body">
         <div className="main-content">
           <div className="view-tabs">

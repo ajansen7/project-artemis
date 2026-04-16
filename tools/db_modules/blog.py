@@ -9,6 +9,7 @@ from db_modules.client import get_client
 
 def add_blog_post(args):
     """Add a blog post idea or draft."""
+    sb = get_client()
     data = {
         "title": args.title,
         "slug": args.slug,
@@ -34,6 +35,7 @@ def add_blog_post(args):
 
 def update_blog_post(args):
     """Update a blog post's status, platform, or published URL."""
+    sb = get_client()
     data = {}
     if args.status:
         data["status"] = args.status
@@ -69,6 +71,7 @@ def batch_import_blog_posts(args):
 
     Upserts by slug so re-running a Substack audit never creates duplicates.
     """
+    sb = get_client()
     raw = sys.stdin.read().strip()
     if not raw:
         print("ERROR: No JSON provided on stdin")

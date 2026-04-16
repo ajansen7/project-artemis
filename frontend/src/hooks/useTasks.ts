@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { API_BASE as API } from '../lib/api';
+import { API_BASE as API, fetchWithAuth } from '../lib/api';
 
 export interface Task {
   id: string;
@@ -21,7 +21,7 @@ export function useTasks() {
 
   const fetchTasks = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/api/tasks`);
+      const res = await fetchWithAuth(`${API}/api/tasks`);
       if (!res.ok) return;
       const data = await res.json();
       setTasks(data.tasks ?? []);
@@ -69,7 +69,7 @@ export function useTasks() {
   }, [fetchTasks]);
 
   const pollTask = useCallback(async (taskId: string): Promise<Task> => {
-    const res = await fetch(`${API}/api/tasks/${taskId}`);
+    const res = await fetchWithAuth(`${API}/api/tasks/${taskId}`);
     if (!res.ok) throw new Error('Task not found');
     return res.json();
   }, []);

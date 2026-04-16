@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { MarkdownModal } from './MarkdownModal';
-import { API_BASE } from '../lib/api';
+import { API_BASE, fetchWithAuth } from '../lib/api';
+import { supabase } from '../lib/supabase';
 import { useSyncStatus } from '../hooks/useSyncStatus';
 
 interface HeaderProps {
   counts: Record<string, number>;
+  session?: any;
 }
 
-export function Header({ counts }: HeaderProps) {
+export function Header({ counts, session }: HeaderProps) {
   const [runningSkill, setRunningSkill] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalContent, setModalContent] = useState('');
@@ -23,9 +25,8 @@ export function Header({ counts }: HeaderProps) {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/api/run-skill`, {
+      const response = await fetchWithAuth(`${API_BASE}/api/run-skill`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ skill }),
       });
       const data = await response.json();
@@ -79,6 +80,32 @@ export function Header({ counts }: HeaderProps) {
       </div>
       
       <div className="header-right" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        {session?.user?.email && (
+          <div style={{
+            fontSize: '12px',
+            color: 'var(--text-secondary)',
+            padding: '4px 8px',
+            borderRadius: '4px',
+            backgroundColor: 'var(--bg-elevated)',
+          }}>
+            {session.user.email}
+          </div>
+        )}
+        <button
+          className="action-btn"
+          style={{
+            backgroundColor: 'var(--bg-elevated)',
+            color: 'var(--text-primary)',
+            fontSize: '12px',
+            padding: '4px 8px'
+          }}
+          onClick={async () => {
+            await supabase.auth.signOut();
+            await fetch('/api/auth/logout', { method: 'POST' });
+          }}
+        >
+          Sign out
+        </button>
         <div className="sync-status" style={{
           fontSize: '12px',
           color: 'var(--text-secondary)',

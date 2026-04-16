@@ -7,6 +7,7 @@ from db_modules.client import get_client
 
 def add_engagement(args):
     """Add an engagement action (LinkedIn like/comment, blog post, etc.)."""
+    sb = get_client()
     data = {
         "platform": args.platform or "linkedin",
         "action_type": args.action_type,
@@ -28,6 +29,7 @@ def add_engagement(args):
 
 def update_engagement(args):
     """Update an engagement's status or content."""
+    sb = get_client()
     data = {}
     if args.status:
         data["status"] = args.status

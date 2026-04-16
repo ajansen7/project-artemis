@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { API_BASE } from '../lib/api';
+import { API_BASE, fetchWithAuth } from '../lib/api';
 
 type DocType = 'resume' | 'cover_letter' | 'primer';
 
@@ -44,9 +44,8 @@ export function MarkdownModal({
     setSaving(true);
     setStatusMsg(null);
     try {
-      const res = await fetch(`${API_BASE}/api/save-document`, {
+      const res = await fetchWithAuth(`${API_BASE}/api/save-document`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ job_id: jobId, doc_type: docType, content: editContent }),
       });
       const data = await res.json();
@@ -69,9 +68,8 @@ export function MarkdownModal({
     setTeaching(true);
     setStatusMsg(null);
     try {
-      const res = await fetch(`${API_BASE}/api/learn-from-edit`, {
+      const res = await fetchWithAuth(`${API_BASE}/api/learn-from-edit`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           job_id: jobId,
           doc_type: docType,

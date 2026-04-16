@@ -7,7 +7,7 @@ import {
   CRON_PRESETS,
 } from '../types';
 import { useSchedules } from '../hooks/useSchedules';
-import { API_BASE } from '../lib/api';
+import { API_BASE, fetchWithAuth } from '../lib/api';
 
 // ─── Status Badge ────────────────────────────────────────────────
 
@@ -160,9 +160,8 @@ function ScheduleCard({
   const handleRunNow = async (e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      const response = await fetch(`${API_BASE}/api/schedules/${schedule.id}/run-now`, {
+      const response = await fetchWithAuth(`${API_BASE}/api/schedules/${schedule.id}/run-now`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
       });
       if (!response.ok) throw new Error('Request failed');
       setRunNowMsg('Triggered!');

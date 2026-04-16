@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import type { BlogPost, BlogPostStatus } from '../types';
 import { BLOG_STATUS_LABELS, BLOG_STATUS_ORDER } from '../types';
 import { useBlogPosts } from '../hooks/useBlogPosts';
-import { API_BASE } from '../lib/api';
+import { API_BASE, fetchWithAuth } from '../lib/api';
 
 // ─── Blog Status Badge ──────────────────────────────────────────
 
@@ -332,7 +332,7 @@ function BlogCard({
   const isPublished = post.status === 'published';
 
   const handleGenerate = async (id: string) => {
-    const res = await fetch(`${API_BASE}/api/blog-posts/${id}/generate`, { method: 'POST' });
+    const res = await fetchWithAuth(`${API_BASE}/api/blog-posts/${id}/generate`, { method: 'POST' });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: 'Failed to start generation' }));
       alert(err.detail);
@@ -345,7 +345,7 @@ function BlogCard({
 
   const handleProcessFeedback = async (id: string) => {
     // Save current notes first, then dispatch
-    const res = await fetch(`${API_BASE}/api/blog-posts/${id}/process-feedback`, { method: 'POST' });
+    const res = await fetchWithAuth(`${API_BASE}/api/blog-posts/${id}/process-feedback`, { method: 'POST' });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: 'Failed to start feedback processing' }));
       alert(err.detail);
@@ -357,7 +357,7 @@ function BlogCard({
 
   const handlePublish = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const res = await fetch(`${API_BASE}/api/blog-posts/${post.id}/publish`, { method: 'POST' });
+    const res = await fetchWithAuth(`${API_BASE}/api/blog-posts/${post.id}/publish`, { method: 'POST' });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: 'Failed to queue publish task' }));
       alert(err.detail);

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { API_BASE } from '../lib/api';
+import { API_BASE, fetchWithAuth } from '../lib/api';
 import type { BlogPost, BlogPostStatus } from '../types';
 
 export function useBlogPosts() {
@@ -58,9 +58,8 @@ export function useBlogPosts() {
     id: string,
     updates: { content?: string; notes?: string; status?: BlogPostStatus }
   ) => {
-    const res = await fetch(`${API_BASE}/api/blog-posts/${id}`, {
+    const res = await fetchWithAuth(`${API_BASE}/api/blog-posts/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
     });
     if (!res.ok) {

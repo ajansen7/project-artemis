@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import type { ScheduledJob } from '../types';
 
-import { API_BASE as API } from '../lib/api';
+import { API_BASE as API, fetchWithAuth } from '../lib/api';
 
 export function useSchedules() {
   const [schedules, setSchedules] = useState<ScheduledJob[]>([]);
@@ -47,9 +47,8 @@ export function useSchedules() {
 
   const updateSchedule = useCallback(async (id: string, fields: Partial<ScheduledJob>) => {
     try {
-      const res = await fetch(`${API}/api/schedules/${id}`, {
+      const res = await fetchWithAuth(`${API}/api/schedules/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(fields),
       });
       if (!res.ok) throw new Error(await res.text());
@@ -64,9 +63,8 @@ export function useSchedules() {
 
   const createSchedule = useCallback(async (fields: Partial<ScheduledJob>) => {
     try {
-      const res = await fetch(`${API}/api/schedules`, {
+      const res = await fetchWithAuth(`${API}/api/schedules`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(fields),
       });
       if (!res.ok) throw new Error(await res.text());
@@ -81,7 +79,7 @@ export function useSchedules() {
 
   const deleteSchedule = useCallback(async (id: string) => {
     try {
-      const res = await fetch(`${API}/api/schedules/${id}`, { method: 'DELETE' });
+      const res = await fetchWithAuth(`${API}/api/schedules/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(await res.text());
       setSchedules(prev => prev.filter(s => s.id !== id));
       return true;

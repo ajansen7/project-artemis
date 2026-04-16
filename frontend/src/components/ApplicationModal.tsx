@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import type { Job } from '../types';
 import { useTaskPoller } from '../hooks/useTasks';
-import { API_BASE } from '../lib/api';
+import { API_BASE, fetchWithAuth } from '../lib/api';
 
 interface ApplicationModalProps {
   isOpen: boolean;
@@ -90,9 +90,8 @@ export function ApplicationModal({ isOpen, onClose, job, onGenerationComplete, o
     setRegeneratingPdf(true);
     setStatusMsg(null);
     try {
-      const res = await fetch(`${API_BASE}/api/generate-pdf`, {
+      const res = await fetchWithAuth(`${API_BASE}/api/generate-pdf`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ job_id: job.id }),
       });
       const data = await res.json();
@@ -110,9 +109,8 @@ export function ApplicationModal({ isOpen, onClose, job, onGenerationComplete, o
     setGenerating(true);
     setStatusMsg('Running in tmux… check the task panel or run: tmux attach -t artemis');
     try {
-      const res = await fetch(`${API_BASE}/api/generate-application`, {
+      const res = await fetchWithAuth(`${API_BASE}/api/generate-application`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ job_id: job.id, company_name: job.companies?.name || '' }),
       });
       const data = await res.json();
@@ -128,9 +126,8 @@ export function ApplicationModal({ isOpen, onClose, job, onGenerationComplete, o
     setSubmitting(true);
     setStatusMsg(null);
     try {
-      const res = await fetch(`${API_BASE}/api/mark-submitted`, {
+      const res = await fetchWithAuth(`${API_BASE}/api/mark-submitted`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ job_id: job.id }),
       });
       const data = await res.json();
@@ -148,9 +145,8 @@ export function ApplicationModal({ isOpen, onClose, job, onGenerationComplete, o
     setSaving(true);
     setStatusMsg(null);
     try {
-      const res = await fetch(`${API_BASE}/api/save-document`, {
+      const res = await fetchWithAuth(`${API_BASE}/api/save-document`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ job_id: job.id, doc_type: activeTab, content: editContent }),
       });
       if (!res.ok) throw new Error((await res.json()).detail || 'Save failed');
@@ -163,9 +159,8 @@ export function ApplicationModal({ isOpen, onClose, job, onGenerationComplete, o
         setTeachingFromEdit(true);
         setStatusMsg('💾 Saved. Extracting lessons from your edits...');
         try {
-          await fetch(`${API_BASE}/api/learn-from-edit`, {
+          await fetchWithAuth(`${API_BASE}/api/learn-from-edit`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               job_id: job.id,
               doc_type: activeTab,
@@ -182,9 +177,8 @@ export function ApplicationModal({ isOpen, onClose, job, onGenerationComplete, o
         setRegeneratingPdf(true);
         setStatusMsg(hasRealEdits ? '🧠 Lessons captured. Regenerating PDF...' : '💾 Saved. Regenerating PDF...');
         try {
-          const pdfRes = await fetch(`${API_BASE}/api/generate-pdf`, {
+          const pdfRes = await fetchWithAuth(`${API_BASE}/api/generate-pdf`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ job_id: job.id }),
           });
           if (!pdfRes.ok) throw new Error((await pdfRes.json()).detail || 'PDF failed');

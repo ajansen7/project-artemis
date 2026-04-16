@@ -17,6 +17,7 @@ def batch_update(args):
       {"id": "uuid", "match_score": 60}
     ]
     """
+    sb = get_client()
     raw = sys.stdin.read().strip()
     if not raw:
         print("ERROR: No JSON provided on stdin")
@@ -74,6 +75,7 @@ def batch_add(args):
       {"title": "PM", "company": "Cursor", "url": "https://...", "match_score": 72}
     ]
     """
+    sb = get_client()
     raw = sys.stdin.read().strip()
     if not raw:
         print("ERROR: No JSON provided on stdin")

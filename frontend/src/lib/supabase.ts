@@ -26,3 +26,26 @@ export function onAuthStateChange(callback: (session: any | null) => void) {
 
   return subscription;
 }
+
+// Sync from CLI session stored on FastAPI server
+export async function syncFromServerSession(): Promise<any | null> {
+  try {
+    const res = await fetch('/api/auth/session');
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.signed_in || !data.access_token) return null;
+
+    // Only sync if no active browser session exists
+    const { data: { session: existing } } = await supabase.auth.getSession();
+    if (existing) return existing; // don't override an active browser session
+
+    const { data: { session }, error } = await supabase.auth.setSession({
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+    });
+    if (error) return null;
+    return session;
+  } catch {
+    return null;
+  }
+}

@@ -57,6 +57,7 @@ def next_task(args):
 
 def update_task(args):
     """Update a task's status, output_summary, or error."""
+    sb = get_client()
     updates = {}
     if args.status:
         updates["status"] = args.status
