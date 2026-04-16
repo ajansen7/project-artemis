@@ -1,12 +1,12 @@
 from datetime import datetime, timezone
 
 from apscheduler.triggers.cron import CronTrigger
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from api.modules.channel import notify_task
 
-from api.modules.config import _get_supabase, run_db
+from api.modules.config import _get_supabase, run_db, get_user_id_from_request
 from api.modules.scheduler import _register_schedule, _unregister_schedule
 
 router = APIRouter()
@@ -38,13 +38,14 @@ async def list_schedules():
 
 
 @router.post("/api/schedules")
-async def create_schedule(req: ScheduleCreateRequest):
+async def create_schedule(req: ScheduleCreateRequest, request: Request):
     # Validate cron expression
     try:
         CronTrigger.from_crontab(req.cron_expr)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=f"Invalid cron expression: {exc}")
 
+    user_id = get_user_id_from_request(request)
     sb = _get_supabase()
     row = {
         "name": req.name,
@@ -53,6 +54,7 @@ async def create_schedule(req: ScheduleCreateRequest):
         "cron_expr": req.cron_expr,
         "enabled": req.enabled,
         "notes": req.notes,
+        "user_id": user_id,
     }
     res = await run_db(lambda: sb.table("scheduled_jobs").insert(row).execute())
     if not res.data:
@@ -127,6 +129,7 @@ async def run_schedule_now(schedule_id: str):
         "skill_args": row.get("skill_args"),
         "source": "schedule",
         "schedule_id": schedule_id,
+        "user_id": row["user_id"],
     }).execute())
 
     if not task_res.data:

@@ -1,8 +1,8 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from api.modules.channel import notify_task
-from api.modules.config import _get_supabase, run_db
+from api.modules.config import _get_supabase, run_db, get_user_id_from_request
 
 router = APIRouter()
 
@@ -13,7 +13,7 @@ class RunSkillRequest(BaseModel):
 
 
 @router.post("/api/run-skill")
-async def run_skill(req: RunSkillRequest):
+async def run_skill(req: RunSkillRequest, request: Request):
     """
     Queue a skill for the orchestrator to execute.
     Inserts a row into task_queue — the orchestrator polls and picks it up.
@@ -22,6 +22,7 @@ async def run_skill(req: RunSkillRequest):
     if not req.skill:
         raise HTTPException(status_code=400, detail="skill is required")
 
+    user_id = get_user_id_from_request(request)
     skill_name = req.skill.lstrip("/")
     name = f"/{skill_name}{' — ' + req.target[:40] if req.target else ''}"
 
@@ -31,6 +32,7 @@ async def run_skill(req: RunSkillRequest):
         "skill": skill_name,
         "skill_args": req.target or None,
         "source": "api",
+        "user_id": user_id,
     }).execute())
 
     if not res.data:

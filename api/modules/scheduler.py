@@ -18,6 +18,13 @@ def _run_scheduled_job(schedule_id: str, name: str, skill: str, skill_args: str 
     try:
         sb = _get_supabase()
 
+        # Get the user_id from the scheduled_jobs row
+        schedule_res = sb.table("scheduled_jobs").select("user_id").eq("id", schedule_id).execute()
+        if not schedule_res.data:
+            logger.error("Scheduled job not found: %s", schedule_id)
+            return
+        user_id = schedule_res.data[0]["user_id"]
+
         sb.table("scheduled_jobs").update({
             "last_status": "queued",
             "last_run_at": datetime.now(timezone.utc).isoformat(),
@@ -30,6 +37,7 @@ def _run_scheduled_job(schedule_id: str, name: str, skill: str, skill_args: str 
             "skill_args": skill_args or None,
             "source": "schedule",
             "schedule_id": schedule_id,
+            "user_id": user_id,
         }).execute()
 
         if res.data:

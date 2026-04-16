@@ -90,7 +90,7 @@ async def generate_blog_draft(post_id: str):
     """Queue the blogger skill to write a draft for this post."""
     try:
         sb = _get_supabase()
-        res = await run_db(lambda: sb.table("blog_posts").select("id,slug,title,status").eq("id", post_id).execute())
+        res = await run_db(lambda: sb.table("blog_posts").select("id,slug,title,status,user_id").eq("id", post_id).execute())
         if not res.data:
             raise HTTPException(status_code=404, detail="Blog post not found.")
         post = res.data[0]
@@ -108,6 +108,7 @@ async def generate_blog_draft(post_id: str):
         "skill": "blog-write",
         "skill_args": post["slug"],
         "source": "api",
+        "user_id": post["user_id"],
     }).execute())
 
     if not task_res.data:
@@ -122,7 +123,7 @@ async def publish_blog_post(post_id: str):
     """Queue the blogger skill to publish this post via Chrome (LinkedIn, etc.)."""
     try:
         sb = _get_supabase()
-        res = await run_db(lambda: sb.table("blog_posts").select("id,slug,title,status").eq("id", post_id).execute())
+        res = await run_db(lambda: sb.table("blog_posts").select("id,slug,title,status,user_id").eq("id", post_id).execute())
         if not res.data:
             raise HTTPException(status_code=404, detail="Blog post not found.")
         post = res.data[0]
@@ -142,6 +143,7 @@ async def publish_blog_post(post_id: str):
         "skill": "blogger",
         "skill_args": f"blog-publish {post['slug']}",
         "source": "api",
+        "user_id": post["user_id"],
     }).execute())
 
     if not task_res.data:
@@ -156,7 +158,7 @@ async def process_blog_feedback(post_id: str):
     """Queue the blogger skill to revise the draft using saved revision notes."""
     try:
         sb = _get_supabase()
-        res = await run_db(lambda: sb.table("blog_posts").select("id,slug,title,status,notes").eq("id", post_id).execute())
+        res = await run_db(lambda: sb.table("blog_posts").select("id,slug,title,status,notes,user_id").eq("id", post_id).execute())
         if not res.data:
             raise HTTPException(status_code=404, detail="Blog post not found.")
         post = res.data[0]
@@ -174,6 +176,7 @@ async def process_blog_feedback(post_id: str):
         "skill": "blog-revise",
         "skill_args": post["slug"],
         "source": "api",
+        "user_id": post["user_id"],
     }).execute())
 
     if not task_res.data:

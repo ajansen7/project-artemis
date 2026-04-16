@@ -5,11 +5,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from api.modules.channel import notify_task
-from api.modules.config import PROJECT_ROOT, _get_supabase, run_db
+from api.modules.config import PROJECT_ROOT, _get_supabase, run_db, get_user_id_from_request
 
 _CLAUDE_BIN = os.environ.get("CLAUDE_BIN", shutil.which("claude") or "claude")
 _UV_BIN = os.environ.get("UV_BIN", shutil.which("uv") or "uv")
@@ -22,7 +22,7 @@ class GenerateRequest(BaseModel):
 
 
 @router.post("/api/generate-application")
-async def generate_application(req: GenerateRequest):
+async def generate_application(req: GenerateRequest, request: Request):
     """
     Queues a generate task for the orchestrator to execute.
     Returns a task_id immediately — poll /api/tasks/{task_id} for status.
@@ -30,6 +30,7 @@ async def generate_application(req: GenerateRequest):
     if not req.job_id:
         raise HTTPException(status_code=400, detail="job_id is required")
 
+    user_id = get_user_id_from_request(request)
     target_str = f"Job ID: {req.job_id}"
     if req.company_name:
         target_str += f" at {req.company_name}"
@@ -41,6 +42,7 @@ async def generate_application(req: GenerateRequest):
         "skill": "generate",
         "skill_args": target_str,
         "source": "api",
+        "user_id": user_id,
     }).execute())
 
     if not res.data:
