@@ -3,7 +3,7 @@
 import json
 import sys
 
-from db_modules.client import sb
+from db_modules.client import get_client
 from db_modules.helpers import _ensure_company
 
 

@@ -2,7 +2,7 @@
 
 import json
 
-from db_modules.client import sb
+from db_modules.client import get_client
 from db_modules.helpers import _ensure_company
 
 
@@ -11,6 +11,7 @@ TERMINAL_STATUSES = {"rejected", "not_interested", "deleted"}
 
 def add_job(args):
     """Add a job to the pipeline."""
+    sb = get_client()
     # Check for duplicate URL
     if args.url:
         existing = sb.table("jobs").select("id, status").eq("url", args.url).execute()
@@ -70,6 +71,7 @@ def add_job(args):
 
 def list_jobs(args):
     """List all jobs, optionally filtered by status."""
+    sb = get_client()
     query = sb.table("jobs").select("id, title, url, status, match_score, source, created_at, companies(name)")
     if args.status:
         query = query.eq("status", args.status)
@@ -106,6 +108,7 @@ def list_jobs(args):
 
 def update_job(args):
     """Update a job's status or other fields."""
+    sb = get_client()
     data = {}
     if args.status:
         data["status"] = args.status
@@ -135,6 +138,7 @@ def update_job(args):
 
 def get_job(args):
     """Get full details of a specific job."""
+    sb = get_client()
     result = sb.table("jobs").select("*, companies(name, domain, careers_url)").eq("id", args.id).execute()
     if not result.data:
         print(f"Job {args.id} not found")
@@ -208,6 +212,7 @@ def save_application(args):
 
 def mark_submitted(args):
     """Mark an application as submitted: set submitted_at and advance job status to 'applied'."""
+    sb = get_client()
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc).isoformat()
 
@@ -232,6 +237,7 @@ def find_job(args):
     Returns a JSON array so callers can check before adding.
     Includes all statuses — the caller must decide what to do with rejected/deleted matches.
     """
+    sb = get_client()
     import json
 
     company_ids = []
@@ -273,6 +279,7 @@ def find_job(args):
 
 def score_job(args):
     """Set match score for a job (convenience for batch scoring)."""
+    sb = get_client()
     score = max(0, min(100, args.score))
     result = sb.table("jobs").update({"match_score": score}).eq("id", args.id).execute()
     if result.data:
@@ -287,6 +294,7 @@ def merge_jobs(args):
     Combines sources, fills empty fields on the keeper from the duplicate,
     re-points contact_job_links and transfers applications if needed.
     """
+    sb = get_client()
     keep_id = args.keep
     merge_id = args.merge
 

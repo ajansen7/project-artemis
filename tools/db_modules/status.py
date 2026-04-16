@@ -1,10 +1,11 @@
 """Pipeline status dashboard."""
 
-from db_modules.client import sb
+from db_modules.client import get_client
 
 
 def status(args):
     """Show pipeline dashboard."""
+    sb = get_client()
     # Count jobs by status
     jobs = sb.table("jobs").select("status").execute()
     counts = {}

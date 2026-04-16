@@ -1,10 +1,11 @@
 """Shared helper functions for db_modules."""
 
-from db_modules.client import sb
+from db_modules.client import get_client
 
 
 def _ensure_company(name, job_score=None):
     """Find or create a company, return its ID. Auto-targets if job_score >= 80."""
+    sb = get_client()
     result = sb.table("companies").select("id, is_target").eq("name", name).execute()
 
     if result.data:
@@ -36,6 +37,7 @@ def _ensure_company(name, job_score=None):
 
 def _resolve_job_prefix(prefix):
     """Match a job by ID prefix (first 8 chars). Returns (id, title) or (None, None)."""
+    sb = get_client()
     res = sb.table("jobs").select("id, title").execute()
     for row in (res.data or []):
         if row["id"].replace("-", "").startswith(prefix.replace("-", "")):
@@ -45,6 +47,7 @@ def _resolve_job_prefix(prefix):
 
 def _upsert_contact(data):
     """Insert or update a contact. Deduplicates on linkedin_url if present."""
+    sb = get_client()
     linkedin = data.get("linkedin_url")
     if linkedin:
         existing = sb.table("contacts").select("id").eq("linkedin_url", linkedin).execute()
@@ -64,6 +67,7 @@ def _link_contact_job(contact_id, job_id, notes=None):
     """Create a contact_job_links row if it doesn't already exist."""
     if not contact_id or not job_id:
         return
+    sb = get_client()
     existing = sb.table("contact_job_links") \
         .select("id").eq("contact_id", contact_id).eq("job_id", job_id).execute()
     if existing.data:

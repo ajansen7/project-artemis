@@ -8,3 +8,21 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// Initialize auth state on app load
+export async function initAuth() {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  return session;
+}
+
+// Subscribe to auth state changes
+export function onAuthStateChange(callback: (session: any | null) => void) {
+  const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+    callback(session);
+  });
+
+  return listener;
+}

@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from db_modules.client import sb
+from db_modules.client import get_client
 
 
 def add_engagement(args):
@@ -51,6 +51,7 @@ def update_engagement(args):
 
 def list_engagements(args):
     """List engagement actions, optionally filtered by platform or status."""
+    sb = get_client()
     query = sb.table("engagement_log").select("*")
     if args.platform:
         query = query.eq("platform", args.platform)

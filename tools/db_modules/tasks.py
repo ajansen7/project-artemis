@@ -4,7 +4,7 @@ import json
 import urllib.request
 from datetime import datetime, timezone
 
-from db_modules.client import sb
+from db_modules.client import get_client
 
 _NOTIFY_URL = "http://localhost:8000/api/notify"
 
@@ -29,6 +29,7 @@ def next_task(args):
     Atomically claim the oldest queued task: set status to 'running', return it as JSON.
     Returns nothing (exit 0) if no tasks are queued — orchestrator treats silence as idle.
     """
+    sb = get_client()
     # Fetch oldest queued task
     res = sb.table("task_queue") \
         .select("*") \
@@ -94,6 +95,7 @@ def update_task(args):
 
 def notify_refresh(args):
     """Push a refresh signal to the UI for the given tables (or all if none specified)."""
+    sb = get_client()
     tables = [t.strip() for t in args.tables.split(",") if t.strip()] if args.tables else []
     _push_refresh(tables)
     label = ", ".join(tables) if tables else "all"
@@ -102,6 +104,7 @@ def notify_refresh(args):
 
 def list_tasks(args):
     """List recent tasks from the queue."""
+    sb = get_client()
     query = sb.table("task_queue").select("*").order("created_at", desc=True)
     if args.status:
         query = query.eq("status", args.status)

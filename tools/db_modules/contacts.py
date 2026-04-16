@@ -3,7 +3,7 @@
 import json
 import sys
 
-from db_modules.client import sb
+from db_modules.client import get_client
 from db_modules.helpers import _ensure_company, _resolve_job_prefix, _upsert_contact, _link_contact_job
 
 
@@ -114,6 +114,7 @@ def batch_add_contacts(args):
 
 def find_contact(args):
     """Search for contacts by name, company, or LinkedIn URL. Returns JSON."""
+    sb = get_client()
     query = sb.table("contacts").select(
         "id, name, title, linkedin_url, outreach_status, priority, notes, "
         "company:companies(name)"
@@ -139,6 +140,7 @@ def find_contact(args):
 
 def update_contact(args):
     """Update a contact's outreach status or notes by LinkedIn URL or ID."""
+    sb = get_client()
     # Find the contact
     if args.linkedin_url:
         res = sb.table("contacts").select("id, name").eq("linkedin_url", args.linkedin_url).execute()

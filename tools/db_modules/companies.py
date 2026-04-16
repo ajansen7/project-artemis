@@ -1,10 +1,11 @@
 """Company CRUD operations."""
 
-from db_modules.client import sb
+from db_modules.client import get_client
 
 
 def add_company(args):
     """Add a target company to the watchlist."""
+    sb = get_client()
     existing = sb.table("companies").select("id, is_target").eq("name", args.name).execute()
     if existing.data:
         row = existing.data[0]
@@ -42,6 +43,7 @@ def add_company(args):
 
 def list_companies(args):
     """List target companies."""
+    sb = get_client()
     query = sb.table("companies").select("id, name, domain, careers_url, why_target, scout_priority, last_scouted_at")
     if not args.all:
         query = query.eq("is_target", True)

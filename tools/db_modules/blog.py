@@ -4,7 +4,7 @@ import json
 import sys
 from datetime import datetime, timezone
 
-from db_modules.client import sb
+from db_modules.client import get_client
 
 
 def add_blog_post(args):
@@ -128,6 +128,7 @@ def batch_import_blog_posts(args):
 
 def list_blog_posts(args):
     """List blog posts, optionally filtered by status."""
+    sb = get_client()
     query = sb.table("blog_posts").select("*")
     if args.status:
         query = query.eq("status", args.status)

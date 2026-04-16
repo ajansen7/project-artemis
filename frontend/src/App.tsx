@@ -12,6 +12,8 @@ import { EngagementPanel } from './components/EngagementPanel';
 import { BlogPanel } from './components/BlogPanel';
 import { SchedulePanel } from './components/SchedulePanel';
 import { TasksPanel } from './components/TasksPanel';
+import { LoginPage } from './components/LoginPage';
+import { initAuth, onAuthStateChange } from './lib/supabase';
 
 type View = 'pipeline' | 'networking' | 'engagement' | 'blog' | 'schedules';
 
@@ -29,6 +31,35 @@ function readLocalStorage<T>(key: string, fallback: T, valid?: T[]): T {
 }
 
 function App() {
+  const [session, setSession] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    // Initialize auth state
+    initAuth().then((sess) => {
+      setSession(sess);
+      setAuthLoading(false);
+    });
+
+    // Subscribe to auth state changes
+    const listener = onAuthStateChange((sess) => {
+      setSession(sess);
+    });
+
+    return () => {
+      listener?.unsubscribe();
+    };
+  }, []);
+
+  // If not authenticated, show login page
+  if (authLoading) {
+    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>Loading...</div>;
+  }
+
+  if (!session) {
+    return <LoginPage onLoginSuccess={() => {}} />;
+  }
+
   useEvents();
   const [view, setView] = useState<View>(() => readLocalStorage('artemis:view', 'pipeline', VALID_VIEWS));
   const [statusFilter, setStatusFilter] = useState<JobStatus | 'all'>(() => readLocalStorage<JobStatus | 'all'>('artemis:statusFilter', 'all'));
