@@ -84,7 +84,7 @@ project-artemis/                    # Plugin root
 ├── frontend/                       # React dashboard
 ├── channels/                       # MCP channel bridge
 │   └── artemis-channel/            # Push event bridge (Bun, port 8790)
-├── db/migrations/                  # Supabase schema (001-017)
+├── db/migrations/                  # Supabase schema (001-019)
 └── pyproject.toml
 ```
 

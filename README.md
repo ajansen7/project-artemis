@@ -99,6 +99,7 @@ artemis-login logout             # sign out
 State files (identity, voice, active loops, etc.) are synced with Supabase — pulled on session start, pushed on session end. This means:
 
 - **Multi-machine**: Work from any machine with the same `.env`
+- **Multi-user**: When you switch users (via `artemis-login login`), the orchestrator automatically loads the new user's state files without any manual intervention
 - **Automatic**: No manual export/import needed
 - **Offline fallback**: Tools work without Supabase if state is cached locally
 
@@ -108,6 +109,8 @@ artemis-sync --state      # state only
 artemis-sync --contacts   # contacts pipeline only
 artemis-sync --seed       # first-time upload of all state to DB
 ```
+
+**Multi-user account switching**: When you log in as a different user, the orchestrator Claude session automatically restarts and loads only that user's state. The browser dashboard auto-detects the switch and reloads to show the new user's pipeline and contacts. No prompts to accept — both `--dangerously-skip-permissions` and `--dangerously-load-development-channels` are auto-accepted.
 
 ### Binary Artifacts
 Generated resumes/DOCXs are uploaded to Supabase Storage automatically after generation. Pull them on a new machine:
@@ -177,7 +180,11 @@ All state files live in `state/` (gitignored). Templates in `state/examples/`.
 
 **Cloud sync**: State is backed by Supabase `user_state` table and automatically pulled on session start, pushed on session end. Any machine with the right `.env` gets the same state automatically. Offline mode falls back to local cache.
 
-**Multi-user**: Each user's data is completely isolated via Supabase RLS (Row-Level Security). User A cannot see any of user B's data at the database level.
+**Multi-user**: Each user's data is completely isolated via Supabase RLS (Row-Level Security). User A cannot see any of user B's data at the database level. The `user_state` table has a compound unique constraint on `(user_id, key)`, allowing each user to have their own version of the same state file. When switching users, the orchestrator automatically:
+1. Reads the new user's ID from `~/.artemis/credentials.json`
+2. Claims any existing legacy state rows (on first login)
+3. Pulls only that user's state files (identity, voice, active_loops, lessons)
+4. Auto-accepts both orchestrator prompts without manual intervention
 
 **Hot state** loads every session via hooks. Kept compact (~70 lines):
 - `identity.md` -- candidate name, headline, positioning, search status
@@ -305,11 +312,9 @@ project-artemis/                        # Plugin root
   api/
     server.py                           # FastAPI -- scheduler, task queue, PDF generation
   frontend/src/                         # React dashboard
-  db/migrations/                        # Supabase SQL migrations (001-021)
+  db/migrations/                        # Supabase SQL migrations (001-019)
                                         # 018: user_state table (cloud sync)
-                                        # 019: storage artifact paths
-                                        # 020: add user_id to all tables
-                                        # 021: RLS user isolation policies
+                                        # 019: add user_id to user_state + RLS
   pyproject.toml                        # Python dependencies
   .env                                  # Supabase credentials (gitignored)
 ```
