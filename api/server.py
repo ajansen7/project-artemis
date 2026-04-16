@@ -10,6 +10,7 @@ from api.modules.middleware import ApprovalMiddleware
 
 from api.modules.config import logger
 from api.modules.scheduler import _load_all_schedules, scheduler
+from api.modules.routes.admin import router as admin_router
 from api.modules.routes.applications import router as applications_router
 from api.modules.routes.auth import router as auth_router
 from api.modules.routes.blog import router as blog_router
@@ -69,6 +70,7 @@ app.add_middleware(
 
 app.add_middleware(ApprovalMiddleware)
 
+app.include_router(admin_router)
 app.include_router(auth_router)
 app.include_router(tasks_router)
 app.include_router(applications_router)
