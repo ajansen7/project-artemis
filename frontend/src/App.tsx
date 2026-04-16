@@ -72,8 +72,29 @@ function App() {
       }
     });
 
+    // Periodically check if CLI session has changed while browser is open
+    const syncInterval = setInterval(async () => {
+      const newSess = await syncFromServerSession(true);
+      if (newSess && prevUserIdRef.current !== newSess.user?.id) {
+        prevUserIdRef.current = newSess.user?.id || null;
+        window.location.reload();
+      }
+    }, 5000); // Check every 5 seconds
+
+    // Also check when page regains focus (user switches between windows)
+    const handleFocus = async () => {
+      const newSess = await syncFromServerSession(true);
+      if (newSess && prevUserIdRef.current !== newSess.user?.id) {
+        prevUserIdRef.current = newSess.user?.id || null;
+        window.location.reload();
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+
     return () => {
       listener?.unsubscribe();
+      clearInterval(syncInterval);
+      window.removeEventListener('focus', handleFocus);
     };
   }, []);
 

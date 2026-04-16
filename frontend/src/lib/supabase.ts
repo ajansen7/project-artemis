@@ -28,23 +28,37 @@ export function onAuthStateChange(callback: (session: any | null) => void) {
 }
 
 // Sync from CLI session stored on FastAPI server
-export async function syncFromServerSession(): Promise<any | null> {
+export async function syncFromServerSession(forceSync: boolean = false): Promise<any | null> {
   try {
     const res = await fetch('/api/auth/session');
     if (!res.ok) return null;
     const data = await res.json();
     if (!data.signed_in || !data.access_token) return null;
 
-    // Only sync if no active browser session exists
     const { data: { session: existing } } = await supabase.auth.getSession();
-    if (existing) return existing; // don't override an active browser session
 
-    const { data: { session }, error } = await supabase.auth.setSession({
-      access_token: data.access_token,
-      refresh_token: data.refresh_token,
-    });
-    if (error) return null;
-    return session;
+    // If forceSync is true (e.g., on focus), always sync from CLI if different user
+    if (forceSync && existing && existing.user?.id !== data.user_id) {
+      const { data: { session }, error } = await supabase.auth.setSession({
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+      });
+      if (error) return null;
+      return session;
+    }
+
+    // If no active browser session, sync from CLI
+    if (!existing) {
+      const { data: { session }, error } = await supabase.auth.setSession({
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+      });
+      if (error) return null;
+      return session;
+    }
+
+    // Browser session exists and same user or not forcing sync
+    return existing;
   } catch {
     return null;
   }
