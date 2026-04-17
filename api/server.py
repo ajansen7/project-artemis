@@ -18,6 +18,7 @@ from api.modules.routes.notify import router as notify_router
 from api.modules.routes.schedules import router as schedules_router
 from api.modules.routes.skills import router as skills_router
 from api.modules.routes.tasks import router as tasks_router
+from api.modules.routes.terminal import router as terminal_router
 
 
 async def _cleanup_orphaned_tasks():
@@ -79,3 +80,4 @@ app.include_router(blog_router)
 app.include_router(notify_router)
 app.include_router(skills_router)
 app.include_router(schedules_router)
+app.include_router(terminal_router)
