@@ -136,7 +136,9 @@ fi
 
 # ─── Summary ─────────────────────────────────────────────────────
 
-LOCAL_IP=$(ipconfig getifaddr en0 2>/dev/null || ip route get 1 2>/dev/null | awk '{print $7; exit}' || echo "")
+LOCAL_IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null \
+  || ifconfig 2>/dev/null | grep "inet " | grep -v 127.0.0.1 | head -1 | awk '{print $2}' \
+  || ip route get 1 2>/dev/null | awk '{print $7; exit}' || echo "")
 
 echo ""
 echo "Artemis is running:"
@@ -171,9 +173,13 @@ if command -v nginx &>/dev/null && (sudo nginx -t 2>/dev/null); then
       sudo nginx -s reload 2>/dev/null || true
       echo "  [nginx] reloaded"
     fi
+    PUBLIC_IP=$(curl -s --max-time 3 ifconfig.me 2>/dev/null || echo "")
     echo ""
     echo "HTTPS access (via nginx):"
     echo "  Local:   https://localhost"
     [ -n "$LOCAL_IP" ] && echo "  Network: https://$LOCAL_IP"
+    if [ -n "$PUBLIC_IP" ]; then
+      echo "  Public:  https://$PUBLIC_IP  (requires router port forwarding: 443 → $LOCAL_IP:443)"
+    fi
   fi
 fi

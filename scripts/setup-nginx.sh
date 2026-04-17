@@ -63,7 +63,9 @@ else
   echo "Generating self-signed SSL certificate..."
 
   # Get the machine's local IP for the SAN
-  LOCAL_IP=$(ipconfig getifaddr en0 2>/dev/null || ip route get 1 2>/dev/null | awk '{print $7; exit}' || echo "")
+  LOCAL_IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null \
+    || ifconfig 2>/dev/null | grep "inet " | grep -v 127.0.0.1 | head -1 | awk '{print $2}' \
+    || ip route get 1 2>/dev/null | awk '{print $7; exit}' || echo "")
 
   # Build SAN entries
   SAN="DNS:localhost,IP:127.0.0.1"
@@ -123,7 +125,9 @@ fi
 echo ""
 echo "Artemis is now accessible via HTTPS:"
 echo "  Local:   https://localhost"
-LOCAL_IP=$(ipconfig getifaddr en0 2>/dev/null || ip route get 1 2>/dev/null | awk '{print $7; exit}' || echo "")
+LOCAL_IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null \
+    || ifconfig 2>/dev/null | grep "inet " | grep -v 127.0.0.1 | head -1 | awk '{print $2}' \
+    || ip route get 1 2>/dev/null | awk '{print $7; exit}' || echo "")
 if [ -n "$LOCAL_IP" ]; then
   echo "  Network: https://$LOCAL_IP"
 fi
