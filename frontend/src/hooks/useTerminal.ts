@@ -19,6 +19,7 @@ export function useTerminal({ containerRef }: UseTerminalOptions) {
   const fitRef = useRef<FitAddon | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const disposablesRef = useRef<{ dispose: () => void }[]>([]);
 
   const connect = useCallback(async () => {
     const container = containerRef.current;
@@ -109,6 +110,10 @@ export function useTerminal({ containerRef }: UseTerminalOptions) {
       setError('WebSocket connection failed');
     };
 
+    // ─── Clean up old input handlers before registering new ones ─
+    disposablesRef.current.forEach(d => d.dispose());
+    disposablesRef.current = [];
+
     // ─── Terminal input → WebSocket ───────────────────────────
     const inputDisposable = term.onData((data) => {
       if (ws.readyState === WebSocket.OPEN) {
@@ -127,11 +132,7 @@ export function useTerminal({ containerRef }: UseTerminalOptions) {
       }
     });
 
-    // Store disposables for cleanup
-    return () => {
-      inputDisposable.dispose();
-      binaryDisposable.dispose();
-    };
+    disposablesRef.current = [inputDisposable, binaryDisposable];
   }, [containerRef]);
 
   const disconnect = useCallback(() => {
@@ -139,6 +140,8 @@ export function useTerminal({ containerRef }: UseTerminalOptions) {
       clearTimeout(reconnectTimer.current);
       reconnectTimer.current = null;
     }
+    disposablesRef.current.forEach(d => d.dispose());
+    disposablesRef.current = [];
     if (wsRef.current) {
       wsRef.current.close(1000);
       wsRef.current = null;
