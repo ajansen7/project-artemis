@@ -57,11 +57,12 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173", "http://127.0.0.1:5173",
         "http://localhost:5174", "http://127.0.0.1:5174",
+        "https://localhost", "https://127.0.0.1",
     ],
-    # Allow any device on a private LAN (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+    # Allow any device on a private LAN (HTTP or HTTPS, any port)
     allow_origin_regex=(
-        r"http://(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+"
-        r"|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+):\d+"
+        r"https?://(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+"
+        r"|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?"
     ),
     allow_credentials=True,
     allow_methods=["*"],
