@@ -16,13 +16,13 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}): Pro
 }
 
 export async function fetchMyProfile(): Promise<UserProfile> {
-  const res = await fetchWithAuth(`${API_BASE}/profile/me`);
+  const res = await fetchWithAuth(`${API_BASE}/api/profile/me`);
   if (!res.ok) throw new Error('Failed to fetch profile');
   return res.json();
 }
 
 export async function fetchAllUsers(): Promise<UserProfile[]> {
-  const res = await fetchWithAuth(`${API_BASE}/admin/users`);
+  const res = await fetchWithAuth(`${API_BASE}/api/admin/users`);
   if (!res.ok) throw new Error('Failed to fetch users');
   const data = await res.json();
   return data.users;
@@ -32,7 +32,7 @@ export async function updateUser(
   userId: string,
   update: { status?: string; role?: string }
 ): Promise<void> {
-  const res = await fetchWithAuth(`${API_BASE}/admin/users/${userId}`, {
+  const res = await fetchWithAuth(`${API_BASE}/api/admin/users/${userId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(update),
