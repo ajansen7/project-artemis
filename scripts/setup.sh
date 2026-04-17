@@ -99,6 +99,14 @@ else
   MISSING=1
 fi
 
+# nginx (optional)
+if command -v nginx &>/dev/null; then
+  ok "nginx (optional, for HTTPS remote access)"
+else
+  warn "nginx not found (optional) — brew install nginx"
+  warn "  Enables HTTPS remote access. Run ./scripts/setup-nginx.sh after installing."
+fi
+
 # LibreOffice (optional)
 if command -v soffice &>/dev/null; then
   ok "LibreOffice (optional, for PDF generation)"
@@ -239,5 +247,14 @@ echo ""
 echo "  3. Open the dashboard:"
 echo "     http://localhost:5173"
 echo ""
+echo "  4. Sign in — the first user is automatically granted admin access."
+echo "     Subsequent users will need admin approval via the Users tab."
+echo ""
+if command -v nginx &>/dev/null; then
+  echo "  5. Enable HTTPS remote access (optional):"
+  echo "     ./scripts/setup-nginx.sh"
+  echo "     Then access via https://localhost or https://<your-ip>"
+  echo ""
+fi
 echo "  For Claude Desktop: start services with --no-orchestrator flag,"
 echo "  then add the plugin directory in Claude Desktop settings."
