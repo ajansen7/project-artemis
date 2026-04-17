@@ -88,7 +88,7 @@ export function useJobs(statusFilter: JobStatus | 'all' = 'all') {
       const userId = await getCurrentUserId();
       let query = supabase
         .from('jobs')
-        .select('*, companies(name, domain, careers_url), applications(resume_md, cover_letter_md, primer_md, form_fills_md, resume_pdf_path, submitted_at)')
+        .select('*, companies(name, domain, careers_url), applications(resume_md, cover_letter_md, primer_md, form_fills_md, resume_pdf_path, resume_pdf_path_storage, resume_docx_path, submitted_at)')
         .not('status', 'eq', 'deleted')
         .order('created_at', { ascending: false });
 

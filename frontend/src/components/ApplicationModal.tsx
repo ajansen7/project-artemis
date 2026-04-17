@@ -54,6 +54,8 @@ export function ApplicationModal({ isOpen, onClose, job, onGenerationComplete, o
   const hasFormFills = !!app?.form_fills_md;
   const hasPrimer = !!app?.primer_md;
   const hasPdf = !!app?.resume_pdf_path;
+  const hasPdfStorage = !!app?.resume_pdf_path_storage;
+  const hasDocx = !!app?.resume_docx_path;
   const isAlreadyApplied = job.status === 'applied';
   const canSubmit = hasResume && hasCoverLetter && !isAlreadyApplied;
 
@@ -102,6 +104,32 @@ export function ApplicationModal({ isOpen, onClose, job, onGenerationComplete, o
       setStatusMsg(`❌ ${err.message}`);
     } finally {
       setRegeneratingPdf(false);
+    }
+  };
+
+  const handleDownload = async (fileType: 'pdf' | 'docx' | 'cover_letter' | 'primer') => {
+    try {
+      const res = await fetchWithAuth(`${API_BASE}/api/applications/${job.id}/download/${fileType}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: 'Download failed' }));
+        throw new Error(err.detail || 'Download failed');
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get('Content-Disposition') || '';
+      const filenameMatch = disposition.match(/filename="?([^"]+)"?/);
+      const ext = fileType === 'cover_letter' || fileType === 'primer' ? 'md' : fileType;
+      const filename = filenameMatch?.[1] || `download.${ext}`;
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setStatusMsg(`❌ Download failed: ${err.message}`);
     }
   };
 
@@ -288,39 +316,79 @@ export function ApplicationModal({ isOpen, onClose, job, onGenerationComplete, o
             </button>
           ))}
 
-          {/* Edit/save controls aligned to the right */}
-          {isEditableTab && tabHasContent(activeTab) && (
+          {/* Edit/save/download controls aligned to the right */}
+          {tabHasContent(activeTab) && (
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button
-                className="action-btn"
-                style={{
-                  padding: '0.3rem 0.7rem',
-                  fontSize: '0.8rem',
-                  backgroundColor: mode === 'edit' ? 'var(--primary)' : 'var(--bg-elevated)',
-                  color: mode === 'edit' ? 'white' : 'var(--text-secondary)',
-                }}
-                onClick={() => setMode(m => m === 'edit' ? 'preview' : 'edit')}
-              >
-                {mode === 'edit' ? '👁 Preview' : '✏️ Edit'}
-              </button>
-              {mode === 'edit' && isDirty && (
-                <button
-                  className="action-btn"
-                  style={{ padding: '0.3rem 0.7rem', fontSize: '0.8rem', backgroundColor: 'var(--success, #4caf78)', color: 'white' }}
-                  onClick={handleSave}
-                  disabled={saving || regeneratingPdf || teachingFromEdit}
-                >
-                  {saving ? 'Saving…' : teachingFromEdit ? 'Extracting lessons…' : regeneratingPdf ? 'Regenerating PDF…' : '💾 Save'}
-                </button>
+              {isEditableTab && (
+                <>
+                  <button
+                    className="action-btn"
+                    style={{
+                      padding: '0.3rem 0.7rem',
+                      fontSize: '0.8rem',
+                      backgroundColor: mode === 'edit' ? 'var(--primary)' : 'var(--bg-elevated)',
+                      color: mode === 'edit' ? 'white' : 'var(--text-secondary)',
+                    }}
+                    onClick={() => setMode(m => m === 'edit' ? 'preview' : 'edit')}
+                  >
+                    {mode === 'edit' ? '👁 Preview' : '✏️ Edit'}
+                  </button>
+                  {mode === 'edit' && isDirty && (
+                    <button
+                      className="action-btn"
+                      style={{ padding: '0.3rem 0.7rem', fontSize: '0.8rem', backgroundColor: 'var(--success, #4caf78)', color: 'white' }}
+                      onClick={handleSave}
+                      disabled={saving || regeneratingPdf || teachingFromEdit}
+                    >
+                      {saving ? 'Saving…' : teachingFromEdit ? 'Extracting lessons…' : regeneratingPdf ? 'Regenerating PDF…' : '💾 Save'}
+                    </button>
+                  )}
+                  {activeTab === 'resume' && hasResume && mode === 'preview' && (
+                    <button
+                      className="action-btn"
+                      style={{ padding: '0.3rem 0.7rem', fontSize: '0.8rem', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
+                      onClick={handleRegeneratePdf}
+                      disabled={regeneratingPdf}
+                    >
+                      {regeneratingPdf ? 'Generating…' : '📄 Regen PDF'}
+                    </button>
+                  )}
+                </>
               )}
-              {activeTab === 'resume' && hasResume && mode === 'preview' && (
+              {activeTab === 'resume' && (hasPdfStorage || hasPdf) && (
                 <button
                   className="action-btn"
                   style={{ padding: '0.3rem 0.7rem', fontSize: '0.8rem', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
-                  onClick={handleRegeneratePdf}
-                  disabled={regeneratingPdf}
+                  onClick={() => handleDownload('pdf')}
                 >
-                  {regeneratingPdf ? 'Generating…' : '📄 Regen PDF'}
+                  ⬇ PDF
+                </button>
+              )}
+              {activeTab === 'resume' && hasDocx && (
+                <button
+                  className="action-btn"
+                  style={{ padding: '0.3rem 0.7rem', fontSize: '0.8rem', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
+                  onClick={() => handleDownload('docx')}
+                >
+                  ⬇ DOCX
+                </button>
+              )}
+              {activeTab === 'cover_letter' && hasCoverLetter && (
+                <button
+                  className="action-btn"
+                  style={{ padding: '0.3rem 0.7rem', fontSize: '0.8rem', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
+                  onClick={() => handleDownload('cover_letter')}
+                >
+                  ⬇ .md
+                </button>
+              )}
+              {activeTab === 'primer' && hasPrimer && (
+                <button
+                  className="action-btn"
+                  style={{ padding: '0.3rem 0.7rem', fontSize: '0.8rem', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
+                  onClick={() => handleDownload('primer')}
+                >
+                  ⬇ .md
                 </button>
               )}
             </div>

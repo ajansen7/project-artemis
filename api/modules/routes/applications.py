@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 import subprocess
 from datetime import datetime, timezone
@@ -6,6 +7,7 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from api.modules.channel import notify_task
@@ -212,3 +214,97 @@ async def mark_submitted(req: MarkSubmittedRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+def _slugify(text: str) -> str:
+    """Convert text to a filename-safe slug."""
+    return re.sub(r'[^a-z0-9]+', '_', text.lower()).strip('_')
+
+
+@router.get("/api/applications/{job_id}/download/{file_type}")
+async def download_application_file(
+    job_id: str,
+    file_type: Literal["pdf", "docx", "cover_letter", "primer"],
+    request: Request,
+):
+    """Download an application artifact (PDF, DOCX, or markdown)."""
+    user_id = get_user_id_from_request(request)
+    sb = _get_supabase()
+
+    # Fetch application data and job info for filename
+    app_res = await run_db(lambda: (
+        sb.table("applications")
+        .select("resume_pdf_path, resume_pdf_path_storage, resume_docx_path, cover_letter_md, primer_md, jobs(title, companies(name))")
+        .eq("job_id", job_id)
+        .maybe_single()
+        .execute()
+    ))
+
+    if not app_res.data:
+        raise HTTPException(status_code=404, detail="No application found for this job.")
+
+    app = app_res.data
+    job_info = app.get("jobs") or {}
+    company_info = job_info.get("companies") or {}
+    company_name = company_info.get("name", "company")
+    job_title = job_info.get("title", "position")
+    slug_prefix = f"{_slugify(company_name)}_{_slugify(job_title)}"
+
+    if file_type in ("pdf", "docx"):
+        # Try Supabase Storage first, fall back to local filesystem
+        storage_col = "resume_pdf_path_storage" if file_type == "pdf" else "resume_docx_path"
+        storage_path = app.get(storage_col)
+        local_col = "resume_pdf_path" if file_type == "pdf" else None
+        local_path = app.get(local_col) if local_col else None
+
+        file_bytes = None
+
+        if storage_path:
+            # Verify the file belongs to the requesting user
+            if f"/users/{user_id}/" not in storage_path and not storage_path.startswith(f"users/{user_id}/"):
+                raise HTTPException(status_code=403, detail="Access denied.")
+            try:
+                file_bytes = await run_db(lambda: sb.storage.from_("artifacts").download(storage_path))
+            except Exception:
+                pass  # Fall through to local path
+
+        if file_bytes is None and local_path:
+            # Resolve local path relative to project root
+            abs_path = Path(PROJECT_ROOT) / local_path
+            if abs_path.is_file():
+                file_bytes = abs_path.read_bytes()
+
+        if file_bytes is None:
+            hint = "Try regenerating the PDF from the application modal." if file_type == "pdf" else "DOCX not available for this application."
+            raise HTTPException(status_code=404, detail=f"No {file_type.upper()} found. {hint}")
+
+        if file_type == "pdf":
+            media_type = "application/pdf"
+            filename = f"{slug_prefix}_resume.pdf"
+        else:
+            media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            filename = f"{slug_prefix}_resume.docx"
+
+        return Response(
+            content=file_bytes,
+            media_type=media_type,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    else:
+        # Markdown downloads (cover_letter, primer)
+        col = "cover_letter_md" if file_type == "cover_letter" else "primer_md"
+        content = app.get(col)
+
+        if not content:
+            label = "cover letter" if file_type == "cover_letter" else "primer"
+            raise HTTPException(status_code=404, detail=f"No {label} found. Generate application materials first.")
+
+        label = "cover_letter" if file_type == "cover_letter" else "primer"
+        filename = f"{slug_prefix}_{label}.md"
+
+        return Response(
+            content=content.encode("utf-8"),
+            media_type="text/markdown",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
