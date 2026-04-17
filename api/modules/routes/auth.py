@@ -9,17 +9,21 @@ Endpoints:
 
 import json
 import os
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 from supabase import create_client
 
-from api.modules.config import _get_supabase
+from api.modules.config import _get_supabase, logger
 
 router = APIRouter()
 
 CREDS_FILE = Path.home() / ".artemis" / "credentials.json"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+RESTART_SCRIPT = PROJECT_ROOT / "scripts" / "restart-orchestrator.sh"
 
 
 def _read_creds() -> dict:
@@ -80,6 +84,50 @@ def _refresh_token_if_needed(creds: dict) -> dict:
         return creds
 
 
+def _restart_orchestrator() -> None:
+    """Kill and recreate the orchestrator tmux window (non-blocking)."""
+    if RESTART_SCRIPT.exists():
+        logger.info("Restarting orchestrator via %s", RESTART_SCRIPT)
+        subprocess.Popen(
+            ["bash", str(RESTART_SCRIPT)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+
+class SyncSessionRequest(BaseModel):
+    access_token: str
+    refresh_token: str
+    user_id: str
+    email: str
+
+
+@router.post("/api/auth/sync-session")
+async def sync_session(req: SyncSessionRequest):
+    """Sync a browser session to CLI credentials and restart orchestrator if user changed.
+
+    Called by the frontend after login so the orchestrator picks up the new user context.
+    """
+    old_creds = _read_creds()
+    old_user_id = old_creds.get("user_id")
+
+    creds = {
+        "access_token": req.access_token,
+        "refresh_token": req.refresh_token,
+        "user_id": req.user_id,
+        "email": req.email,
+        "signed_in_at": datetime.now(timezone.utc).isoformat(),
+    }
+    _save_creds(creds)
+
+    # Restart orchestrator if user changed (or no previous user)
+    if old_user_id != req.user_id:
+        logger.info("User changed (%s -> %s), restarting orchestrator", old_user_id, req.user_id)
+        _restart_orchestrator()
+
+    return {"ok": True, "restarted": old_user_id != req.user_id}
+
+
 @router.get("/api/auth/session")
 async def get_auth_session():
     """Get current auth session from CLI credentials file.
@@ -130,5 +178,7 @@ async def logout():
 
     if CREDS_FILE.exists():
         CREDS_FILE.unlink()
+
+    _restart_orchestrator()
 
     return {"ok": True}

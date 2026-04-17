@@ -100,6 +100,7 @@ def _spawn_tmux_pty() -> tuple[int, int]:
 
         os.execvp(TMUX_BIN, [
             TMUX_BIN, "attach-session",
+            "-d",  # Detach other clients to prevent doubled I/O
             "-t", f"{TMUX_SESSION}:{TMUX_WINDOW}",
         ])
     else:
@@ -202,7 +203,16 @@ async def terminal_websocket(ws: WebSocket):
             pass
         try:
             os.kill(child_pid, signal.SIGTERM)
-            os.waitpid(child_pid, os.WNOHANG)
+            # Wait up to 2 seconds for graceful exit
+            for _ in range(20):
+                pid_result, _ = os.waitpid(child_pid, os.WNOHANG)
+                if pid_result != 0:
+                    break
+                await asyncio.sleep(0.1)
+            else:
+                # Force kill if still alive
+                os.kill(child_pid, signal.SIGKILL)
+                os.waitpid(child_pid, 0)
         except (OSError, ChildProcessError):
             pass
         logger.info("Terminal WebSocket disconnected: %s", profile["email"])

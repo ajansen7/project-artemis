@@ -28,11 +28,26 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
         setError(null);
         alert('Check your email for the magic link');
       } else {
-        const { error: err } = await supabase.auth.signInWithPassword({
+        const { data, error: err } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
         if (err) throw err;
+
+        // Sync session to CLI credentials so orchestrator picks up new user
+        if (data.session) {
+          fetch('/api/auth/sync-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              access_token: data.session.access_token,
+              refresh_token: data.session.refresh_token,
+              user_id: data.session.user.id,
+              email: data.session.user.email,
+            }),
+          }).catch(() => {}); // Best effort — don't block login
+        }
+
         onLoginSuccess();
       }
     } catch (err) {

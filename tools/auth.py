@@ -78,7 +78,7 @@ def login(use_magic_link: bool = False):
             print(f"❌ Magic link failed: {e}")
             sys.exit(1)
     else:
-        password = input("Password: ").strip()
+        password = getpass.getpass("Password: ")
         if not password:
             print("❌ Password required")
             return
