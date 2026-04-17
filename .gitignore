@@ -83,3 +83,6 @@ channels/telegram/
 *.pdf
 *.docx
 artemis-personal-*.tar.gz
+
+# nginx SSL certs (self-signed, machine-specific)
+nginx/ssl/
