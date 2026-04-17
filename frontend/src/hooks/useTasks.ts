@@ -90,14 +90,14 @@ export function useTaskPoller(
   onComplete: (task: Task) => void,
   onFailed: (task: Task) => void,
 ) {
-  const { pollTask } = useTasks();
-
   useEffect(() => {
     if (!taskId) return;
 
     const interval = setInterval(async () => {
       try {
-        const task = await pollTask(taskId);
+        const res = await fetchWithAuth(`${API}/api/tasks/${taskId}`);
+        if (!res.ok) { clearInterval(interval); return; }
+        const task: Task = await res.json();
         if (task.status === 'complete') {
           clearInterval(interval);
           onComplete(task);

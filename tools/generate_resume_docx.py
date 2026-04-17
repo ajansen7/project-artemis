@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 Resume DOCX/PDF Generator — Builds a styled resume from markdown.
-Matches resume_pretty.docx: dark navy/blue header table, light-blue summary
-box with blue left border, ALL-CAPS blue section headings, 2-col skills table.
+Clean modern header (no table), hyperlinked contact line, two-line role entries,
+light-blue summary box, ALL-CAPS blue section headings, 2-col skills table.
 
 Usage:
   uv run python tools/generate_resume_docx.py --job-id <uuid>
@@ -29,12 +29,10 @@ SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 
 # ─── Colour palette ───────────────────────────────────────────────────────────
 
-NAVY   = "1B3A5C"   # header left bg
-BLUE   = "2E7EBF"   # header right bg + section headings + summary border
-LBLUE  = "A8CCE8"   # subtitle in header
+BLUE   = "2E7EBF"   # section headings + summary border + accent rule
 SUMMBG = "EAF3FA"   # summary box background
-DARK   = "222222"   # body text
-GREY   = "646464"   # dates / secondary
+DARK   = "1A1A2E"   # name / body text (near-black)
+GREY   = "646464"   # subtitle / dates / contact line
 
 
 # ─── Markdown parser ──────────────────────────────────────────────────────────
@@ -262,12 +260,48 @@ def _set_tbl_width(table, width: int):
     tblPr.append(tblW)
 
 
-def _inline_runs(para, text: str, size=9.5, color: str | None = None):
+def _inline_runs(para, text: str, size=10, color: str | None = None):
     """Add inline-markup-aware runs to a paragraph."""
     for rd in _parse_inline_runs(text):
         run = para.add_run(rd["text"])
         _font(run, size=size, bold=rd["bold"], italic=rd["italic"],
               color=color or DARK)
+
+
+def _add_hyperlink(para, text: str, url: str, size: float = 9, color: str = GREY):
+    """Inject a w:hyperlink run into para with proper relationship and styling."""
+    part = para.part
+    r_id = part.relate_to(url, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink", is_external=True)
+
+    hyperlink = OxmlElement("w:hyperlink")
+    hyperlink.set(qn("r:id"), r_id)
+
+    r = OxmlElement("w:r")
+    rPr = OxmlElement("w:rPr")
+
+    rFonts = OxmlElement("w:rFonts")
+    rFonts.set(qn("w:ascii"), "Calibri")
+    rFonts.set(qn("w:hAnsi"), "Calibri")
+    rPr.append(rFonts)
+
+    sz = OxmlElement("w:sz")
+    sz.set(qn("w:val"), str(int(size * 2)))
+    rPr.append(sz)
+
+    u = OxmlElement("w:u")
+    u.set(qn("w:val"), "single")
+    rPr.append(u)
+
+    clr = OxmlElement("w:color")
+    clr.set(qn("w:val"), color)
+    rPr.append(clr)
+
+    r.append(rPr)
+    t = OxmlElement("w:t")
+    t.text = text
+    r.append(t)
+    hyperlink.append(r)
+    para._p.append(hyperlink)
 
 
 def _hrule(doc, color="BBBBBB"):
@@ -286,42 +320,49 @@ def _hrule(doc, color="BBBBBB"):
 
 # ─── Section builders ─────────────────────────────────────────────────────────
 
-def _header_table(doc, name: str, subtitle: str, contact_items: list[dict]):
-    """Two-column dark header: navy left (name+title), blue right (contact)."""
-    table = doc.add_table(rows=1, cols=2)
-    _no_tbl_borders(table)
-    _set_tbl_width(table, 10080)
-    _set_col_widths(table, [7200, 2880])
+def _header_block(doc, name: str, subtitle: str, contact_items: list[dict]):
+    """Clean prose header: name, subtitle, accent rule, contact line with hyperlinks."""
+    # Name
+    p_name = doc.add_paragraph()
+    _spacing(p_name, before=0, after=4)
+    _font(p_name.add_run(name), size=22, bold=True, color=DARK)
 
-    left = table.cell(0, 0)
-    _shd(left, NAVY)
-    _cell_margins(left, top=280, left=320, bottom=280, right=200)
-    _valign(left, "center")
-    _no_cell_borders(left)
-
-    p = left.paragraphs[0]
-    _spacing(p, before=0, after=3)
-    _font(p.add_run(name), size=26, bold=True, color="FFFFFF")
-
+    # Subtitle (role/tagline)
     if subtitle:
-        p2 = left.add_paragraph()
-        _spacing(p2, before=0, after=0)
-        _font(p2.add_run(subtitle), size=13, bold=False, color=LBLUE)
+        p_sub = doc.add_paragraph()
+        _spacing(p_sub, before=0, after=6)
+        _font(p_sub.add_run(subtitle), size=11, color=GREY)
 
-    right = table.cell(0, 1)
-    _shd(right, BLUE)
-    _cell_margins(right, top=280, left=200, bottom=280, right=200)
-    _valign(right, "center")
-    _no_cell_borders(right)
+    # Accent rule (1.5pt blue bottom border)
+    p_rule = doc.add_paragraph()
+    _spacing(p_rule, before=0, after=3)
+    pPr = p_rule._p.get_or_add_pPr()
+    pBdr = OxmlElement("w:pBdr")
+    bottom = OxmlElement("w:bottom")
+    bottom.set(qn("w:val"), "single")
+    bottom.set(qn("w:sz"), "12")
+    bottom.set(qn("w:space"), "1")
+    bottom.set(qn("w:color"), BLUE)
+    pBdr.append(bottom)
+    pPr.append(pBdr)
 
-    first = True
-    for item in contact_items:
-        if not item["label"]:
-            continue
-        p = right.paragraphs[0] if first else right.add_paragraph()
-        first = False
-        _spacing(p, before=0, after=2)
-        _font(p.add_run(item["label"]), size=9, color="FFFFFF")
+    # Contact line — items joined by  ·  separator; URLs become real hyperlinks
+    if contact_items:
+        p_contact = doc.add_paragraph()
+        _spacing(p_contact, before=3, after=0)
+        first = True
+        for item in contact_items:
+            if not item["label"]:
+                continue
+            if not first:
+                sep = p_contact.add_run("  ·  ")
+                _font(sep, size=9, color=GREY)
+            first = False
+            if item.get("url"):
+                _add_hyperlink(p_contact, item["label"], item["url"], size=9, color=GREY)
+            else:
+                run = p_contact.add_run(item["label"])
+                _font(run, size=9, color=GREY)
 
 
 def _summary_box(doc, text: str):
@@ -350,35 +391,48 @@ def _summary_box(doc, text: str):
     _no_cell_borders(cell)
 
     p = cell.paragraphs[0]
-    _spacing(p, before=0, after=0)
+    _spacing(p, before=6, after=0)
     _inline_runs(p, text, size=10, color=DARK)
 
 
 def _section_heading(doc, text: str):
     p = doc.add_paragraph()
-    _spacing(p, before=8, after=2)
+    _spacing(p, before=10, after=2)
     _font(p.add_run(text.upper()), size=11, bold=True, color=BLUE)
     _hrule(doc)
 
 
 def _role_header(doc, title: str, company: str, dates: str):
-    p = doc.add_paragraph()
-    _spacing(p, before=6, after=1)
-    p.paragraph_format.tab_stops.add_tab_stop(Inches(6.5), WD_ALIGN_PARAGRAPH.RIGHT)
     if company:
-        _font(p.add_run(company), size=11, bold=True)
-        _font(p.add_run("  |  "), size=11, bold=False)
-    _font(p.add_run(title), size=11, italic=bool(company), bold=not bool(company))
-    if dates:
-        _font(p.add_run(f"\t{dates}"), size=9, color=GREY)
+        # Line 1: Company (bold) + right-tab + dates (grey)
+        p1 = doc.add_paragraph()
+        _spacing(p1, before=8, after=0)
+        p1.paragraph_format.tab_stops.add_tab_stop(Inches(6.5), WD_ALIGN_PARAGRAPH.RIGHT)
+        _font(p1.add_run(company), size=11, bold=True, color=DARK)
+        if dates:
+            _font(p1.add_run(f"\t{dates}"), size=9, color=GREY)
+        # Line 2: Title (italic, slightly indented)
+        p2 = doc.add_paragraph()
+        _spacing(p2, before=0, after=2)
+        p2.paragraph_format.left_indent = Inches(0.1)
+        _font(p2.add_run(title), size=10, italic=True, color=DARK)
+    else:
+        p = doc.add_paragraph()
+        _spacing(p, before=6, after=1)
+        p.paragraph_format.tab_stops.add_tab_stop(Inches(6.5), WD_ALIGN_PARAGRAPH.RIGHT)
+        _font(p.add_run(title), size=11, bold=True, color=DARK)
+        if dates:
+            _font(p.add_run(f"\t{dates}"), size=9, color=GREY)
 
 
 def _bullet(doc, text: str):
-    p = doc.add_paragraph(style="List Bullet")
-    _spacing(p, before=1, after=1, line=12)
-    p.paragraph_format.left_indent = Inches(0.2)
-    p.paragraph_format.first_line_indent = Inches(-0.15)
-    _inline_runs(p, text, size=9.5)
+    p = doc.add_paragraph()
+    _spacing(p, before=1.5, after=1.5, line=13)
+    p.paragraph_format.left_indent = Inches(0.25)
+    p.paragraph_format.first_line_indent = Inches(-0.18)
+    bullet_run = p.add_run("•  ")
+    _font(bullet_run, size=10, color=BLUE)
+    _inline_runs(p, text, size=10)
 
 
 def _skills_table(doc, pairs: list[tuple[str, str]]):
@@ -412,11 +466,11 @@ def _skills_table(doc, pairs: list[tuple[str, str]]):
 
         lp = row.cells[0].paragraphs[0]
         _spacing(lp, before=1, after=1)
-        _font(lp.add_run(f"{label}:"), size=9.5, bold=True)
+        _font(lp.add_run(f"{label}:"), size=10, bold=True)
 
         vp = row.cells[1].paragraphs[0]
         _spacing(vp, before=1, after=1)
-        _font(vp.add_run(value), size=9.5)
+        _font(vp.add_run(value), size=10)
 
 
 # ─── Main builder ─────────────────────────────────────────────────────────────
@@ -441,7 +495,7 @@ def markdown_to_docx(md_text: str, output_path: str) -> None:
     first_role   = next((c for t, c in blocks if t == "role"),    None)
     subtitle     = parse_role_line(first_role)[0] if first_role else ""
 
-    _header_table(doc, name, subtitle, contact_items)
+    _header_block(doc, name, subtitle, contact_items)
 
     # Find where body starts (skip name/contact/blank/hr preamble)
     i = 0
@@ -504,7 +558,7 @@ def markdown_to_docx(md_text: str, output_path: str) -> None:
             italic_override = btype == "italic"
             for rd in _parse_inline_runs(content):
                 run = p.add_run(rd["text"])
-                _font(run, size=9.5, bold=rd["bold"],
+                _font(run, size=10, bold=rd["bold"],
                       italic=rd["italic"] or italic_override)
             continue
 
@@ -587,14 +641,8 @@ def _upload_artifact_to_storage(job_id: str, file_path: str, company: str, title
         sb = create_client(SUPABASE_URL, SUPABASE_KEY)
 
         # Get current user ID for multi-tenant isolation
-        user_id = "shared"
-        creds_file = Path.home() / ".artemis" / "credentials.json"
-        if creds_file.exists():
-            try:
-                creds = json.loads(creds_file.read_text())
-                user_id = creds.get("user_id", "shared")
-            except (json.JSONDecodeError, OSError):
-                pass
+        from tools.db_modules.client import get_current_user_id
+        user_id = get_current_user_id() or "shared"
 
         # Build storage path: artifacts/users/{user_id}/applications/{job-slug}/{filename}
         slug = f"{company}-{title}".lower()

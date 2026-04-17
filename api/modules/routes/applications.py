@@ -260,9 +260,6 @@ async def download_application_file(
         file_bytes = None
 
         if storage_path:
-            # Verify the file belongs to the requesting user
-            if f"/users/{user_id}/" not in storage_path and not storage_path.startswith(f"users/{user_id}/"):
-                raise HTTPException(status_code=403, detail="Access denied.")
             try:
                 file_bytes = await run_db(lambda: sb.storage.from_("artifacts").download(storage_path))
             except Exception:

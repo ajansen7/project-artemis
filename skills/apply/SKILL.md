@@ -37,7 +37,7 @@ Deep analysis of a specific job posting against the candidate's profile.
    - **Recommendation**: apply / skip / worth exploring
 4. Save analysis to `analysis.md`
 5. Update job: `artemis-db update-job --id "<job_id>" --match-score <score> --analysis-file "analysis.md"`
-6. **Log activity:**
+6. **Log activity** (non-critical — skip silently if it fails):
    ```bash
    artemis-db add-engagement --action-type "analyze" --platform "artemis" --status "posted" --content "Analyzed [Company] [Role]: fit [score]/100. Rec: [apply/skip/explore]"
    ```
@@ -92,11 +92,11 @@ artemis-db save-application \
   --form-fills "output/applications/.../form_fills.md"
 ```
 
-6. Generate PDF: `artemis-resume --job-id "<job_id>"`
+6. Generate PDF: `artemis-resume --job-id "<job_id>"`. Or run `/review-resume <job_id>` first for a collaborative editing pass before the final PDF is made.
 
 7. Open folder: `open "output/applications/<company_name>-<role_name>/"`
 
-8. **Log activity:**
+8. **Log activity** (non-critical — skip silently if it fails):
    ```bash
    artemis-db add-engagement --action-type "generate" --platform "artemis" --status "posted" --content "Generated materials for [Company] [Role]: resume, cover letter, primer, form fills"
    ```
@@ -135,10 +135,28 @@ Nightly automation: find every job in `to_review` status that has no application
 - If there are no `to_review` jobs without materials, send a short Telegram message: "Nightly materials run: nothing to generate."
 - Do not ask for approval before generating — this is an automated run. Generate for all eligible jobs.
 - If a single job fails, log it and continue with the rest. Don't abort the whole batch.
-- After the batch completes, **log activity:**
+- After the batch completes, **log activity** (non-critical — skip silently if it fails):
   ```bash
   artemis-db add-engagement --action-type "generate-pending" --platform "artemis" --status "posted" --content "Batch generate: N to_review found, N skipped (had materials), N generated, N failed"
   ```
+
+---
+
+### `/review-resume <job_id>` — Review & Refine Resume
+
+Collaborative editing pass before the final PDF is generated.
+
+**Steps:**
+1. Get job context: `artemis-db get-job --id "<job_id>"`
+2. Read and display the full resume markdown from `output/applications/<slug>/resume.md`
+3. Ask the user: "Any issues? (artifacts, wording, bullets to swap, sections to cut)"
+4. Work through edits collaboratively — use the Edit tool to fix the file directly
+5. Once the user is satisfied, save the updated markdown back to DB:
+   ```bash
+   artemis-db save-application --id "<job_id>" --resume "output/applications/<slug>/resume.md"
+   ```
+6. Regenerate the PDF: `artemis-resume --job-id "<job_id>"`
+7. Open the folder: `open "output/applications/<slug>/"`
 
 ---
 
@@ -148,7 +166,7 @@ Mark a job as submitted in the pipeline.
 
 **Steps:**
 1. Run: `artemis-db mark-submitted --id "<job_id>"`
-2. **Log activity:**
+2. **Log activity** (non-critical — skip silently if it fails):
    ```bash
    artemis-db add-engagement --action-type "submit" --platform "artemis" --status "posted" --content "Submitted [Company] [Role]"
    ```

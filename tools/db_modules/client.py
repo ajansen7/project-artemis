@@ -78,11 +78,16 @@ def get_client():
     if creds.get("access_token"):
         # User is signed in — use JWT with automatic refresh
         creds = _refresh_token_if_needed(creds)
-        if creds.get("access_token"):
+        # Only use user JWT if the token is still valid after refresh attempt.
+        # If refresh failed (rotated/expired refresh token), fall through to service role.
+        if creds.get("access_token") and not _is_token_expired(creds.get("expires_at", 0)):
             sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+            # Don't pass refresh_token — _refresh_token_if_needed already handled rotation.
+            # Passing it here causes set_session to attempt another refresh, which fails
+            # with 400 if the token was already rotated by another session.
             sb.auth.set_session(
                 access_token=creds["access_token"],
-                refresh_token=creds.get("refresh_token"),
+                refresh_token=None,
             )
             return sb
 
