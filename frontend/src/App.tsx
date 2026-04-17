@@ -15,12 +15,13 @@ import { TasksPanel } from './components/TasksPanel';
 import { LoginPage } from './components/LoginPage';
 import { PendingApproval } from './components/PendingApproval';
 import { AdminPanel } from './components/AdminPanel';
+import { TerminalPanel } from './components/TerminalPanel';
 import { useProfile } from './hooks/useProfile';
 import { initAuth, onAuthStateChange, syncFromServerSession } from './lib/supabase';
 
-type View = 'pipeline' | 'networking' | 'engagement' | 'blog' | 'schedules' | 'admin';
+type View = 'pipeline' | 'networking' | 'engagement' | 'blog' | 'schedules' | 'admin' | 'terminal';
 
-const VALID_VIEWS: View[] = ['pipeline', 'networking', 'engagement', 'blog', 'schedules', 'admin'];
+const VALID_VIEWS: View[] = ['pipeline', 'networking', 'engagement', 'blog', 'schedules', 'admin', 'terminal'];
 
 function readLocalStorage<T>(key: string, fallback: T, valid?: T[]): T {
   try {
@@ -190,6 +191,14 @@ function App() {
                 Users
               </button>
             )}
+            {profile?.role === 'admin' && (
+              <button
+                className={`view-tab ${view === 'terminal' ? 'active' : ''}`}
+                onClick={() => setView('terminal')}
+              >
+                Terminal
+              </button>
+            )}
           </div>
 
           {view === 'pipeline' ? (
@@ -218,6 +227,8 @@ function App() {
             <EngagementPanel />
           ) : view === 'blog' ? (
             <BlogPanel />
+          ) : view === 'terminal' ? (
+            <TerminalPanel />
           ) : view === 'admin' ? (
             <AdminPanel />
           ) : (
