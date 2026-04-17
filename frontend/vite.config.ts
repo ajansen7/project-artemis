@@ -6,10 +6,16 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
+      '/api/terminal': {
+        target: 'ws://localhost:8000',
+        ws: true,
+      },
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
       },
     },
+    // Allow connections from nginx proxy (external Host headers)
+    allowedHosts: 'all',
   },
 })
