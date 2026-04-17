@@ -152,3 +152,28 @@ fi
 echo ""
 echo "Attach to tmux:  tmux attach -t $SESSION"
 echo "Stop everything: ./scripts/stop.sh"
+
+# ─── Nginx status ────────────────────────────────────────────────
+
+if command -v nginx &>/dev/null && (sudo nginx -t 2>/dev/null); then
+  # Check if artemis config is installed
+  NGINX_CONF_INSTALLED=false
+  for d in /usr/local/etc/nginx/servers /opt/homebrew/etc/nginx/servers /etc/nginx/sites-enabled; do
+    [ -f "$d/artemis.conf" ] && NGINX_CONF_INSTALLED=true && break
+  done
+
+  if [ "$NGINX_CONF_INSTALLED" = true ]; then
+    # Ensure nginx is running
+    if ! pgrep -x nginx &>/dev/null; then
+      sudo nginx 2>/dev/null || sudo systemctl start nginx 2>/dev/null || true
+      echo "  [nginx] started"
+    else
+      sudo nginx -s reload 2>/dev/null || true
+      echo "  [nginx] reloaded"
+    fi
+    echo ""
+    echo "HTTPS access (via nginx):"
+    echo "  Local:   https://localhost"
+    [ -n "$LOCAL_IP" ] && echo "  Network: https://$LOCAL_IP"
+  fi
+fi

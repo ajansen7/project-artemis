@@ -71,3 +71,11 @@ else
   echo "Service windows stopped. The '$SESSION' tmux session is still alive."
   echo "To kill everything: ./scripts/stop.sh --kill"
 fi
+
+# ─── Nginx note ───────────────────────────────────────────────────
+
+if pgrep -x nginx &>/dev/null; then
+  echo ""
+  echo "Note: nginx is still running (shared service, not stopped automatically)."
+  echo "  To stop: sudo nginx -s stop"
+fi
