@@ -86,3 +86,6 @@ artemis-personal-*.tar.gz
 
 # nginx SSL certs (self-signed, machine-specific)
 nginx/ssl/
+
+# Git worktrees for isolated feature work
+.worktrees/
