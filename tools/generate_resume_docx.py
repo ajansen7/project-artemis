@@ -632,37 +632,39 @@ def fetch_resume_md_from_db(job_id: str) -> tuple[str, str, str]:
     return app_res.data[0]["resume_md"], company, title
 
 
-def _upload_artifact_to_storage(job_id: str, file_path: str, company: str, title: str) -> str | None:
-    """Upload a generated artifact to Supabase Storage. Returns storage URL or None."""
-    try:
-        import json
-        import re
-        from supabase import create_client
-        sb = create_client(SUPABASE_URL, SUPABASE_KEY)
+def _upload_artifact_to_storage(job_id: str, file_path: str, company: str, title: str) -> str:
+    """Upload a generated artifact to Supabase Storage, overwriting any existing
+    object at the same path. Returns the storage bucket path on success.
+    Raises on failure — callers decide whether to propagate or log."""
+    import re
+    from supabase import create_client
+    sb = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-        # Get current user ID for multi-tenant isolation
-        from tools.db_modules.client import get_current_user_id
-        user_id = get_current_user_id() or "shared"
+    from tools.db_modules.client import get_current_user_id
+    user_id = get_current_user_id() or "shared"
 
-        # Build storage path: artifacts/users/{user_id}/applications/{job-slug}/{filename}
-        slug = f"{company}-{title}".lower()
-        slug = re.sub(r"[^a-z0-9-]", "-", slug)[:50].strip("-")
-        filename = Path(file_path).name
-        storage_path = f"artifacts/users/{user_id}/applications/{slug}/{filename}"
+    slug = f"{company}-{title}".lower()
+    slug = re.sub(r"[^a-z0-9-]", "-", slug)[:50].strip("-")
+    filename = Path(file_path).name
+    storage_path = f"artifacts/users/{user_id}/applications/{slug}/{filename}"
 
-        with open(file_path, "rb") as f:
-            file_bytes = f.read()
+    with open(file_path, "rb") as f:
+        file_bytes = f.read()
 
-        sb.storage.from_("artifacts").upload(storage_path, file_bytes)
-        # Return the storage bucket path (not the full URL, just the path in the bucket)
-        return storage_path
-    except Exception as e:
-        print(f"⚠️  Could not upload {file_path} to storage: {e}", file=sys.stderr)
-        return None
+    # upsert=true replaces any existing object at this path. Without it, a second
+    # call for the same resume raises 409 and the DB points at the stale object.
+    sb.storage.from_("artifacts").upload(
+        storage_path,
+        file_bytes,
+        file_options={"upsert": "true"},
+    )
+    return storage_path
 
 
 def update_pdf_path_in_db(job_id: str, pdf_path: str, docx_path: str = None, company: str = "", title: str = "") -> None:
-    """Update DB with local paths and storage paths for generated artifacts."""
+    """Upload PDF (and DOCX, if present) to Storage and update the applications
+    row to point at the newly-uploaded paths. Raises on any upload or DB failure
+    — the caller (CLI or API) decides how to surface it."""
     try:
         relative_pdf = str(Path(pdf_path).relative_to(PROJECT_ROOT))
     except ValueError:
@@ -673,27 +675,18 @@ def update_pdf_path_in_db(job_id: str, pdf_path: str, docx_path: str = None, com
 
     update_data = {"resume_pdf_path": relative_pdf}
 
-    # Upload PDF to storage
     pdf_storage_path = _upload_artifact_to_storage(job_id, pdf_path, company, title)
-    if pdf_storage_path:
-        update_data["resume_pdf_path_storage"] = pdf_storage_path
+    update_data["resume_pdf_path_storage"] = pdf_storage_path
 
-    # Upload DOCX to storage if provided
     if docx_path and Path(docx_path).exists():
-        try:
-            relative_docx = str(Path(docx_path).relative_to(PROJECT_ROOT))
-        except ValueError:
-            relative_docx = docx_path
-
         docx_storage_path = _upload_artifact_to_storage(job_id, docx_path, company, title)
-        if docx_storage_path:
-            update_data["resume_docx_path"] = docx_storage_path
+        update_data["resume_docx_path"] = docx_storage_path
 
     res = sb.table("applications").update(update_data).eq("job_id", job_id).execute()
     if res.data:
         print(f"✅ Saved artifact paths to DB for job {job_id}")
     else:
-        print(f"⚠️  Could not update artifact paths in DB for job {job_id}")
+        raise RuntimeError(f"applications row not found or not updated for job {job_id}")
 
 
 def _safe_dirname(s: str) -> str:

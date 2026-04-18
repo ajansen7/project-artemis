@@ -24,5 +24,10 @@ dependencies = [
     "playwright>=1.58.0",
 ]
 
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]
+
 # No build system — this is a Claude Code skill, not a Python package.
 # Use `uv run` to execute scripts; `uv add` to add dependencies.
