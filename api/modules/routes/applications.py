@@ -85,7 +85,13 @@ async def generate_pdf(req: GeneratePdfRequest):
                 raise HTTPException(status_code=400, detail="No resume found for this job. Generate application materials first.")
             if "not found" in stderr.lower() and "job" in stderr.lower():
                 raise HTTPException(status_code=404, detail="Job not found in database.")
-            raise HTTPException(status_code=500, detail=f"PDF generation failed: {stderr.strip().splitlines()[-1] if stderr.strip() else 'unknown error'}")
+            # Surface the real tail of stderr so upload/upsert failures are visible
+            # (post-upsert-fix, a failed Storage upload now raises from the subprocess).
+            tail = stderr.strip().splitlines()[-3:] if stderr.strip() else ["unknown error"]
+            raise HTTPException(
+                status_code=500,
+                detail=f"PDF generation failed: {' | '.join(tail)}",
+            )
 
         pdf_path = None
         for line in stdout.splitlines():
