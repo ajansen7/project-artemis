@@ -661,17 +661,17 @@ button {
 }
 
 @media (max-width: 640px) {
+  .app-body {
+    padding: var(--gap-md);
+    gap: var(--gap-md);
+  }
   .view-tabs {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    flex-wrap: nowrap;
     gap: 0;
+    scroll-padding-right: var(--gap-md);
   }
   .view-tab {
     padding: 8px 12px;
     font-size: 0.8rem;
-    white-space: nowrap;
-    flex-shrink: 0;
   }
   .job-table-header,
   .job-row {
@@ -809,7 +809,11 @@ button {
   gap: var(--gap-xs);
   margin-bottom: var(--gap-lg);
   border-bottom: 1px solid var(--border);
-  padding-bottom: 0;
+  padding-bottom: 1px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  flex-wrap: nowrap;
 }
 
 .view-tab {
@@ -824,6 +828,8 @@ button {
   transition: all var(--transition);
   position: relative;
   bottom: -1px;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .view-tab:hover {

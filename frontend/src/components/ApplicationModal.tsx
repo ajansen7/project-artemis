@@ -333,6 +333,10 @@ export function ApplicationModal({ isOpen, onClose, job, onGenerationComplete, o
           borderBottom: '1px solid var(--border)',
           padding: '0 1.25rem',
           alignItems: 'center',
+          overflowX: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          scrollbarWidth: 'thin',
+          flexWrap: 'nowrap',
         }}>
           {(['resume', 'cover_letter', 'form_fills', 'primer'] as Tab[]).map(tab => (
             <button
@@ -350,6 +354,8 @@ export function ApplicationModal({ isOpen, onClose, job, onGenerationComplete, o
                 cursor: 'pointer',
                 fontWeight: activeTab === tab ? 600 : 400,
                 marginBottom: -1,
+                flexShrink: 0,
+                whiteSpace: 'nowrap',
               }}
             >
               {TAB_LABELS[tab]}
@@ -358,7 +364,7 @@ export function ApplicationModal({ isOpen, onClose, job, onGenerationComplete, o
 
           {/* Edit/save/download controls aligned to the right */}
           {tabHasContent(activeTab) && (
-            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, paddingLeft: 8 }}>
               {isEditableTab && (
                 <>
                   <button
