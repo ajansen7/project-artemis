@@ -179,6 +179,43 @@ def get_job(args):
         print(f"  {json.dumps(job['gap_analysis_json'], indent=2)}")
 
 
+def get_application(args):
+    """Print the application bundle (resume_md, cover_letter_md, primer_md,
+    form_fills_md, analysis_md when present) for a given job_id as JSON.
+
+    Used by the /redraft-resume skill so Claude can re-draft the resume
+    without re-fetching the original job posting."""
+    sb = get_client()
+    user_id = get_current_user_id()
+
+    query = sb.table("applications").select(
+        "job_id, resume_md, cover_letter_md, primer_md, form_fills_md, "
+        "resume_pdf_path, resume_pdf_path_storage, resume_docx_path, "
+        "updated_at"
+    ).eq("job_id", args.id)
+    if user_id:
+        query = query.eq("user_id", user_id)
+    result = query.execute()
+
+    if not result.data:
+        print(f"❌ No application found for job {args.id}")
+        return
+
+    app = result.data[0]
+
+    # Pull gap analysis + job metadata from the jobs row for convenience.
+    job_query = sb.table("jobs").select("gap_analysis_json, title, companies(name)").eq("id", args.id)
+    if user_id:
+        job_query = job_query.eq("user_id", user_id)
+    job = job_query.execute()
+    if job.data:
+        app["gap_analysis_json"] = job.data[0].get("gap_analysis_json")
+        app["title"] = job.data[0].get("title")
+        app["company"] = (job.data[0].get("companies") or {}).get("name")
+
+    print(json.dumps(app, indent=2, default=str))
+
+
 def save_application(args):
     """Save generated application materials into the applications table."""
     sb = get_client()

@@ -15,7 +15,7 @@ def _run_state_sync(flag):
         cwd=str(project_root),
     )
 
-from db_modules.jobs import add_job, list_jobs, update_job, get_job, save_application, mark_submitted, score_job, merge_jobs, find_job
+from db_modules.jobs import add_job, list_jobs, update_job, get_job, save_application, get_application, mark_submitted, score_job, merge_jobs, find_job
 from db_modules.companies import add_company, list_companies
 from db_modules.contacts import batch_add_contacts, find_contact, update_contact
 from db_modules.batch import batch_update, batch_add
@@ -128,6 +128,11 @@ def main():
     p.add_argument("--message", default=None, help="Replace outreach_message_md field")
     p.add_argument("--last-contacted", default=None, help="ISO timestamp of last contact")
     p.set_defaults(func=update_contact)
+
+    # get-application
+    p = subparsers.add_parser("get-application", help="Fetch the application bundle for a job (resume/cover/primer/form_fills as JSON)")
+    p.add_argument("--id", required=True, help="Job UUID")
+    p.set_defaults(func=get_application)
 
     # save-application
     p = subparsers.add_parser("save-application", help="Save application materials to DB")
