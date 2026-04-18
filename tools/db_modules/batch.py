@@ -3,7 +3,7 @@
 import json
 import sys
 
-from db_modules.client import get_client
+from db_modules.client import get_client, get_current_user_id
 from db_modules.helpers import _ensure_company
 
 
@@ -76,6 +76,7 @@ def batch_add(args):
     ]
     """
     sb = get_client()
+    user_id = get_current_user_id()
     raw = sys.stdin.read().strip()
     if not raw:
         print("ERROR: No JSON provided on stdin")
@@ -136,6 +137,8 @@ def batch_add(args):
         }
         if company_id:
             data["company_id"] = company_id
+        if user_id:
+            data["user_id"] = user_id
         if "match_score" in item:
             data["match_score"] = max(0, min(100, int(item["match_score"])))
 

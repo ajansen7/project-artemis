@@ -87,7 +87,7 @@ def get_client():
             # with 400 if the token was already rotated by another session.
             sb.auth.set_session(
                 access_token=creds["access_token"],
-                refresh_token=None,
+                refresh_token=creds.get("refresh_token", ""),
             )
             return sb
 

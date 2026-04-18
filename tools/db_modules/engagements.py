@@ -2,17 +2,20 @@
 
 from datetime import datetime, timezone
 
-from db_modules.client import get_client
+from db_modules.client import get_client, get_current_user_id
 
 
 def add_engagement(args):
     """Add an engagement action (LinkedIn like/comment, blog post, etc.)."""
     sb = get_client()
+    user_id = get_current_user_id()
     data = {
         "platform": args.platform or "linkedin",
         "action_type": args.action_type,
         "status": args.status or "drafted",
     }
+    if user_id:
+        data["user_id"] = user_id
     if args.target_url:
         data["target_url"] = args.target_url
     if args.target_person:
