@@ -25,6 +25,7 @@ import subprocess
 import termios
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from starlette.websockets import WebSocketState
 
 from api.modules.config import get_user_profile, logger
 
@@ -100,7 +101,6 @@ def _spawn_tmux_pty() -> tuple[int, int]:
 
         os.execvp(TMUX_BIN, [
             TMUX_BIN, "attach-session",
-            "-d",  # Detach other clients to prevent doubled I/O
             "-t", f"{TMUX_SESSION}:{TMUX_WINDOW}",
         ])
     else:
@@ -162,8 +162,10 @@ async def terminal_websocket(ws: WebSocket):
                 data = await loop.run_in_executor(None, os.read, master_fd, 4096)
                 if not data:
                     break
+                if ws.application_state != WebSocketState.CONNECTED:
+                    break
                 await ws.send_bytes(data)
-        except (OSError, WebSocketDisconnect):
+        except (OSError, WebSocketDisconnect, RuntimeError):
             pass
 
     async def ws_to_pty():
@@ -192,9 +194,16 @@ async def terminal_websocket(ws: WebSocket):
         except (WebSocketDisconnect, Exception):
             pass
 
-    # Run both directions concurrently
+    # Run both directions concurrently; when either exits, cancel the other
+    pty_task = asyncio.create_task(pty_to_ws())
+    ws_task = asyncio.create_task(ws_to_pty())
     try:
-        await asyncio.gather(pty_to_ws(), ws_to_pty())
+        _, pending = await asyncio.wait(
+            {pty_task, ws_task}, return_when=asyncio.FIRST_COMPLETED
+        )
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
     finally:
         # Cleanup: close pty and kill child process
         try:

@@ -20,13 +20,29 @@ export function useTerminal({ containerRef }: UseTerminalOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const disposablesRef = useRef<{ dispose: () => void }[]>([]);
+  // Monotonic generation id — every connect/disconnect bumps it so a
+  // concurrent connect (e.g. from StrictMode's double-mount) can detect
+  // that it has been superseded after its awaits resume.
+  const genRef = useRef(0);
 
   const connect = useCallback(async () => {
     const container = containerRef.current;
     if (!container) return;
 
+    // Already connecting or connected? Skip.
+    if (
+      wsRef.current &&
+      (wsRef.current.readyState === WebSocket.CONNECTING ||
+        wsRef.current.readyState === WebSocket.OPEN)
+    ) {
+      return;
+    }
+
+    const myGen = ++genRef.current;
+
     // Get auth token
     const { data: { session } } = await supabase.auth.getSession();
+    if (myGen !== genRef.current) return; // superseded by disconnect/reconnect
     if (!session?.access_token) {
       setError('Not authenticated');
       setStatus('error');
@@ -136,6 +152,7 @@ export function useTerminal({ containerRef }: UseTerminalOptions) {
   }, [containerRef]);
 
   const disconnect = useCallback(() => {
+    genRef.current++;
     if (reconnectTimer.current) {
       clearTimeout(reconnectTimer.current);
       reconnectTimer.current = null;
