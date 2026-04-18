@@ -27,6 +27,15 @@ export function ApplicationModal({ isOpen, onClose, job, onGenerationComplete, o
   const [generatingTaskId, setGeneratingTaskId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const [mode, setMode] = useState<'preview' | 'edit'>('preview');
+  const [editContent, setEditContent] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [regeneratingPdf, setRegeneratingPdf] = useState(false);
+  const [teachingFromEdit, setTeachingFromEdit] = useState(false);
+  const [redrafting, setRedrafting] = useState(false);
+  const [redraftTaskId, setRedraftTaskId] = useState<string | null>(null);
+  const [redraftNoteOpen, setRedraftNoteOpen] = useState(false);
+  const [redraftNote, setRedraftNote] = useState('');
 
   useTaskPoller(
     generatingTaskId,
@@ -42,11 +51,22 @@ export function ApplicationModal({ isOpen, onClose, job, onGenerationComplete, o
       setStatusMsg('❌ Generation failed. Check tmux session for details: tmux attach -t artemis');
     },
   );
-  const [mode, setMode] = useState<'preview' | 'edit'>('preview');
-  const [editContent, setEditContent] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [regeneratingPdf, setRegeneratingPdf] = useState(false);
-  const [teachingFromEdit, setTeachingFromEdit] = useState(false);
+  useTaskPoller(
+    redraftTaskId,
+    () => {
+      setRedrafting(false);
+      setRedraftTaskId(null);
+      setRedraftNote('');
+      setRedraftNoteOpen(false);
+      setStatusMsg('✅ Resume re-drafted and PDF regenerated.');
+      setTimeout(onGenerationComplete, 500);
+    },
+    () => {
+      setRedrafting(false);
+      setRedraftTaskId(null);
+      setStatusMsg('❌ Re-draft failed. Check tmux: tmux attach -t artemis');
+    },
+  );
 
   const app = job.applications?.[0] as any;
   const hasResume = !!app?.resume_md;
@@ -104,6 +124,26 @@ export function ApplicationModal({ isOpen, onClose, job, onGenerationComplete, o
       setStatusMsg(`❌ ${err.message}`);
     } finally {
       setRegeneratingPdf(false);
+    }
+  };
+
+  const handleRedraftResume = async () => {
+    setRedrafting(true);
+    setStatusMsg('Re-drafting resume… watch the task panel for progress.');
+    try {
+      const res = await fetchWithAuth(`${API_BASE}/api/redraft-resume`, {
+        method: 'POST',
+        body: JSON.stringify({
+          job_id: job.id,
+          note: redraftNote.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to start re-draft');
+      setRedraftTaskId(data.task_id);
+    } catch (err: any) {
+      setRedrafting(false);
+      setStatusMsg(`❌ ${err.message}`);
     }
   };
 
@@ -250,7 +290,7 @@ export function ApplicationModal({ isOpen, onClose, job, onGenerationComplete, o
               className="action-btn"
               style={{ backgroundColor: 'var(--primary)', color: 'white' }}
               onClick={handleGenerate}
-              disabled={generating}
+              disabled={generating || redrafting}
             >
               {generating ? '✨ Generating...' : hasResume ? '🔄 Re-generate' : '✨ Generate Application'}
             </button>
@@ -348,9 +388,19 @@ export function ApplicationModal({ isOpen, onClose, job, onGenerationComplete, o
                       className="action-btn"
                       style={{ padding: '0.3rem 0.7rem', fontSize: '0.8rem', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
                       onClick={handleRegeneratePdf}
-                      disabled={regeneratingPdf}
+                      disabled={regeneratingPdf || redrafting}
                     >
                       {regeneratingPdf ? 'Generating…' : '📄 Regen PDF'}
+                    </button>
+                  )}
+                  {activeTab === 'resume' && hasResume && mode === 'preview' && (
+                    <button
+                      className="action-btn"
+                      style={{ padding: '0.3rem 0.7rem', fontSize: '0.8rem', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
+                      onClick={() => setRedraftNoteOpen(v => !v)}
+                      disabled={redrafting}
+                    >
+                      {redrafting ? 'Re-drafting…' : '✨ Re-draft Resume'}
                     </button>
                   )}
                 </>
@@ -394,6 +444,48 @@ export function ApplicationModal({ isOpen, onClose, job, onGenerationComplete, o
             </div>
           )}
         </div>
+
+        {redraftNoteOpen && activeTab === 'resume' && mode === 'preview' && (
+          <div style={{ padding: '0.5rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', borderBottom: '1px solid var(--border)' }}>
+            <textarea
+              value={redraftNote}
+              onChange={(e) => setRedraftNote(e.target.value)}
+              placeholder="Optional: any steering notes? (e.g., 'lean more into AI eval work')"
+              rows={2}
+              disabled={redrafting}
+              style={{
+                width: '100%',
+                padding: '0.5rem',
+                fontSize: '0.85rem',
+                backgroundColor: 'var(--bg-elevated)',
+                color: 'var(--text-primary)',
+                border: '1px solid var(--border, #333)',
+                borderRadius: '4px',
+                fontFamily: 'inherit',
+                resize: 'vertical',
+                boxSizing: 'border-box',
+              }}
+            />
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+              <button
+                className="action-btn"
+                style={{ padding: '0.3rem 0.7rem', fontSize: '0.8rem' }}
+                onClick={() => { setRedraftNoteOpen(false); setRedraftNote(''); }}
+                disabled={redrafting}
+              >
+                Cancel
+              </button>
+              <button
+                className="action-btn"
+                style={{ padding: '0.3rem 0.7rem', fontSize: '0.8rem', backgroundColor: 'var(--accent, #4a90e2)', color: 'white' }}
+                onClick={handleRedraftResume}
+                disabled={redrafting}
+              >
+                {redrafting ? 'Sending…' : 'Send'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Body */}
         <div
