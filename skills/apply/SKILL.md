@@ -58,7 +58,15 @@ Generate a tailored resume, cover letter, primer, and form-fill cheat sheet.
 3. Create directory `output/applications/<company_name>-<role_name>/`
 4. Generate and save **four** markdown files:
 
-**`resume.md`**: Select and reorder bullets from `resume_master.md` to match JD priorities. **Do NOT rewrite or invent bullet points** — only use verbatim content. May omit less-relevant bullets. Use the header from `resume_master.md` (name, contact info, links), followed by a 2-4 sentence about paragraph tailored to this specific role and company.
+**`resume.md`**: Select and reorder bullets from `resume_master.md` to match JD priorities. **Do NOT rewrite or invent bullet points** — only use verbatim content. May omit less-relevant bullets. Use the header from `resume_master.md` (name, contact info, links), followed by a 2-4 sentence about paragraph tailored to this specific role and company. **Do NOT prefix that paragraph with a `## About` header** — write the paragraph alone between the contact line and the first `## Experience` section. The renderer treats it as the summary.
+
+**Formatting rules (non-negotiable — the DOCX/PDF renderer assumes them):**
+- **Strip `[tag]` markers.** Every bullet in `resume_master.md` ends with tailoring tags like `[AI]`, `[scale]`, `[0to1]`, `[ops]`, `[eng]`, `[research]`. These exist only to help you pick bullets — they must NEVER appear in `resume.md`. Remove every trailing `[tag]` (and any consecutive `[tag] [tag]` run) when you copy a bullet across. Double-check the file before saving: a single stray `[ops]` leaks into the final PDF.
+- **Preserve sub-role headers verbatim, bold and all.** Lines like `**AI Evaluation Infrastructure & Platform** *(parallel role across all Smartsheet AI teams)*` must stay bolded with `**…**` exactly as in `resume_master.md`. Every sub-role header in the output must start with `**…**` — never emit a plain-text sub-role line next to a bold one. If you omit a sub-role entirely, also omit every bullet underneath it; don't leave orphaned bullets below a missing header.
+- **Keep the bullet text clean.** No inline bolding of bullet fragments, no added em-dashes for emphasis, no trailing parentheticals that weren't in the master.
+- **No structural invention.** Don't add new section headers, don't introduce tables, don't restyle. The renderer only understands the block types already present in `resume_master.md` (`# name`, `## section`, `### role`, `**sub-role**`, `- bullet`, body paragraph).
+
+Before saving `resume.md`, grep yourself: search the draft for `[` — if any `[AI]`/`[scale]`/`[ops]`/etc. survived, strip it. Also scan every sub-role line under each `### role` block and confirm every one starts with `**`.
 
 **`cover_letter.md`**: Concise, authentic, in the candidate's voice. Use the candidate's name and contact info from `state/form_defaults.md` for the header. Address to: Hiring Team, [Company Name].
 

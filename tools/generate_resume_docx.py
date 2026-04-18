@@ -70,8 +70,11 @@ def parse_resume_md(md_text: str) -> list[tuple[str, str]]:
             t = "contact"
             content = re.sub(r"^\*\*Contact\*\*:\s*", "", line.strip())
             seen_contact = True
-        elif re.match(r"^\*\*[^*].+\*\*$", line.strip()):
-            t, content = "bold", line.strip()[2:-2]
+        elif re.match(r"^\*\*[^*]+\*\*", line.strip()):
+            # Sub-role header — may have trailing italic parenthetical or plain text.
+            # The leading **...** is always treated as bold in _sub_role, even if the
+            # inline parser wouldn't pick it up (e.g., whole-line bold like "**Foo**").
+            t, content = "subrole", line.strip()
         elif re.match(r"^\*[^*].+\*$", line.strip()):
             t, content = "italic", line.strip()[1:-1]
         else:
@@ -115,6 +118,12 @@ def parse_contact_items(contact_line: str) -> list[dict]:
         else:
             items.append({"label": part, "url": None})
     return items
+
+
+# Safety net: strips a trailing run of [tag] markers (e.g., "... automation [ops] [0to1]")
+# from resume bullets. The apply skill is responsible for never emitting these in the first
+# place — this is belt-and-suspenders for stale tailored resumes.
+_TRAILING_TAGS = re.compile(r"(?:\s*\[[A-Za-z0-9_-]+\])+\s*$")
 
 
 def _parse_inline_runs(text: str) -> list[dict]:
@@ -306,52 +315,26 @@ def _add_hyperlink(para, text: str, url: str, size: float = 9, color: str = GREY
     para._p.append(hyperlink)
 
 
-def _hrule(doc, color="BBBBBB"):
-    p = doc.add_paragraph()
-    _spacing(p, before=0, after=1)
-    pPr = p._p.get_or_add_pPr()
-    pBdr = OxmlElement("w:pBdr")
-    bottom = OxmlElement("w:bottom")
-    bottom.set(qn("w:val"), "single")
-    bottom.set(qn("w:sz"), "4")
-    bottom.set(qn("w:space"), "1")
-    bottom.set(qn("w:color"), color)
-    pBdr.append(bottom)
-    pPr.append(pBdr)
-
-
 # ─── Section builders ─────────────────────────────────────────────────────────
 
 def _header_block(doc, name: str, subtitle: str, contact_items: list[dict]):
-    """Clean prose header: name, subtitle, accent rule, contact line with hyperlinks."""
-    # Name
+    """Clean prose header: name, subtitle, contact line (with blue accent rule baked into its bottom border)."""
+    # Name — tight line-height so the subtitle sits directly below
     p_name = doc.add_paragraph()
-    _spacing(p_name, before=0, after=4)
+    _spacing(p_name, before=0, after=0, line=24)
     _font(p_name.add_run(name), size=22, bold=True, color=DARK)
 
-    # Subtitle (role/tagline)
+    # Subtitle (role/tagline) — pulled up under the name
     if subtitle:
         p_sub = doc.add_paragraph()
-        _spacing(p_sub, before=0, after=6)
+        _spacing(p_sub, before=0, after=2, line=13)
         _font(p_sub.add_run(subtitle), size=11, color=GREY)
 
-    # Accent rule (1.5pt blue bottom border)
-    p_rule = doc.add_paragraph()
-    _spacing(p_rule, before=0, after=3)
-    pPr = p_rule._p.get_or_add_pPr()
-    pBdr = OxmlElement("w:pBdr")
-    bottom = OxmlElement("w:bottom")
-    bottom.set(qn("w:val"), "single")
-    bottom.set(qn("w:sz"), "12")
-    bottom.set(qn("w:space"), "1")
-    bottom.set(qn("w:color"), BLUE)
-    pBdr.append(bottom)
-    pPr.append(pBdr)
-
-    # Contact line — items joined by  ·  separator; URLs become real hyperlinks
+    # Contact line — items joined by  ·  separator. Blue accent rule attached directly
+    # as this paragraph's bottom border so there's no empty-paragraph gap above the rule.
     if contact_items:
         p_contact = doc.add_paragraph()
-        _spacing(p_contact, before=3, after=0)
+        _spacing(p_contact, before=0, after=6, line=13)
         first = True
         for item in contact_items:
             if not item["label"]:
@@ -365,6 +348,16 @@ def _header_block(doc, name: str, subtitle: str, contact_items: list[dict]):
             else:
                 run = p_contact.add_run(item["label"])
                 _font(run, size=9, color=GREY)
+
+        pPr = p_contact._p.get_or_add_pPr()
+        pBdr = OxmlElement("w:pBdr")
+        bottom = OxmlElement("w:bottom")
+        bottom.set(qn("w:val"), "single")
+        bottom.set(qn("w:sz"), "12")
+        bottom.set(qn("w:space"), "2")
+        bottom.set(qn("w:color"), BLUE)
+        pBdr.append(bottom)
+        pPr.append(pBdr)
 
 
 def _summary_box(doc, text: str):
@@ -399,35 +392,69 @@ def _summary_box(doc, text: str):
 
 def _section_heading(doc, text: str):
     p = doc.add_paragraph()
-    _spacing(p, before=10, after=2)
+    _spacing(p, before=10, after=3, line=13)
     _font(p.add_run(text.upper()), size=11, bold=True, color=BLUE)
-    _hrule(doc)
+    # Rule rendered as bottom-border of the heading paragraph itself — keeps the rule
+    # tight against the header text instead of pushing it down by an empty paragraph's line-height.
+    pPr = p._p.get_or_add_pPr()
+    pBdr = OxmlElement("w:pBdr")
+    bottom = OxmlElement("w:bottom")
+    bottom.set(qn("w:val"), "single")
+    bottom.set(qn("w:sz"), "4")
+    bottom.set(qn("w:space"), "1")
+    bottom.set(qn("w:color"), "BBBBBB")
+    pBdr.append(bottom)
+    pPr.append(pBdr)
 
 
 def _role_header(doc, title: str, company: str, dates: str):
     if company:
         # Line 1: Company (bold) + right-tab + dates (grey)
         p1 = doc.add_paragraph()
-        _spacing(p1, before=8, after=0)
-        p1.paragraph_format.tab_stops.add_tab_stop(Inches(6.5), WD_ALIGN_PARAGRAPH.RIGHT)
+        _spacing(p1, before=10, after=1)
+        p1.paragraph_format.tab_stops.add_tab_stop(Inches(7.0), WD_ALIGN_PARAGRAPH.RIGHT)
         _font(p1.add_run(company), size=11, bold=True, color=DARK)
         if dates:
             _font(p1.add_run(f"\t{dates}"), size=9, color=GREY)
-        # Line 2: Title (italic, slightly indented)
+        # Line 2: Title (italic, flush left)
         p2 = doc.add_paragraph()
-        _spacing(p2, before=0, after=2)
-        p2.paragraph_format.left_indent = Inches(0.1)
+        _spacing(p2, before=0, after=1)
         _font(p2.add_run(title), size=10, italic=True, color=DARK)
     else:
         p = doc.add_paragraph()
         _spacing(p, before=6, after=1)
-        p.paragraph_format.tab_stops.add_tab_stop(Inches(6.5), WD_ALIGN_PARAGRAPH.RIGHT)
+        p.paragraph_format.tab_stops.add_tab_stop(Inches(7.0), WD_ALIGN_PARAGRAPH.RIGHT)
         _font(p.add_run(title), size=11, bold=True, color=DARK)
         if dates:
             _font(p.add_run(f"\t{dates}"), size=9, color=GREY)
 
 
+def _sub_role(doc, content: str):
+    """Secondary heading inside a role block (e.g., "**AI Evaluation Infrastructure** *(parallel role)*").
+
+    Always force-bolds the leading **...** segment so sub-roles render consistently
+    even if upstream markdown is inconsistent. Any trailing content after the bold
+    segment is rendered with normal inline-markup parsing (picks up italic, etc.).
+    """
+    p = doc.add_paragraph()
+    _spacing(p, before=3, after=1)
+
+    m = re.match(r"^\*\*([^*]+)\*\*\s*(.*)$", content)
+    if m:
+        _font(p.add_run(m.group(1)), size=10.5, bold=True, color=DARK)
+        tail = m.group(2).strip()
+        if tail:
+            p.add_run(" ")
+            for rd in _parse_inline_runs(tail):
+                run = p.add_run(rd["text"])
+                _font(run, size=10.5, bold=rd["bold"], italic=rd["italic"], color=DARK)
+    else:
+        # Fallback — line started with `**` but didn't close cleanly; still render bold.
+        _font(p.add_run(content), size=10.5, bold=True, color=DARK)
+
+
 def _bullet(doc, text: str):
+    text = _TRAILING_TAGS.sub("", text).rstrip()
     p = doc.add_paragraph()
     _spacing(p, before=1.5, after=1.5, line=13)
     p.paragraph_format.left_indent = Inches(0.25)
@@ -533,8 +560,12 @@ def markdown_to_docx(md_text: str, output_path: str) -> None:
 
         if btype == "section":
             flush_skills()
-            _section_heading(doc, content)
             current_section = content.lower()
+            # Suppress the "About" heading — the paragraph beneath it is self-explanatory
+            # as the top-of-resume summary. Keeps the header block flowing straight into Experience.
+            if current_section == "about":
+                continue
+            _section_heading(doc, content)
             continue
 
         if btype == "role":
@@ -553,7 +584,12 @@ def markdown_to_docx(md_text: str, output_path: str) -> None:
             _bullet(doc, content)
             continue
 
-        if btype in ("paragraph", "bold", "italic"):
+        if btype == "subrole":
+            flush_skills()
+            _sub_role(doc, content)
+            continue
+
+        if btype in ("paragraph", "italic"):
             flush_skills()
             p = doc.add_paragraph()
             _spacing(p, before=2, after=2)
