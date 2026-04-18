@@ -31,6 +31,7 @@ project-artemis/                    # Plugin root
 ├── skills/                         # All skills
 │   ├── scout/SKILL.md              # Job scouting & pipeline management
 │   ├── apply/SKILL.md              # Application materials generation
+│   ├── redraft-resume/SKILL.md     # Resume-only re-draft (no JD re-fetch, no cover letter/primer edits)
 │   ├── network/SKILL.md            # Networking pipeline
 │   ├── profile/SKILL.md            # Candidate context & interview prep
 │   ├── coach/                      # Interview coaching (full system)
@@ -102,6 +103,7 @@ project-artemis/                    # Plugin root
 |-------|----------|----------------|
 | **scout** | `/artemis:scout`, `/artemis:sync`, `/artemis:review`, `/artemis:status` | Finding jobs, updating the pipeline, triaging what came in |
 | **apply** | `/artemis:analyze`, `/artemis:generate`, `/artemis:submit` | Working a specific posting -- analysis, resume/cover letter, submission |
+| **redraft-resume** | `/artemis:redraft-resume` (also wired to the dashboard's **✨ Re-draft Resume** button) | Resume-only re-draft after `/generate` — reuses cached primer, never re-fetches JD, leaves cover letter/primer/form fills untouched |
 | **network** | `/artemis:network` | Managing contacts, drafting outreach, tracking follow-ups |
 | **profile** | `/artemis:context`, `/artemis:prep` | Building candidate context cache, interview prep for a company |
 | **coach** | `/artemis:kickoff`, `/artemis:practice`, `/artemis:mock`, `/artemis:debrief` | Coaching, storybank, drills, interview analysis |
