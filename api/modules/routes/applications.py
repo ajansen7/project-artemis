@@ -54,6 +54,58 @@ async def generate_application(req: GenerateRequest, request: Request):
     return {"task_id": res.data[0]["id"], "status": "queued", "name": name}
 
 
+class RedraftResumeRequest(BaseModel):
+    job_id: str
+    note: str | None = None
+
+
+@router.post("/api/redraft-resume")
+async def redraft_resume(req: RedraftResumeRequest, request: Request):
+    """
+    Queues a resume-only re-draft task for the orchestrator.
+    Does not touch cover letter, primer, or form fills. Reuses the existing
+    primer + candidate context — never re-fetches the job URL.
+    """
+    if not req.job_id:
+        raise HTTPException(status_code=400, detail="job_id is required")
+
+    user_id = get_user_id_from_request(request)
+
+    # Look up company + title for the task name (single Supabase query).
+    sb = _get_supabase()
+    job_row = await run_db(lambda: (
+        sb.table("jobs")
+        .select("title, companies(name)")
+        .eq("id", req.job_id)
+        .maybe_single()
+        .execute()
+    ))
+    if not job_row.data:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    company = (job_row.data.get("companies") or {}).get("name") or req.job_id[:8]
+    title = job_row.data.get("title") or "role"
+    name = f"redraft-resume — {company} {title}"
+
+    skill_args = f"Job ID: {req.job_id}."
+    if req.note and req.note.strip():
+        skill_args += f" Note: {req.note.strip()}"
+
+    res = await run_db(lambda: sb.table("task_queue").insert({
+        "name": name,
+        "skill": "redraft-resume",
+        "skill_args": skill_args,
+        "source": "api",
+        "user_id": user_id,
+    }).execute())
+
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Failed to queue task")
+
+    await notify_task(res.data[0])
+    return {"task_id": res.data[0]["id"], "status": "queued", "name": name}
+
+
 class GeneratePdfRequest(BaseModel):
     job_id: str
 
