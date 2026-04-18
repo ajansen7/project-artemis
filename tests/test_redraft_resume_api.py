@@ -29,14 +29,20 @@ def auth_headers() -> dict[str, str]:
 
 
 @pytest.fixture(scope="module")
-def any_job_id(auth_headers) -> str:
-    """Grab any job id from the jobs list so we can enqueue a re-draft against it."""
-    r = httpx.get(f"{API_URL}/api/jobs", headers=auth_headers, timeout=10.0)
-    r.raise_for_status()
-    jobs = r.json()
-    if not jobs:
+def any_job_id() -> str:
+    """Grab any job id from Supabase so we can enqueue a re-draft against it.
+
+    The API has no generic /api/jobs list endpoint, so hit Supabase directly.
+    """
+    try:
+        from api.modules.config import _get_supabase
+    except Exception as e:
+        pytest.skip(f"Cannot import supabase client: {e}")
+    sb = _get_supabase()
+    r = sb.table("jobs").select("id").limit(1).execute()
+    if not r.data:
         pytest.skip("No jobs in DB to test against")
-    return jobs[0]["id"]
+    return r.data[0]["id"]
 
 
 def test_redraft_resume_requires_job_id(auth_headers):
