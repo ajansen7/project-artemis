@@ -160,6 +160,48 @@ Collaborative editing pass before the final PDF is generated.
 
 ---
 
+### `/redraft-resume <job_id> [optional note]` — Re-draft Resume Only
+
+Take another pass at the resume markdown using the existing primer, cover letter, and candidate context. Does **not** re-fetch the job URL, does **not** touch the cover letter / primer / form fills. Optionally accepts a short steering note from the user.
+
+**When to use:** The user wants a polish pass on the resume itself — new bullet selection, better tailoring, or responding to a steering nudge — without re-running the full `/generate` flow.
+
+**Steps:**
+1. Parse `skill_args`: it arrives as a single string like `"Job ID: <uuid>. Note: <optional note>"`. Extract `job_id` and `note` (note may be absent).
+2. Fetch the existing application bundle:
+   ```bash
+   artemis-db get-application --id "<job_id>"
+   ```
+   This gives you `primer_md`, `analysis_md`, `resume_md` (current draft), `cover_letter_md`, and `form_fills_md`. **Do not fetch the job URL** — the primer already captures all the JD intelligence you need.
+3. Read candidate context:
+   - `state/candidate_context.md` — positioning, voice, strengths, gaps, story index
+   - `state/resume_master.md` — canonical verified bullets (source of truth)
+   - `state/apply_lessons.md` — read every entry and apply relevant lessons
+   - `state/form_defaults.md` — contact info / header fields
+   - `state/coaching_state.md` — **only** the specific story sections flagged in the story index (e.g., `#### S001`), not the whole file. Same pattern `/generate` uses.
+4. Produce a better-tailored `resume.md` to `output/applications/<company_name>-<role_name>/resume.md` (overwrite). **All formatting rules from `/generate`'s `resume.md` section apply verbatim** — strip `[tag]` markers, preserve sub-role bolding, no `## About` header, no markdown invention. **Only use bullet content verbatim from `state/resume_master.md`.**
+5. If the user supplied a note, treat it as a steering signal that overrides your default bullet-selection instincts. If it's blank, run a blind polish pass.
+6. Persist to the DB:
+   ```bash
+   artemis-db save-application --id "<job_id>" --resume "output/applications/<slug>/resume.md"
+   ```
+7. Regenerate PDF + DOCX + storage paths:
+   ```bash
+   artemis-resume --job-id "<job_id>"
+   ```
+8. **Log activity** (non-critical — skip silently if it fails):
+   ```bash
+   artemis-db add-engagement --action-type "redraft-resume" --platform "artemis" --status "posted" --content "Re-drafted resume for [Company] [Role]" 
+   ```
+9. Report what changed: a 2-3 bullet summary of what was adjusted (which bullets were swapped in/out, whether the about paragraph was re-framed, any response to the user's note). Do not paste the whole new resume.
+
+**Non-goals:**
+- Do not modify `cover_letter.md`, `primer.md`, or `form_fills.md`.
+- Do not re-read the job posting URL.
+- Do not invent new bullet content — select and reorder from `state/resume_master.md` only.
+
+---
+
 ### `/submit <job_id>` — Mark Application Submitted
 
 Mark a job as submitted in the pipeline.
